@@ -1,0 +1,170 @@
+<!-- Tetris/Tetris.html -->
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07080c">
+  <title>Tetris · Arcádia</title>
+  <link rel="stylesheet" href="Tetris.css">
+</head>
+<body data-state="ready">
+
+  <!-- Cabeçalho: voltar ao catálogo da Arcádia + identificação do jogo + pausa e som -->
+  <header class="topbar">
+    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
+        <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Catálogo</span>
+    </a>
+
+    <div class="game-id">
+      <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="9" fill="#4ec0e8"/>
+        <g stroke="#543847" stroke-width="1.5">
+          <rect x="12.5" y="5.5" width="7" height="7" fill="#b35be0"/>
+          <rect x="5.5" y="12.5" width="7" height="7" fill="#b35be0"/>
+          <rect x="12.5" y="12.5" width="7" height="7" fill="#b35be0"/>
+          <rect x="19.5" y="12.5" width="7" height="7" fill="#b35be0"/>
+          <rect x="5.5" y="19.5" width="7" height="7" fill="#74d160"/>
+          <rect x="12.5" y="19.5" width="7" height="7" fill="#fbd530"/>
+          <rect x="19.5" y="19.5" width="7" height="7" fill="#ff6b57"/>
+        </g>
+      </svg>
+      <div class="game-text">
+        <strong>Tetris</strong>
+        <span>Arcade</span>
+      </div>
+    </div>
+
+    <p class="keys" aria-label="Controles">
+      <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> mover</span>
+      <span><kbd>&uarr;</kbd> girar</span>
+      <span><kbd>&darr;</kbd> acelerar</span>
+      <span><kbd>Espaço</kbd> queda</span>
+      <span><kbd>P</kbd> pausa</span>
+      <span><kbd>M</kbd> som</span>
+    </p>
+  </header>
+
+  <div id="arena" class="arena">
+    <div id="layout" class="layout">
+
+      <div class="board-slot">
+        <main id="stage" class="stage" data-state="ready" aria-label="Tetris">
+
+          <!-- Tabuleiro 10 x 20 -->
+          <canvas id="board-canvas" aria-label="Tabuleiro do jogo"></canvas>
+
+          <!-- Tela inicial -->
+          <section class="screen screen-ready">
+            <h1 class="title" aria-label="Tetris">
+              <span class="c-red">T</span><span class="c-orange">E</span><span class="c-yellow">T</span><span class="c-green">R</span><span class="c-cyan">I</span><span class="c-purple">S</span>
+            </h1>
+            <button id="start-button" class="btn" type="button">Começar</button>
+            <p class="controls only-keys">&larr; &rarr; ou A D mover<br>&uarr; ou W girar &nbsp;&middot;&nbsp; &darr; ou S acelerar<br>Espaço queda &nbsp;&middot;&nbsp; P pausa</p>
+            <p class="controls only-touch">Use os botões para jogar</p>
+          </section>
+
+          <!-- Pausa -->
+          <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
+            <h2 id="pause-title" class="over-title">Pausado</h2>
+            <button id="resume-button" class="btn" type="button">Continuar</button>
+          </section>
+
+          <!-- Fim de partida -->
+          <section class="screen screen-over" role="dialog" aria-labelledby="over-title">
+            <h2 id="over-title" class="over-title"><span>Game</span><span>Over</span></h2>
+            <div class="panel">
+              <p id="over-new" class="badge" hidden>Novo recorde!</p>
+              <dl class="panel-rows">
+                <div class="panel-row"><dt>Pontos</dt><dd id="over-score">0</dd></div>
+                <div class="panel-row"><dt>Recorde</dt><dd id="over-best">0</dd></div>
+              </dl>
+            </div>
+            <button id="restart-button" class="btn" type="button">Jogar novamente</button>
+          </section>
+
+          <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+        </main>
+      </div>
+
+      <!-- Informações: próxima peça, pontos, recorde, nível e linhas -->
+      <aside id="hud" class="hud" aria-label="Informações da partida">
+        <div class="hud-actions">
+          <button id="mute-button" class="icon-button" type="button"
+                  aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+            <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+              <path fill="#543847" d="M1 6h3l4-3v10l-4-3H1z"/>
+              <g class="icon-waves" fill="#543847">
+                <rect x="10" y="6" width="1" height="4"/>
+                <rect x="12" y="4" width="1" height="8"/>
+                <rect x="14" y="2" width="1" height="12"/>
+              </g>
+              <g class="icon-cross" fill="#e5432b">
+                <rect x="10" y="5" width="2" height="2"/><rect x="12" y="7" width="2" height="2"/><rect x="14" y="9" width="2" height="2"/>
+                <rect x="14" y="5" width="2" height="2"/><rect x="10" y="9" width="2" height="2"/>
+              </g>
+            </svg>
+          </button>
+          <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (P)">
+            <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+              <rect x="3" y="2" width="4" height="12" fill="#543847"/><rect x="9" y="2" width="4" height="12" fill="#543847"/>
+            </svg>
+          </button>
+        </div>
+        <div class="hud-next">
+          <span class="label">Próxima</span>
+          <div class="next-box"><canvas id="next-canvas" aria-label="Próxima peça"></canvas></div>
+        </div>
+        <dl class="stats">
+          <div class="stat"><dt class="label">Pontos</dt><dd id="hud-score">0</dd></div>
+          <div class="stat"><dt class="label">Recorde</dt><dd id="hud-best">0</dd></div>
+          <div class="stat"><dt class="label">Nível</dt><dd id="hud-level">1</dd></div>
+          <div class="stat"><dt class="label">Linhas</dt><dd id="hud-lines">0</dd></div>
+        </dl>
+      </aside>
+
+      <!-- Controles de toque (aparecem em celulares e tablets, fora do tabuleiro) -->
+      <div id="touch-move" class="touch-move">
+        <button class="tbtn" type="button" data-action="left" aria-label="Mover para a esquerda">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+            <polygon points="1,8 7,2 7,5 15,5 15,11 7,11 7,14" fill="#fff" stroke="#543847" stroke-width="1.5" paint-order="stroke" stroke-linejoin="miter"/>
+          </svg>
+        </button>
+        <button class="tbtn" type="button" data-action="right" aria-label="Mover para a direita">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+            <polygon points="15,8 9,2 9,5 1,5 1,11 9,11 9,14" fill="#fff" stroke="#543847" stroke-width="1.5" paint-order="stroke" stroke-linejoin="miter"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="touch-act" class="touch-act">
+        <button class="tbtn" type="button" data-action="rotate" aria-label="Girar a peça">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+            <path d="M12.5 8.5 A4.5 4.5 0 1 1 8 4" fill="none" stroke="#543847" stroke-width="4.4"/>
+            <path d="M12.5 8.5 A4.5 4.5 0 1 1 8 4" fill="none" stroke="#fff" stroke-width="2.4"/>
+            <polygon points="7,0.5 12,4 7,7.5" fill="#fff" stroke="#543847" stroke-width="1.2" paint-order="stroke"/>
+          </svg>
+        </button>
+        <button class="tbtn" type="button" data-action="soft" aria-label="Acelerar a queda">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+            <polygon points="8,15 1,8 5,8 5,1 11,1 11,8 15,8" fill="#fff" stroke="#543847" stroke-width="1.5" paint-order="stroke" stroke-linejoin="miter"/>
+          </svg>
+        </button>
+        <button class="tbtn tbtn-hard" type="button" data-action="hard" aria-label="Queda instantânea">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+            <polygon points="8,11 2,5 5,5 5,0.5 11,0.5 11,5 14,5" fill="#fff" stroke="#543847" stroke-width="1.5" paint-order="stroke" stroke-linejoin="miter"/>
+            <rect x="2" y="12.5" width="12" height="2.5" fill="#fff" stroke="#543847" stroke-width="1.2" paint-order="stroke"/>
+          </svg>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="Tetris.js"></script>
+</body>
+</html>

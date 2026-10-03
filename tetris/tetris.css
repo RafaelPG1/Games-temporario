@@ -1,0 +1,589 @@
+/* ==========================================================================
+   Tetris/Tetris.css - estilos
+   Mesma identidade do Flappy Bird: cabeçalho da Arcádia, contorno escuro
+   (--ink), textos com contorno, botões laranja com borda branca e painel
+   de papel no fim da partida.
+
+   --u é a "unidade do jogo" dentro do palco (largura do tabuleiro / 160).
+   O JavaScript atualiza esse valor a cada redimensionamento, então textos
+   e painéis escalam junto com o tabuleiro.
+   ========================================================================== */
+
+:root {
+  --ink: #543847;
+  --paper: #ded895;
+  --paper-light: #f6efb4;
+  --orange: #f08a24;
+  --orange-dark: #c9600d;
+  --red: #e5432b;
+  --white: #ffffff;
+  --board: #1c1424;                 /* fundo do tabuleiro: mais escuro que o resto */
+  --u: 1.5px;
+  --o: max(1px, calc(var(--u) * 0.9)); /* espessura do contorno dos textos do palco */
+
+  /* Moldura ao redor do jogo (cabeçalho) */
+  --shell-bg: #07080c;
+  --shell-surface: #0e1017;
+  --shell-line: #222633;
+  --shell-text: #eceef5;
+  --shell-muted: #8d93a8;
+  --shell-accent: #ffc857;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--shell-bg);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  font-family: "Arial Black", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 900;
+  color: var(--white);
+}
+
+/* ---------- Cabeçalho ---------- */
+
+.topbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 56px;
+  padding: 0 clamp(10px, 3vw, 24px);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-weight: 600;
+  color: var(--shell-text);
+  background: linear-gradient(180deg, #0d0f16, var(--shell-bg));
+  border-bottom: 1px solid var(--shell-line);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  position: relative;
+  z-index: 3;
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 16px 0 10px;
+  font-size: 14px;
+  color: var(--shell-text);
+  text-decoration: none;
+  background: var(--shell-surface);
+  border: 1px solid var(--shell-line);
+  border-radius: 999px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.25s, transform 0.1s;
+}
+.back svg { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.2s; }
+.back:hover {
+  background: #141722;
+  border-color: rgba(255, 200, 87, 0.6);
+  box-shadow: 0 0 0 4px rgba(255, 200, 87, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
+.back:active { transform: scale(0.97); }
+.back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+
+.game-id {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(78, 192, 232, 0.28); }
+.game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.game-text strong {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
+
+.keys {
+  display: flex;
+  gap: 16px;
+  margin: 0 0 0 auto;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--shell-muted);
+  white-space: nowrap;
+}
+.keys span { display: inline-flex; align-items: center; gap: 6px; }
+.keys kbd {
+  min-width: 24px;
+  padding: 2px 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--shell-text);
+  background: var(--shell-surface);
+  border: 1px solid var(--shell-line);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--paper-light);
+  opacity: 0.85;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.icon-button:hover,
+.icon-button:focus-visible { opacity: 1; }
+.icon-button:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2px; }
+.icon-button:active { transform: translateY(1px); }
+.icon-button svg { width: 62%; height: 62%; }
+.icon-button .icon-cross { display: none; }
+.icon-button.is-muted .icon-waves { display: none; }
+.icon-button.is-muted .icon-cross { display: inline; }
+
+/* A pausa só aparece durante a partida (o espaço fica reservado) */
+#pause-button { visibility: hidden; }
+body[data-state="playing"] #pause-button,
+body[data-state="paused"] #pause-button { visibility: visible; }
+
+/* ---------- Arena: cenário atrás, jogo na frente ---------- */
+
+.arena {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+  background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg);
+}
+
+/* Grade: tabuleiro + painel de informações (+ botões de toque em telas de toque) */
+.layout {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0 0 0 155px; /* Deslocamento à direita para centralização visual do conjunto */
+  column-gap: 14px;
+  row-gap: 10px;
+  display: grid;
+  justify-content: center;
+  align-content: center;
+  align-items: center;
+  grid-template-columns: auto auto;
+  grid-template-areas: "board hud";
+}
+.board-slot {
+  grid-area: board;
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  min-height: 0;
+}
+.hud { grid-area: hud; align-self: start; }
+.touch-move { grid-area: move; display: none; }
+.touch-act { grid-area: act; display: none; }
+
+/* ---------- Palco (tabuleiro) ---------- */
+
+.stage {
+  position: relative;
+  /* Valores de reserva; o JavaScript define largura e altura exatas em px. */
+  width: 200px;
+  height: 400px;
+  overflow: hidden;
+  background: var(--board);
+  box-shadow:
+    0 0 0 calc(var(--u) * 2) var(--ink),
+    0 0 0 calc(var(--u) * 3) rgba(255, 255, 255, 0.1),
+    0 calc(var(--u) * 6) calc(var(--u) * 16) rgba(0, 0, 0, 0.55);
+}
+#board-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: crisp-edges;   /* Firefox antigo */
+  image-rendering: pixelated;     /* demais navegadores */
+}
+
+/* ---------- Textos com contorno ---------- */
+
+.title,
+.over-title,
+.controls,
+.badge,
+.panel-row dd,
+.hud .label,
+.hud .stat dd {
+  text-shadow:
+    calc(var(--o) * -1) calc(var(--o) * -1) 0 var(--ink),
+    var(--o) calc(var(--o) * -1) 0 var(--ink),
+    calc(var(--o) * -1) var(--o) 0 var(--ink),
+    var(--o) var(--o) 0 var(--ink),
+    0 calc(var(--o) * -1) 0 var(--ink),
+    0 var(--o) 0 var(--ink),
+    calc(var(--o) * -1) 0 0 var(--ink),
+    var(--o) 0 0 var(--ink),
+    0 calc(var(--o) * 2) 0 var(--ink);
+}
+
+/* ---------- Telas sobrepostas ao tabuleiro ---------- */
+
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 11);
+  padding: 0 6%;
+  text-align: center;
+  pointer-events: none;            /* só os botões recebem toque */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(calc(var(--u) * 8));
+  transition: opacity 0.25s ease, transform 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.stage[data-state="ready"] .screen-ready,
+.stage[data-state="paused"] .screen-paused,
+.stage[data-state="over"].show-panel .screen-over {
+  opacity: 1;
+  visibility: visible;
+  transform: none;
+  transition-delay: 0s;
+}
+
+.screen-ready { background: rgba(28, 20, 36, 0.55); }
+.screen-paused { background: rgba(28, 20, 36, 0.94); }   /* esconde as peças durante a pausa */
+
+/* ---------- Tela inicial ---------- */
+
+.title {
+  margin: 0 0 calc(var(--u) * 4);
+  font-size: calc(var(--u) * 29);
+  line-height: 1;
+  letter-spacing: calc(var(--u) * 0.8);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.c-red { color: #ff6b57; }
+.c-orange { color: #f08a24; }
+.c-yellow { color: #fbd530; }
+.c-green { color: #74d160; }
+.c-cyan { color: #4fd0ee; }
+.c-purple { color: #c47cf0; }
+
+.controls {
+  margin: 0;
+  font-size: max(10px, calc(var(--u) * 6.4));
+  line-height: 1.5;
+  color: var(--white);
+  --o: 1px;
+}
+.only-touch { display: none; }
+
+/* ---------- Pausa e fim de partida ---------- */
+
+.over-title {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: calc(var(--u) * 23);
+  line-height: 0.98;
+  text-transform: uppercase;
+  color: #ff9a2a;
+}
+.screen-paused .over-title { font-size: calc(var(--u) * 20); }
+.over-title span:last-child { color: #ff8a1f; }
+
+.panel {
+  position: relative;
+  width: 100%;
+  max-width: calc(var(--u) * 118);
+  padding: calc(var(--u) * 8) calc(var(--u) * 10);
+  background: var(--paper);
+  border: calc(var(--u) * 2) solid var(--ink);
+  box-shadow:
+    inset 0 0 0 calc(var(--u) * 1) var(--paper-light),
+    0 calc(var(--u) * 2) 0 rgba(0, 0, 0, 0.25);
+}
+.panel-rows { margin: 0; display: grid; gap: calc(var(--u) * 5); }
+.panel-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.panel-row dt {
+  font-size: max(11px, calc(var(--u) * 7.5));
+  color: var(--orange-dark);
+  text-transform: uppercase;
+}
+.panel-row dd {
+  margin: 0;
+  font-size: calc(var(--u) * 13);
+  line-height: 1;
+  color: var(--white);
+}
+
+.badge {
+  position: absolute;
+  top: calc(var(--u) * -8);
+  right: calc(var(--u) * -5);
+  margin: 0;
+  padding: calc(var(--u) * 2) calc(var(--u) * 4);
+  font-size: max(9px, calc(var(--u) * 6));
+  text-transform: uppercase;
+  background: var(--red);
+  border: calc(var(--u) * 1.4) solid var(--ink);
+  transform: rotate(6deg);
+  text-shadow: 0 calc(var(--u) * 0.8) 0 var(--ink);
+  white-space: nowrap;
+}
+.badge[hidden] { display: none; }
+
+/* ---------- Botões ---------- */
+
+.btn {
+  pointer-events: auto;
+  min-width: calc(var(--u) * 84);
+  min-height: max(44px, calc(var(--u) * 15));
+  padding: calc(var(--u) * 3.5) calc(var(--u) * 9);
+  font: inherit;
+  font-size: max(13px, calc(var(--u) * 8.4));
+  color: var(--white);
+  text-transform: uppercase;
+  text-shadow: 0 calc(var(--u) * 1.2) 0 var(--orange-dark);
+  background: var(--orange);
+  border: calc(var(--u) * 2) solid var(--white);
+  outline: calc(var(--u) * 2) solid var(--ink);
+  box-shadow: 0 calc(var(--u) * 2.5) 0 calc(var(--u) * 2) var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.btn:hover { background: #ff9a35; }
+.btn:active { transform: translateY(calc(var(--u) * 2)); box-shadow: 0 calc(var(--u) * 0.6) 0 calc(var(--u) * 2) var(--ink); }
+.btn:focus-visible { outline-color: #2d7be0; }
+
+.noscript {
+  position: absolute;
+  inset: auto 0 40% 0;
+  margin: 0;
+  text-align: center;
+  color: var(--white);
+}
+
+/* ---------- Painel de informações (fora do tabuleiro) ---------- */
+
+.hud {
+  --o: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 148px;
+}
+.hud .label {
+  display: block;
+  font-size: 12px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #ffe36a;
+}
+.hud-next { display: flex; flex-direction: column; gap: 6px; }
+.hud-actions { display: flex; gap: 10px; }
+.next-box {
+  width: 128px;
+  height: 96px;
+  background: var(--board);
+  border: 3px solid var(--ink);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1), 0 4px 10px rgba(0, 0, 0, 0.35);
+}
+#next-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+.stats { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+.stat { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.stat dt { margin: 0; }
+.stat dd {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.05;
+  color: var(--white);
+  white-space: nowrap;
+}
+
+/* ---------- Botões de toque ---------- */
+
+.touch-move,
+.touch-act {
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+}
+.tbtn {
+  width: var(--tb);
+  height: var(--tb);
+  margin: 3px 3px 7px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--white);
+  background: var(--orange);
+  border: 3px solid var(--white);
+  outline: 3px solid var(--ink);
+  box-shadow: 0 4px 0 3px var(--ink);
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.tbtn svg { width: 58%; height: 58%; pointer-events: none; }
+.tbtn.is-down,
+.tbtn:active {
+  transform: translateY(3px);
+  background: #ff9a35;
+  box-shadow: 0 1px 0 3px var(--ink);
+}
+.tbtn-hard { background: #e5632b; }
+.tbtn:focus-visible { outline-color: #2d7be0; }
+
+/* ==========================================================================
+   Celular em pé (ou qualquer janela mais alta que larga):
+   informações em cima, tabuleiro no meio, botões embaixo
+   ========================================================================== */
+@media (orientation: portrait) {
+  .layout {
+    --tb: clamp(46px, 14vw, 68px);
+    padding: 6px 10px 10px;
+    column-gap: 10px;
+    row-gap: 8px;
+    justify-content: stretch;
+    align-content: stretch;
+    align-items: stretch;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "hud hud"
+      "board board"
+      "move act";
+  }
+  .touch-move { display: flex; justify-self: start; }
+  .touch-act { display: flex; justify-self: end; }
+  .touch-move, .touch-act { align-self: end; gap: 10px; }
+
+  .hud {
+    --o: 1.5px;
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+  }
+  .hud-actions { order: 3; flex-direction: column; gap: 6px; }
+  .hud .label { font-size: 11px; }
+  .hud-next { gap: 3px; }
+  .next-box { width: 64px; height: 48px; border-width: 2px; }
+  .stats {
+    flex: 1 1 auto;
+    max-width: 260px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px 14px;
+  }
+  .stat { gap: 1px; }
+  .stat dd { font-size: 20px; }
+}
+
+/* ==========================================================================
+   Celular/tablet deitado (tela de toque): informações e movimento à esquerda,
+   girar/acelerar/queda à direita, tabuleiro no centro
+   ========================================================================== */
+@media (orientation: landscape) and (pointer: coarse) {
+  .layout {
+    --tb: clamp(48px, 17vh, 72px);
+    padding: 6px 12px;
+    column-gap: 14px;
+    justify-content: center;
+    align-content: stretch;
+    align-items: stretch;
+    grid-template-columns: auto auto auto;
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "hud board act"
+      "move board act";
+  }
+  .board-slot { align-self: center; }
+  .touch-move { display: flex; align-self: end; justify-self: center; gap: 10px; }
+  .touch-act { display: flex; flex-direction: column; align-self: center; gap: 8px; }
+
+  .hud {
+    --o: 1.5px;
+    width: 132px;
+    gap: 8px;
+    align-self: start;
+    align-items: stretch;
+  }
+  .hud-actions { justify-content: center; }
+  .hud-next { align-items: center; gap: 3px; }
+  .hud .label { font-size: 11px; }
+  .next-box { width: 84px; height: 63px; border-width: 2px; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 8px; }
+  .stat dd { font-size: 17px; }
+}
+
+/* ---------- Janelas largas porém baixas (computador com pouca altura) ---------- */
+@media (orientation: landscape) and (pointer: fine) and (max-height: 560px) {
+  .hud { width: 118px; gap: 8px; }
+  .next-box { width: 100px; height: 75px; }
+  .stats { gap: 6px; }
+  .stat dd { font-size: 20px; }
+}
+
+/* ---------- Telas de toque: mostra a dica de toque em vez do teclado ---------- */
+@media (pointer: coarse) {
+  .only-keys { display: none; }
+  .only-touch { display: block; }
+}
+
+/* ---------- Telas pequenas ---------- */
+@media (max-width: 1000px) {
+  .keys { display: none; }
+}
+@media (max-width: 640px) {
+  .topbar { height: 52px; }
+}
+@media (max-height: 420px) {
+  .topbar { height: 46px; }
+  .game-text span { display: none; }
+}
+
+/* ---------- Movimento reduzido ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .screen { transition: none; }
+  .back, .back svg { transition: none; }
+}
