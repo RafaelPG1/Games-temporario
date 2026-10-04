@@ -40,7 +40,7 @@ const GAMES = [
   { id: 'memory_match', title: 'Memory Match', category: 'puzzle', path: 'memory_match/memory_match.html' },
   { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle', path: 'slide_puzzle/slide_puzzle.html'},
   { id: 'water_sort',   title: 'Water Sort',   category: 'puzzle', path: 'water_sort/water_sort.html'},
-  { id: 'piano-tap',    title: 'Piano Tap',    category: 'arcade'    },
+  { id: 'piano_tap',    title: 'Piano Tap',    category: 'arcade', path: 'piano_tap/piano_tap.html'},
   { id: '2048',         title: '2048',         category: 'puzzle'    },
   { id: 'minesweeper',  title: 'Campo Minado', category: 'puzzle'    },
   { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle'    },
@@ -97,7 +97,7 @@ const GAME_ART = {
   'solitaire': () => svg(88, 64, '<rect x="10" y="8" width="38" height="52" rx="6" opacity=".45" transform="rotate(-9 29 34)"/><rect x="40" y="6" width="38" height="52" rx="6"/>' +
     '<text x="48" y="24" font-size="15" font-weight="800" font-family="system-ui,sans-serif" fill="var(--bg)">A</text><path d="M59 28l9 11-9 11-9-11z" fill="var(--bg)"/>'),
   'maze-muncher': () => svg(100, 64, `<path d="M4 20h30M50 20h46M4 44h46M66 44h30M34 20v14M66 20v14" ${LINE} stroke-width="4" opacity=".4"/><path d="M26 32L38 22a13 13 0 1 0 0 20z" transform="translate(6 0)"/><circle cx="58" cy="32" r="3" opacity=".8"/><circle cx="72" cy="32" r="3" opacity=".8"/><circle cx="86" cy="32" r="3" opacity=".8"/>`),
-  'piano-tap': () => svg(92, 64, ['0100', '0001', '1000', '0010'].flatMap((row, r) => [...row].map((c, k) =>
+  'piano_tap': () => svg(92, 64, ['0100', '0001', '1000', '0010'].flatMap((row, r) => [...row].map((c, k) =>
     `<rect x="${k * 23}" y="${r * 16}" width="21" height="14" rx="3" ${c === '1' ? '' : 'opacity=".25"'}/>`)).join(''))
 };
 
