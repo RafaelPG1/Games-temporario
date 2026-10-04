@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07080c">
+  <title>Sokoban · Arcádia</title>
+  <link rel="stylesheet" href="sokoban.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
+        <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Catálogo</span>
+    </a>
+    <div class="game-id">
+      <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="9" fill="#1c2233"/>
+        <rect x="6" y="9" width="14" height="14" rx="2" fill="#d29a4c" stroke="#6b3f1a" stroke-width="1.6"/>
+        <path d="M8 11l10 10M18 11L8 21" stroke="#6b3f1a" stroke-width="1.6" stroke-linecap="round"/>
+        <circle cx="23.5" cy="10" r="3.6" fill="#ffc857"/>
+      </svg>
+      <div class="game-text"><h1>Sokoban</h1><span>Puzzle</span></div>
+    </div>
+    <p class="keys" aria-label="Controles">
+      <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> ou <kbd>WASD</kbd></span>
+      <span><kbd>Z</kbd> desfazer</span>
+      <span><kbd>R</kbd> reiniciar</span>
+      <span><kbd>M</kbd> som</span>
+    </p>
+  </header>
+
+  <div id="arena" class="arena">
+    <main id="stage" class="stage" aria-label="Sokoban">
+      <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+        <svg viewBox="0 0 16 16" fill="none" stroke="#0f1320" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="#0f1320"/>
+          <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
+          <g class="icon-cross" stroke="#c9372a"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
+        </svg>
+      </button>
+      <button id="levels-button" class="icon-button" type="button" aria-label="Escolher fase" title="Fases (L)">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><g fill="#0f1320"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></g></svg>
+      </button>
+
+      <section class="hud" aria-label="Partida">
+        <div class="stat"><span>Fase</span><strong id="level-label">1/50</strong></div>
+        <div class="stat"><span>Movimentos</span><strong id="moves">0</strong></div>
+        <div class="stat stat-best"><span>Recorde</span><strong id="best">—</strong></div>
+      </section>
+
+      <div class="board">
+        <div id="map" class="map" role="img" aria-label="Tabuleiro do Sokoban"></div>
+      </div>
+      <p id="status" class="status" aria-live="polite"></p>
+
+      <div class="actions">
+        <button id="undo-button" class="btn" type="button" title="Desfazer (Z)">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3L2.5 6.5 6 10M3 6.5h6.5a3.5 3.5 0 010 7H7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Desfazer</span>
+        </button>
+        <button id="restart-button" class="btn btn-alt" type="button" title="Reiniciar (R)">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 11-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Reiniciar</span>
+        </button>
+      </div>
+
+      <div class="dpad" role="group" aria-label="Controles direcionais">
+        <button type="button" class="pad pad-up" data-dir="up" aria-label="Cima"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 10l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" class="pad pad-left" data-dir="left" aria-label="Esquerda"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" class="pad pad-down" data-dir="down" aria-label="Baixo"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 6l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <button type="button" class="pad pad-right" data-dir="right" aria-label="Direita"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      </div>
+
+      <section class="screen screen-levels" role="dialog" aria-labelledby="levels-title">
+        <h2 id="levels-title" class="screen-title">Fases</h2>
+        <div id="level-tabs" class="level-tabs" role="tablist" aria-label="Grupos de fases"></div>
+        <p id="group-name" class="group-name"></p>
+        <div id="level-grid" class="level-grid"></div>
+        <button id="levels-close" class="btn btn-alt" type="button">Fechar</button>
+      </section>
+      <section class="screen screen-won" role="dialog" aria-labelledby="won-title">
+        <h2 id="won-title" class="screen-title">Fase concluída!</h2>
+        <p class="screen-text"><span id="won-moves">0</span> movimentos</p>
+        <p id="won-record" class="record" hidden>Novo recorde</p>
+        <p id="won-end" class="screen-text" hidden>Você concluiu todas as fases.</p>
+        <div class="row">
+          <button id="next-button" class="btn" type="button">Próxima fase</button>
+          <button id="again-button" class="btn btn-alt" type="button">Repetir fase</button>
+          <button id="won-levels" class="btn btn-alt" type="button">Fases</button>
+        </div>
+      </section>
+      <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+    </main>
+  </div>
+  <script src="sokoban.js"></script>
+</body>
+</html>

@@ -42,7 +42,7 @@ const GAMES = [
   { id: 'water_sort',   title: 'Water Sort',   category: 'puzzle', path: 'water_sort/water_sort.html'},
   { id: 'piano_tap',    title: 'Piano Tap',    category: 'arcade', path: 'piano_tap/piano_tap.html'},
   { id: 'campo_minado',  title: 'Campo Minado', category: 'puzzle', path: 'campo_minado/campo_minado.html'},
-  { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle'    },
+  { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle', path: 'sokoban/sokoban.html'},
   { id: 'tic-tac-toe',  title: 'Jogo da Velha', category: 'classicos' },
   { id: 'battleship',   title: 'Batalha Naval', category: 'estrategia' },
   { id: 'solitaire',    title: 'Solitário',    category: 'casual'    },

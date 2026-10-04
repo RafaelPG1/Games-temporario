@@ -2,7 +2,11 @@ import os
 
 # Pergunta apenas o nome do jogo diretamente no terminal
 print("Criado de pasta e arquivos")
-nome = input("Nome: ")
+nome = ""
+while nome == "":
+    os.system("cls")
+    print("Criado de pasta e arquivos")
+    nome = input("Nome: ")
 
 if nome:
     # Remove espaços extras nas pontas
