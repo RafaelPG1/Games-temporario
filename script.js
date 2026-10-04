@@ -1,28 +1,25 @@
 /* ===== CONFIGURAÇÃO DO CATÁLOGO =====
   script.js - raiz do projeto
 
-   Para adicionar um jogo: coloque a pasta dele ao lado deste index.html
-   (ex.: "novo-jogo/index.html") e inclua uma linha em GAMES.
+   Para adicionar um jogo: coloque a pasta dele em "jogo_faltando/"
+   (ex.: "jogo_faltando/novo-jogo/index.html") e inclua uma linha em GAMES.
 
-   GAMES_DIR:  pasta que contém as pastas dos jogos, relativa a este arquivo.
-               '' = mesma pasta do index.html. Se você mover os jogos
-               para "jogos/", use 'jogos/'.
-
+   GAMES_DIR:  pasta padrão apenas para jogos sem o atributo 'path'.
+               
    GAME_ENTRY: arquivo de entrada PADRÃO de todo jogo (dentro da pasta dele).
 
    GAMES: { id, title, category, path?, available?, art? }
      - id:        nome da pasta do jogo
      - category:  um id de CATEGORIES
-     - path:      (opcional) caminho do arquivo de entrada, relativo a GAMES_DIR.
-                  Sem ele vale o padrão: id + "/" + GAME_ENTRY
-                  (ex.: "snake/index.html").
+     - path:      (opcional) caminho exato a partir da raiz.
+                  Se definido, ignora GAMES_DIR.
                   Ex.: path: 'flappy_bird/flappy_bird.html'
      - available: (opcional) false mostra "Em breve" e mantém o card sem link
      - art:       (opcional) HTML de um <svg> próprio; sem ele usa GAME_ART[id]
                   e, na falta, a arte da categoria
 
    CATEGORIES: { id, nome, hue }  (hue 0–360 define a cor dos cards) */
-const GAMES_DIR = '';
+const GAMES_DIR = 'jogo_faltando/';
 const GAME_ENTRY = 'index.html';
 
 const CATEGORIES = [
@@ -35,16 +32,16 @@ const CATEGORIES = [
 
 const GAMES = [
   { id: 'flappy_bird',  title: 'Flappy Bird',  category: 'arcade', path: 'flappy_bird/flappy_bird.html' },
-  { id: 'jumpy',     title: 'Jumpy',     category: 'arcade', path: 'jumpy/jumpy.html' },
-  { id: 'block-drop',   title: 'Tetris',   category: 'arcade', path: 'tetris/tetris.html' },
+  { id: 'jumpy',        title: 'Jumpy',        category: 'arcade', path: 'jumpy/jumpy.html' },
+  { id: 'tetris',       title: 'Tetris',       category: 'arcade', path: 'tetris/tetris.html' },
   { id: 'breakout',     title: 'Breakout',     category: 'arcade', path: 'breakout/breakout.html'},
-  { id: 'stack-tower',  title: 'Stack Tower',  category: 'arcade'    },
-  { id: 'snake',        title: 'Snake',        category: 'classicos' },
-  { id: 'memory-match', title: 'Memory Match', category: 'puzzle'    },
-  { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle'    },
-  { id: 'sudoku',       title: 'Sudoku',       category: 'puzzle'    },
-  { id: 'water-sort',   title: 'Water Sort',   category: 'puzzle'    },
-  { id: 'piano-tap',    title: 'Piano Tap',    category: 'arcade'    },
+  { id: 'stack_tower',  title: 'Stack Tower',  category: 'arcade', path: 'stack_tower/stack_tower.html'},
+  { id: 'snake',        title: 'Snake',        category: 'classicos', path: 'snake/snake.html' },
+  { id: 'memory-match', title: 'Memory Match', category: 'puzzle', path: 'memory-match/memory-match.html' },
+  { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle', path: 'slide-puzzle/slide-puzzle.html' },
+  { id: 'sudoku',       title: 'Sudoku',       category: 'puzzle', path: 'sudoku/sudoku.html' },
+  { id: 'water-sort',   title: 'Water Sort',   category: 'puzzle', path: 'water-sort/water-sort.html' },
+  { id: 'piano-tap',    title: 'Piano Tap',    category: 'arcade', path: 'piano-tap/piano-tap.html' },
   { id: '2048',         title: '2048',         category: 'puzzle'    },
   { id: 'minesweeper',  title: 'Campo Minado', category: 'puzzle'    },
   { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle'    },
@@ -116,8 +113,11 @@ const state = { q: '', cat: 'todos' };
 const norm = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const catOf = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[0];
-// Único ponto que resolve o arquivo de entrada de um jogo (padrão: pasta/index.html).
-const gameUrl = (g) => GAMES_DIR + (g.path || `${g.id}/${GAME_ENTRY}`);
+
+// Resolve o link do jogo:
+// Se tem path explícito -> usa o path da raiz.
+// Se não tem path -> usa GAMES_DIR + id + '/' + GAME_ENTRY.
+const gameUrl = (g) => g.path ? g.path : (GAMES_DIR + `${g.id}/${GAME_ENTRY}`);
 const PLAY = '<svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M2 1l9 5-9 5z"/></svg>';
 
 // Vagas reservadas: aparecem só em categorias sem jogos (ou com o catálogo vazio).
