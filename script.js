@@ -37,11 +37,11 @@ const GAMES = [
   { id: 'breakout',     title: 'Breakout',     category: 'arcade', path: 'breakout/breakout.html'},
   { id: 'stack_tower',  title: 'Stack Tower',  category: 'arcade', path: 'stack_tower/stack_tower.html'},
   { id: 'snake',        title: 'Snake',        category: 'classicos', path: 'snake/snake.html' },
-  { id: 'memory-match', title: 'Memory Match', category: 'puzzle', path: 'memory-match/memory-match.html' },
-  { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle', path: 'slide-puzzle/slide-puzzle.html' },
-  { id: 'sudoku',       title: 'Sudoku',       category: 'puzzle', path: 'sudoku/sudoku.html' },
-  { id: 'water-sort',   title: 'Water Sort',   category: 'puzzle', path: 'water-sort/water-sort.html' },
-  { id: 'piano-tap',    title: 'Piano Tap',    category: 'arcade', path: 'piano-tap/piano-tap.html' },
+  { id: 'memory-match', title: 'Memory Match', category: 'puzzle', path: 'memory_match/memory_match.html' },
+  { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle'    },
+  { id: 'sudoku',       title: 'Sudoku',       category: 'puzzle'    },
+  { id: 'water-sort',   title: 'Water Sort',   category: 'puzzle'    },
+  { id: 'piano-tap',    title: 'Piano Tap',    category: 'arcade'    },
   { id: '2048',         title: '2048',         category: 'puzzle'    },
   { id: 'minesweeper',  title: 'Campo Minado', category: 'puzzle'    },
   { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle'    },
@@ -117,7 +117,7 @@ const catOf = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[0];
 // Resolve o link do jogo:
 // Se tem path explícito -> usa o path da raiz.
 // Se não tem path -> usa GAMES_DIR + id + '/' + GAME_ENTRY.
-const gameUrl = (g) => g.path ? g.path : (GAMES_DIR + `${g.id}/${GAME_ENTRY}`);
+const gameUrl = (g) => g.path || `jogo_faltando/${g.id}/index.html`;
 const PLAY = '<svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M2 1l9 5-9 5z"/></svg>';
 
 // Vagas reservadas: aparecem só em categorias sem jogos (ou com o catálogo vazio).
