@@ -41,8 +41,7 @@ const GAMES = [
   { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle', path: 'slide_puzzle/slide_puzzle.html'},
   { id: 'water_sort',   title: 'Water Sort',   category: 'puzzle', path: 'water_sort/water_sort.html'},
   { id: 'piano_tap',    title: 'Piano Tap',    category: 'arcade', path: 'piano_tap/piano_tap.html'},
-  { id: '2048',         title: '2048',         category: 'puzzle'    },
-  { id: 'minesweeper',  title: 'Campo Minado', category: 'puzzle'    },
+  { id: 'campo_minado',  title: 'Campo Minado', category: 'puzzle', path: 'campo_minado/campo_minado.html'},
   { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle'    },
   { id: 'tic-tac-toe',  title: 'Jogo da Velha', category: 'classicos' },
   { id: 'battleship',   title: 'Batalha Naval', category: 'estrategia' },
@@ -86,9 +85,7 @@ const GAME_ART = {
     return `<rect x="${x}" y="4" width="24" height="56" rx="12" ${LINE.replace('none', 'none')} stroke-width="2" opacity=".7"/>` +
       layers.map((o, j) => `<rect x="${x + 4}" y="${46 - j * 12}" width="16" height="11" rx="${j ? 2 : 6}" opacity="${o}"/>`).join('');
   }).join('')),
-  '2048': () => svg(64, 64, [[0,0,2],[1,0,4],[0,1,8],[1,1,16]].map(([c, r, n], i) =>
-    `<rect x="${c * 33}" y="${r * 33}" width="30" height="30" rx="6" opacity="${.35 + i * .22}"/><text x="${c * 33 + 15}" y="${r * 33 + 21}" text-anchor="middle" font-size="${n > 9 ? 14 : 17}" font-weight="800" font-family="system-ui,sans-serif" fill="var(--bg)">${n}</text>`).join('')),
-  'minesweeper': () => svg(64, 64, [...Array(9).keys()].map(i => `<rect x="${(i % 3) * 22}" y="${Math.floor(i / 3) * 22}" width="20" height="20" rx="3" opacity="${i === 4 || i === 6 ? .9 : .28}"/>`).join('') +
+  'campo_minado': () => svg(64, 64, [...Array(9).keys()].map(i => `<rect x="${(i % 3) * 22}" y="${Math.floor(i / 3) * 22}" width="20" height="20" rx="3" opacity="${i === 4 || i === 6 ? .9 : .28}"/>`).join('') +
     '<g fill="var(--bg)"><circle cx="32" cy="32" r="5"/></g><path d="M32 23v18M23 32h18M26 26l12 12M38 26L26 38" stroke="var(--bg)" stroke-width="2" stroke-linecap="round"/><path d="M12 54V44M12 44l8 3-8 3" stroke="var(--bg)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="var(--bg)"/>'),
   'sokoban': () => svg(66, 66, '<rect x="0" y="0" width="66" height="14" rx="3" opacity=".35"/><rect x="0" y="52" width="66" height="14" rx="3" opacity=".35"/><rect x="0" y="14" width="14" height="38" opacity=".35"/>' +
     '<rect x="26" y="22" width="22" height="22" rx="3"/><path d="M30 26l14 14M44 26L30 40" stroke="var(--bg)" stroke-width="2.4" stroke-linecap="round"/><circle cx="56" cy="33" r="5" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="19" cy="33" r="5" opacity=".7"/>'),
