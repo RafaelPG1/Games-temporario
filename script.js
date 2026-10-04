@@ -37,7 +37,7 @@ const GAMES = [
   { id: 'flappy_bird',  title: 'Flappy Bird',  category: 'arcade', path: 'flappy_bird/flappy_bird.html' },
   { id: 'jumpy',     title: 'Jumpy',     category: 'arcade', path: 'jumpy/jumpy.html' },
   { id: 'block-drop',   title: 'Tetris',   category: 'arcade', path: 'tetris/tetris.html' },
-  { id: 'breakout',     title: 'Breakout',     category: 'arcade'    },
+  { id: 'breakout',     title: 'Breakout',     category: 'arcade', path: 'breakout/breakout.html'},
   { id: 'stack-tower',  title: 'Stack Tower',  category: 'arcade'    },
   { id: 'snake',        title: 'Snake',        category: 'classicos' },
   { id: 'memory-match', title: 'Memory Match', category: 'puzzle'    },
