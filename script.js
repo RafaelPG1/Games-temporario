@@ -37,8 +37,8 @@ const GAMES = [
   { id: 'breakout',     title: 'Breakout',     category: 'arcade', path: 'breakout/breakout.html'},
   { id: 'stack_tower',  title: 'Stack Tower',  category: 'arcade', path: 'stack_tower/stack_tower.html'},
   { id: 'snake',        title: 'Snake',        category: 'classicos', path: 'snake/snake.html' },
-  { id: 'memory-match', title: 'Memory Match', category: 'puzzle', path: 'memory_match/memory_match.html' },
-  { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle'    },
+  { id: 'memory_match', title: 'Memory Match', category: 'puzzle', path: 'memory_match/memory_match.html' },
+  { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle', path: 'slide_puzzle/slide_puzzle.html'},
   { id: 'sudoku',       title: 'Sudoku',       category: 'puzzle'    },
   { id: 'water-sort',   title: 'Water Sort',   category: 'puzzle'    },
   { id: 'piano-tap',    title: 'Piano Tap',    category: 'arcade'    },
@@ -76,11 +76,11 @@ const GAME_ART = {
   'block-drop': () => svg(63, 54, px(['0011100','0001000','0000000','1100000','1101110','1111110'], 9)),
   'breakout': () => svg(100, 66, [0,1,2].flatMap(r => [0,1,2,3,4].map(c =>
     `<rect x="${c * 19 + 2}" y="${r * 10 + 2}" width="17" height="8" rx="2" opacity="${1 - r * .25}"/>`)).join('') + '<circle cx="54" cy="46" r="4"/><rect x="36" y="58" width="30" height="5" rx="2.5"/>'),
-  'stack-tower': () => svg(100, 64, [[30,50],[24,38],[34,26],[28,14],[32,2]].map(([x, y], i) =>
+  'stack_tower': () => svg(100, 64, [[30,50],[24,38],[34,26],[28,14],[32,2]].map(([x, y], i) =>
     `<rect x="${x}" y="${y}" width="40" height="10" rx="2" opacity="${.45 + i * .14}"/>`).join('')),
   'snake': () => svg(100, 64, `<path d="M12 50H44V32H72V14H86" ${LINE} stroke-width="9"/><circle cx="88" cy="14" r="7"/><circle cx="20" cy="16" r="4" opacity=".6"/>`),
-  'memory-match': () => svg(100, 64, '<rect x="12" y="8" width="34" height="48" rx="6" opacity=".5" transform="rotate(-8 29 32)"/><rect x="54" y="8" width="34" height="48" rx="6"/><circle cx="71" cy="32" r="9" fill="var(--bg)"/>'),
-  'slide-puzzle': () => svg(64, 64, [...Array(8).keys()].map(i =>
+  'memory_match': () => svg(100, 64, '<rect x="12" y="8" width="34" height="48" rx="6" opacity=".5" transform="rotate(-8 29 32)"/><rect x="54" y="8" width="34" height="48" rx="6"/><circle cx="71" cy="32" r="9" fill="var(--bg)"/>'),
+  'slide_puzzle': () => svg(64, 64, [...Array(8).keys()].map(i =>
     `<rect x="${(i % 3) * 22}" y="${Math.floor(i / 3) * 22}" width="20" height="20" rx="4" opacity="${i % 2 ? .55 : 1}"/>`).join('')),
   'sudoku': () => svg(64, 64, [...Array(9).keys()].map(i => {
     const x = (i % 3) * 22, y = Math.floor(i / 3) * 22, d = { 0: 5, 2: 3, 4: 7, 6: 1, 8: 9 }[i];

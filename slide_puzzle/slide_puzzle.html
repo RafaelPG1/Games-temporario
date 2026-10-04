@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07080c">
+  <title>Slide Puzzle · Arcádia</title>
+  <link rel="stylesheet" href="slide_puzzle.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
+        <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Catálogo</span>
+    </a>
+    <div class="game-id">
+      <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="9" fill="#1f4a52"/>
+        <g fill="#f3e8c3" stroke="#543847" stroke-width="1.5">
+          <rect x="5" y="5" width="9" height="9" rx="1.5"/><rect x="16" y="5" width="9" height="9" rx="1.5"/>
+          <rect x="5" y="16" width="9" height="9" rx="1.5"/>
+        </g>
+        <rect x="16" y="16" width="9" height="9" rx="1.5" fill="#f0a62a" stroke="#543847" stroke-width="1.5"/>
+      </svg>
+      <div class="game-text"><strong>Slide Puzzle</strong><span>Puzzle</span></div>
+    </div>
+    <p class="keys" aria-label="Controles">
+      <span>clique nas peças para mover</span>
+      <span><kbd>P</kbd> pausa</span>
+      <span><kbd>M</kbd> som</span>
+    </p>
+  </header>
+
+  <div id="arena" class="arena">
+    <main id="stage" class="stage is-ready" aria-label="Slide Puzzle">
+      <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+        <svg viewBox="0 0 16 16" fill="none" stroke="#543847" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="#543847"/>
+          <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
+          <g class="icon-cross" stroke="#c9372a"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
+        </svg>
+      </button>
+      <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (P)">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/></svg>
+      </button>
+
+      <section class="hud" aria-label="Partida">
+        <div class="stat"><span>Movimentos</span><strong id="moves">0</strong></div>
+        <div class="stat"><span>Tempo</span><strong id="time">0:00</strong></div>
+        <div class="stat stat-best"><span>Recorde</span><strong id="best">—</strong></div>
+      </section>
+
+      <div class="levels" role="radiogroup" aria-label="Dificuldade">
+        <button type="button" role="radio" data-level="easy"><b>Fácil</b><i>3×3</i></button>
+        <button type="button" role="radio" data-level="medium"><b>Médio</b><i>4×4</i></button>
+        <button type="button" role="radio" data-level="hard"><b>Difícil</b><i>5×5</i></button>
+      </div>
+
+      <div class="board">
+        <div id="grid" class="grid" role="group" aria-label="Tabuleiro"></div>
+        <button id="start-button" class="start" type="button" aria-label="Toque para começar"><span>Toque para começar</span></button>
+      </div>
+      <p id="status" class="status" aria-live="polite"></p>
+
+      <div class="actions">
+        <button id="new-button" class="btn" type="button">Novo jogo</button>
+        <button id="reset-button" class="btn btn-alt" type="button">Reiniciar</button>
+      </div>
+
+      <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
+        <h2 id="pause-title" class="screen-title">Pausado</h2>
+        <button id="resume-button" class="btn" type="button">Continuar</button>
+      </section>
+      <section class="screen screen-confirm" role="alertdialog" aria-labelledby="confirm-text">
+        <h2 id="confirm-text" class="screen-text">Isso encerra a partida atual. Continuar?</h2>
+        <div class="row">
+          <button id="confirm-yes" class="btn" type="button">Continuar</button>
+          <button id="confirm-no" class="btn btn-alt" type="button">Voltar</button>
+        </div>
+      </section>
+      <section class="screen screen-won" role="dialog" aria-labelledby="won-title">
+        <h2 id="won-title" class="screen-title">Resolvido!</h2>
+        <p class="screen-text"><span id="won-moves">0</span> movimentos · <span id="won-time">0:00</span></p>
+        <p id="won-record" class="record" hidden>Novo recorde</p>
+        <button id="again-button" class="btn" type="button">Jogar de novo</button>
+      </section>
+      <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+    </main>
+  </div>
+  <script src="slide_puzzle.js"></script>
+</body>
+</html>
