@@ -39,8 +39,7 @@ const GAMES = [
   { id: 'snake',        title: 'Snake',        category: 'classicos', path: 'snake/snake.html' },
   { id: 'memory_match', title: 'Memory Match', category: 'puzzle', path: 'memory_match/memory_match.html' },
   { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle', path: 'slide_puzzle/slide_puzzle.html'},
-  { id: 'sudoku',       title: 'Sudoku',       category: 'puzzle'    },
-  { id: 'water-sort',   title: 'Water Sort',   category: 'puzzle'    },
+  { id: 'water_sort',   title: 'Water Sort',   category: 'puzzle', path: 'water_sort/water_sort.html'},
   { id: 'piano-tap',    title: 'Piano Tap',    category: 'arcade'    },
   { id: '2048',         title: '2048',         category: 'puzzle'    },
   { id: 'minesweeper',  title: 'Campo Minado', category: 'puzzle'    },
@@ -82,12 +81,7 @@ const GAME_ART = {
   'memory_match': () => svg(100, 64, '<rect x="12" y="8" width="34" height="48" rx="6" opacity=".5" transform="rotate(-8 29 32)"/><rect x="54" y="8" width="34" height="48" rx="6"/><circle cx="71" cy="32" r="9" fill="var(--bg)"/>'),
   'slide_puzzle': () => svg(64, 64, [...Array(8).keys()].map(i =>
     `<rect x="${(i % 3) * 22}" y="${Math.floor(i / 3) * 22}" width="20" height="20" rx="4" opacity="${i % 2 ? .55 : 1}"/>`).join('')),
-  'sudoku': () => svg(64, 64, [...Array(9).keys()].map(i => {
-    const x = (i % 3) * 22, y = Math.floor(i / 3) * 22, d = { 0: 5, 2: 3, 4: 7, 6: 1, 8: 9 }[i];
-    return `<rect x="${x}" y="${y}" width="20" height="20" rx="3" opacity=".28"/>` +
-      (d ? `<text x="${x + 10}" y="${y + 15}" text-anchor="middle" font-size="14" font-weight="700" font-family="system-ui,sans-serif">${d}</text>` : '');
-  }).join('')),
-  'water-sort': () => svg(92, 64, [[1, .55, 1], [.55, .55], [1]].map((layers, i) => {
+  'water_sort': () => svg(92, 64, [[1, .55, 1], [.55, .55], [1]].map((layers, i) => {
     const x = 6 + i * 30;
     return `<rect x="${x}" y="4" width="24" height="56" rx="12" ${LINE.replace('none', 'none')} stroke-width="2" opacity=".7"/>` +
       layers.map((o, j) => `<rect x="${x + 4}" y="${46 - j * 12}" width="16" height="11" rx="${j ? 2 : 6}" opacity="${o}"/>`).join('');

@@ -1,0 +1,67 @@
+<!-- water_sort.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#070b1c">
+  <title>Water Sort · Arcádia</title>
+  <link rel="stylesheet" href="water_sort.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
+        <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Catálogo</span>
+    </a>
+    <div class="game-id">
+      <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="9" fill="#3a63d8"/>
+        <path d="M11 6h10v3h-1v13a5 5 0 0 1-8 0V9h-1z" fill="#fff" fill-opacity=".35" stroke="#1b2150" stroke-width="2" stroke-linejoin="round"/>
+        <path d="M12 17h8v5a4 4 0 0 1-8 0z" fill="#ff8a1f"/><path d="M12 14h8v3h-8z" fill="#a3e635"/>
+      </svg>
+      <div class="game-text"><strong>Water Sort</strong><span id="best-label">Puzzle</span></div>
+    </div>
+    <p class="keys" aria-label="Atalhos">
+      <span><kbd>Z</kbd> desfazer</span><span><kbd>R</kbd> reiniciar</span><span><kbd>M</kbd> som</span>
+    </p>
+  </header>
+
+  <div id="arena" class="arena">
+    <main id="stage" class="stage" aria-label="Water Sort">
+      <canvas id="game-canvas" aria-label="Tubos de líquido: toque em um tubo e depois no destino"></canvas>
+
+      <div class="hud">
+        <span class="pill">Fase <b id="hud-level">1</b></span>
+        <span class="pill">Movs <b id="hud-moves">0</b></span>
+        <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+            <path fill="#1b2150" d="M1 6h3l4-3v10l-4-3H1z"/>
+            <g class="icon-waves" fill="#1b2150"><rect x="10" y="6" width="1" height="4"/><rect x="12" y="4" width="1" height="8"/><rect x="14" y="2" width="1" height="12"/></g>
+            <g class="icon-cross" fill="#ff7a1a"><rect x="10" y="5" width="2" height="2"/><rect x="12" y="7" width="2" height="2"/><rect x="14" y="9" width="2" height="2"/><rect x="14" y="5" width="2" height="2"/><rect x="10" y="9" width="2" height="2"/></g>
+          </svg>
+        </button>
+      </div>
+
+      <div class="dock">
+        <button id="undo-button" class="chip" type="button" title="Desfazer (Z)">Desfazer</button>
+        <button id="restart-button" class="chip" type="button" title="Reiniciar a fase (R)">Reiniciar</button>
+        <button id="new-button" class="chip" type="button" title="Nova configuração desta fase">Novo jogo</button>
+      </div>
+
+      <section id="dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-live="polite">
+        <h2 id="dialog-title" class="over-title">Fase concluída!</h2>
+        <p id="dialog-text" class="final"></p>
+        <button id="dialog-ok" class="btn" type="button">Próxima fase</button>
+        <button id="dialog-cancel" class="btn btn-ghost" type="button">Cancelar</button>
+      </section>
+
+      <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+    </main>
+  </div>
+
+  <script src="water_sort.js"></script>
+</body>
+</html>
