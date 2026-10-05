@@ -31,22 +31,22 @@ const CATEGORIES = [
 ];
 
 const GAMES = [
-  { id: 'flappy_bird',  title: 'Flappy Bird',  category: 'arcade', path: 'flappy_bird/flappy_bird.html' },
-  { id: 'jumpy',        title: 'Jumpy',        category: 'arcade', path: 'jumpy/jumpy.html' },
-  { id: 'tetris',       title: 'Tetris',       category: 'arcade', path: 'tetris/tetris.html' },
-  { id: 'breakout',     title: 'Breakout',     category: 'arcade', path: 'breakout/breakout.html'},
-  { id: 'stack_tower',  title: 'Stack Tower',  category: 'arcade', path: 'stack_tower/stack_tower.html'},
-  { id: 'snake',        title: 'Snake',        category: 'classicos', path: 'snake/snake.html' },
-  { id: 'memory_match', title: 'Memory Match', category: 'puzzle', path: 'memory_match/memory_match.html' },
-  { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle', path: 'slide_puzzle/slide_puzzle.html'},
-  { id: 'water_sort',   title: 'Water Sort',   category: 'puzzle', path: 'water_sort/water_sort.html'},
-  { id: 'piano_tap',    title: 'Piano Tap',    category: 'arcade', path: 'piano_tap/piano_tap.html'},
-  { id: 'campo_minado',  title: 'Campo Minado', category: 'puzzle', path: 'campo_minado/campo_minado.html'},
-  { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle', path: 'sokoban/sokoban.html'},
-  { id: 'jogo_velha',  title: 'Jogo da Velha', category: 'classicos', path: 'jogo_velha/jogo_velha.html'},
-  { id: 'batalha_naval',   title: 'Batalha Naval', category: 'estrategia', path: 'batalha_naval/batalha_naval.html'},
-  { id: 'solitario',    title: 'Solitário',    category: 'casual', path: 'solitario/solitario.html'},
-  { id: 'pac_man', title: 'Pac Man', category: 'arcade', path: 'pac_man/pac_man.html'}
+  { id: 'flappy_bird',  title: 'Flappy Bird',  category: 'arcade', path: 'arcade/flappy_bird/flappy_bird.html' },
+  { id: 'jumpy',        title: 'Jumpy',        category: 'arcade', path: 'arcade/jumpy/jumpy.html' },
+  { id: 'tetris',       title: 'Tetris',       category: 'arcade', path: 'arcade/tetris/tetris.html' },
+  { id: 'breakout',     title: 'Breakout',     category: 'arcade', path: 'arcade/breakout/breakout.html'},
+  { id: 'stack_tower',  title: 'Stack Tower',  category: 'arcade', path: 'arcade/stack_tower/stack_tower.html'},
+  { id: 'snake',        title: 'Snake',        category: 'classicos', path: 'classicos/snake/snake.html' },
+  { id: 'memory_match', title: 'Memory Match', category: 'puzzle', path: 'puzzle/memory_match/memory_match.html' },
+  { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle', path: 'puzzle/slide_puzzle/slide_puzzle.html'},
+  { id: 'water_sort',   title: 'Water Sort',   category: 'puzzle', path: 'puzzle/water_sort/water_sort.html'},
+  { id: 'piano_tap',    title: 'Piano Tap',    category: 'arcade', path: 'arcade/piano_tap/piano_tap.html'},
+  { id: 'campo_minado',  title: 'Campo Minado', category: 'puzzle', path: 'puzzle/campo_minado/campo_minado.html'},
+  { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle', path: 'puzzle/sokoban/sokoban.html'},
+  { id: 'jogo_velha',  title: 'Jogo da Velha', category: 'classicos', path: 'classicos/jogo_velha/jogo_velha.html'},
+  { id: 'batalha_naval',   title: 'Batalha Naval', category: 'estrategia', path: 'estrategia/batalha_naval/batalha_naval.html'},
+  { id: 'solitario',    title: 'Solitário',    category: 'casual', path: 'casual/solitario/solitario.html'},
+  { id: 'pac_man', title: 'Pac Man', category: 'arcade', path: 'arcade/pac_man/pac_man.html'}
 ];
 
 /* ===== ARTE DAS MINIATURAS (SVG) ===== */
