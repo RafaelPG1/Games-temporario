@@ -43,10 +43,10 @@ const GAMES = [
   { id: 'piano_tap',    title: 'Piano Tap',    category: 'arcade', path: 'piano_tap/piano_tap.html'},
   { id: 'campo_minado',  title: 'Campo Minado', category: 'puzzle', path: 'campo_minado/campo_minado.html'},
   { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle', path: 'sokoban/sokoban.html'},
-  { id: 'tic-tac-toe',  title: 'Jogo da Velha', category: 'classicos' },
-  { id: 'battleship',   title: 'Batalha Naval', category: 'estrategia' },
-  { id: 'solitaire',    title: 'Solitário',    category: 'casual'    },
-  { id: 'maze-muncher', title: 'Maze Muncher', category: 'arcade'    }
+  { id: 'jogo_velha',  title: 'Jogo da Velha', category: 'classicos', path: 'jogo_velha/jogo_velha.html'},
+  { id: 'batalha_naval',   title: 'Batalha Naval', category: 'estrategia', path: 'batalha_naval/batalha_naval.html'},
+  { id: 'solitario',    title: 'Solitário',    category: 'casual', path: 'solitario/solitario.html'},
+  { id: 'pac_man', title: 'Pac Man', category: 'arcade', path: 'pac_man/pac_man.html'}
 ];
 
 /* ===== ARTE DAS MINIATURAS (SVG) ===== */
@@ -89,11 +89,11 @@ const GAME_ART = {
     '<g fill="var(--bg)"><circle cx="32" cy="32" r="5"/></g><path d="M32 23v18M23 32h18M26 26l12 12M38 26L26 38" stroke="var(--bg)" stroke-width="2" stroke-linecap="round"/><path d="M12 54V44M12 44l8 3-8 3" stroke="var(--bg)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="var(--bg)"/>'),
   'sokoban': () => svg(66, 66, '<rect x="0" y="0" width="66" height="14" rx="3" opacity=".35"/><rect x="0" y="52" width="66" height="14" rx="3" opacity=".35"/><rect x="0" y="14" width="14" height="38" opacity=".35"/>' +
     '<rect x="26" y="22" width="22" height="22" rx="3"/><path d="M30 26l14 14M44 26L30 40" stroke="var(--bg)" stroke-width="2.4" stroke-linecap="round"/><circle cx="56" cy="33" r="5" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="19" cy="33" r="5" opacity=".7"/>'),
-  'tic-tac-toe': () => svg(66, 66, `<path d="M22 4v58M44 4v58M4 22h58M4 44h58" ${LINE} stroke-width="3" opacity=".45"/><path d="M8 8l10 10M18 8L8 18" ${LINE} stroke-width="4"/><circle cx="33" cy="33" r="7" ${LINE.replace('none', 'none')} stroke-width="4"/><path d="M48 48l10 10M58 48L48 58" ${LINE} stroke-width="4"/>`),
-  'battleship': () => svg(100, 64, `<path d="M8 40h84l-12 14H22z"/><rect x="36" y="26" width="26" height="14" rx="2" opacity=".6"/><rect x="46" y="14" width="6" height="12" rx="1"/><path d="M6 60q9-6 18 0t18 0 18 0 18 0 18 0" ${LINE} stroke-width="3" opacity=".45"/>`),
-  'solitaire': () => svg(88, 64, '<rect x="10" y="8" width="38" height="52" rx="6" opacity=".45" transform="rotate(-9 29 34)"/><rect x="40" y="6" width="38" height="52" rx="6"/>' +
+  'jogo_velha': () => svg(66, 66, `<path d="M22 4v58M44 4v58M4 22h58M4 44h58" ${LINE} stroke-width="3" opacity=".45"/><path d="M8 8l10 10M18 8L8 18" ${LINE} stroke-width="4"/><circle cx="33" cy="33" r="7" ${LINE.replace('none', 'none')} stroke-width="4"/><path d="M48 48l10 10M58 48L48 58" ${LINE} stroke-width="4"/>`),
+  'batalha_naval': () => svg(100, 64, `<path d="M8 40h84l-12 14H22z"/><rect x="36" y="26" width="26" height="14" rx="2" opacity=".6"/><rect x="46" y="14" width="6" height="12" rx="1"/><path d="M6 60q9-6 18 0t18 0 18 0 18 0 18 0" ${LINE} stroke-width="3" opacity=".45"/>`),
+  'solitario': () => svg(88, 64, '<rect x="10" y="8" width="38" height="52" rx="6" opacity=".45" transform="rotate(-9 29 34)"/><rect x="40" y="6" width="38" height="52" rx="6"/>' +
     '<text x="48" y="24" font-size="15" font-weight="800" font-family="system-ui,sans-serif" fill="var(--bg)">A</text><path d="M59 28l9 11-9 11-9-11z" fill="var(--bg)"/>'),
-  'maze-muncher': () => svg(100, 64, `<path d="M4 20h30M50 20h46M4 44h46M66 44h30M34 20v14M66 20v14" ${LINE} stroke-width="4" opacity=".4"/><path d="M26 32L38 22a13 13 0 1 0 0 20z" transform="translate(6 0)"/><circle cx="58" cy="32" r="3" opacity=".8"/><circle cx="72" cy="32" r="3" opacity=".8"/><circle cx="86" cy="32" r="3" opacity=".8"/>`),
+  'pac_man': () => svg(100, 64, `<path d="M4 20h30M50 20h46M4 44h46M66 44h30M34 20v14M66 20v14" ${LINE} stroke-width="4" opacity=".4"/><path d="M26 32L38 22a13 13 0 1 0 0 20z" transform="translate(6 0)"/><circle cx="58" cy="32" r="3" opacity=".8"/><circle cx="72" cy="32" r="3" opacity=".8"/><circle cx="86" cy="32" r="3" opacity=".8"/>`),
   'piano_tap': () => svg(92, 64, ['0100', '0001', '1000', '0010'].flatMap((row, r) => [...row].map((c, k) =>
     `<rect x="${k * 23}" y="${r * 16}" width="21" height="14" rx="3" ${c === '1' ? '' : 'opacity=".25"'}/>`)).join(''))
 };

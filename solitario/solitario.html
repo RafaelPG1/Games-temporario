@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07080c">
+  <title>Solitário · Nexus</title>
+  <link rel="stylesheet" href="solitario.css">
+</head>
+<body>
+  <!-- Naipes (usados por todas as cartas e pela interface) -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="s-h" viewBox="0 0 24 24"><path fill="currentColor" d="M12 21.6C5 16.2 2 12.3 2 8.4 2 5.5 4.2 3.5 6.8 3.5c2.1 0 3.9 1.1 5.2 3.2 1.3-2.1 3.1-3.2 5.2-3.2 2.6 0 4.8 2 4.8 4.9 0 3.9-3 7.8-10 13.2z"/></symbol>
+    <symbol id="s-d" viewBox="0 0 24 24"><path fill="currentColor" d="M12 1.5c2.2 3.6 5.8 7.2 8.8 10.5-3 3.3-6.6 6.9-8.8 10.5-2.2-3.6-5.8-7.2-8.8-10.5C6.2 8.7 9.8 5.1 12 1.5z"/></symbol>
+    <symbol id="s-c" viewBox="0 0 24 24"><g fill="currentColor"><circle cx="12" cy="7" r="4.7"/><circle cx="6.5" cy="14.3" r="4.7"/><circle cx="17.5" cy="14.3" r="4.7"/><path d="M12 11c0 4.3-.9 7.6-3.2 10.5h6.4C12.9 18.6 12 15.3 12 11z"/></g></symbol>
+    <symbol id="s-s" viewBox="0 0 24 24"><path fill="currentColor" d="M12 1.5C8 7 3 10 3 14.2c0 2.6 2 4.3 4.3 4.3 1.8 0 3.2-.8 4-2.2-.1 2.3-.9 4.3-2.3 5.7h6c-1.4-1.4-2.2-3.4-2.3-5.7.8 1.4 2.2 2.2 4 2.2 2.3 0 4.3-1.7 4.3-4.3C21 10 16 7 12 1.5z"/></symbol>
+  </svg>
+
+  <header class="topbar">
+    <a class="back" href="../index.html" aria-label="Voltar ao catálogo">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>Catálogo</span>
+    </a>
+    <div class="game-id">
+      <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="9" fill="#0f4642"/>
+        <rect x="7" y="6" width="13" height="18" rx="2.5" fill="#ece3cc" transform="rotate(-9 13 15)"/>
+        <rect x="12.5" y="8" width="13" height="18" rx="2.5" fill="#f7f1e1" stroke="#d9b45f" stroke-width="1" transform="rotate(8 19 17)"/>
+        <g transform="rotate(8 19 17)" style="color:#bf2f2a"><svg x="15.8" y="13" width="6.8" height="6.8" viewBox="0 0 24 24"><use href="#s-h"/></svg></g>
+      </svg>
+      <div class="game-text"><strong>Solitário</strong><span>Klondike clássico</span></div>
+    </div>
+    <p class="keys" aria-label="Atalhos"><span><kbd>U</kbd> desfazer</span><span><kbd>N</kbd> nova</span><span><kbd>R</kbd> reiniciar</span><span><kbd>M</kbd> som</span></p>
+  </header>
+
+  <main id="arena" class="arena">
+    <section class="hud" aria-label="Painel da partida">
+      <div class="stats">
+        <div class="stat"><span class="label">Tempo</span><strong id="time" class="value">0:00</strong></div>
+        <div class="stat"><span class="label">Jogadas</span><strong id="moves" class="value">0</strong></div>
+        <div class="stat stat-score"><span class="label">Pontos</span><strong id="score" class="value">0</strong></div>
+      </div>
+      <div class="tools">
+        <button id="undo-button" class="tool" type="button" aria-label="Desfazer última jogada" title="Desfazer (U)">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3L2.5 6.5 6 10M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="restart-button" class="tool" type="button" aria-label="Reiniciar esta partida" title="Reiniciar (R)">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button id="new-button" class="tool" type="button" aria-label="Nova partida" title="Nova partida (N)">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3" y="2" width="10" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5.5v5M5.5 8h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+        <button id="mute-button" class="tool" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/><path class="icon-waves" d="M10.5 6a3 3 0 0 1 0 4M12.3 4.2a5.5 5.5 0 0 1 0 7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path class="icon-cross" d="M10.5 6l4 4M14.5 6l-4 4" fill="none" stroke="#ff8a6b" stroke-width="1.6" stroke-linecap="round"/></svg>
+        </button>
+        <button id="rules-button" class="tool" type="button" aria-label="Regras do jogo" title="Regras">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.2 6.3a1.9 1.9 0 1 1 2.7 1.7c-.6.3-.9.7-.9 1.3M8 11.3v.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </section>
+
+    <div class="felt">
+      <div id="play" class="play">
+        <div id="field" class="field"></div>
+      </div>
+    </div>
+    <p id="live" class="sr-only" role="status" aria-live="polite"></p>
+  </main>
+
+  <dialog id="dlg-new" class="dlg" aria-labelledby="new-title">
+    <h2 id="new-title">Nova partida</h2>
+    <p id="new-warn" class="dlg-warn" hidden>A partida atual ainda não terminou. Se continuar, o progresso será perdido.</p>
+    <fieldset class="seg">
+      <legend>Cartas por compra</legend>
+      <label><input type="radio" name="mode" value="1" checked><span>Uma carta</span></label>
+      <label><input type="radio" name="mode" value="3"><span>Três cartas</span></label>
+    </fieldset>
+    <div class="dlg-actions">
+      <button id="new-cancel" class="btn btn-ghost" type="button">Cancelar</button>
+      <button id="new-start" class="btn" type="button">Embaralhar e jogar</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-restart" class="dlg" aria-labelledby="restart-title">
+    <h2 id="restart-title">Reiniciar esta partida?</h2>
+    <p>As mesmas cartas voltam à posição inicial e o placar é zerado.</p>
+    <div class="dlg-actions">
+      <button id="restart-cancel" class="btn btn-ghost" type="button">Cancelar</button>
+      <button id="restart-ok" class="btn" type="button">Reiniciar</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-rules" class="dlg dlg-wide" aria-labelledby="rules-title">
+    <h2 id="rules-title">Como jogar</h2>
+    <ul class="rules">
+      <li>Leve todas as 52 cartas para as quatro fundações, cada uma de um naipe, do Ás ao Rei.</li>
+      <li>Nas sete colunas, monte sequências em ordem decrescente alternando vermelho e preto. Um 8 vermelho vai sobre um 9 preto.</li>
+      <li>Você pode mover uma sequência inteira de uma vez. Só o Rei (ou uma sequência iniciada por ele) ocupa uma coluna vazia.</li>
+      <li>Toque no monte para comprar. Quando ele acabar, toque no espaço vazio para reciclar o descarte, sem perder a ordem. Comprar três cartas deixa o jogo mais difícil, e só a carta de cima fica disponível.</li>
+      <li>Selecione uma carta e depois o destino destacado. No computador, também dá para arrastar. Dois toques (ou cliques) mandam a carta para a fundação.</li>
+      <li>Pontos: +10 ao subir para a fundação, +5 ao descartar para uma coluna, +5 ao virar uma carta, −15 ao tirar da fundação, −100 ao reciclar o monte (−20 comprando três).</li>
+      <li>Teclado: Tab navega, Enter ou Espaço seleciona, D compra, F envia para a fundação, U desfaz, Esc cancela a seleção.</li>
+    </ul>
+    <div class="dlg-actions"><button id="rules-close" class="btn" type="button">Entendi</button></div>
+  </dialog>
+
+  <dialog id="dlg-win" class="dlg" aria-labelledby="win-title">
+    <h2 id="win-title">Mesa completa!</h2>
+    <p class="win-score"><span id="win-score">0</span><small>pontos</small></p>
+    <p class="win-line"><b id="win-time">0:00</b> · <b id="win-moves">0</b> jogadas</p>
+    <p id="record-badge" class="badge" hidden>Novo recorde!</p>
+    <div class="dlg-actions">
+      <button id="win-close" class="btn btn-ghost" type="button">Ver mesa</button>
+      <button id="win-again" class="btn" type="button">Jogar novamente</button>
+    </div>
+  </dialog>
+
+  <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+  <script src="solitario.js"></script>
+</body>
+</html>

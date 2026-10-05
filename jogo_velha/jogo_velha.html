@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07080c">
+  <title>Jogo da Velha · Arcádia</title>
+  <link rel="stylesheet" href="jogo_velha.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
+        <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Catálogo</span>
+    </a>
+    <div class="game-id">
+      <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="9" fill="#151a33"/>
+        <path d="M12 6v20M20 6v20M6 12h20M6 20h20" stroke="#343d75" stroke-width="2" stroke-linecap="round"/>
+        <path d="M7.5 7.5l3 3M10.5 7.5l-3 3" stroke="#ff7a6b" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="16" cy="16" r="2.6" fill="none" stroke="#5cd6e8" stroke-width="2"/>
+      </svg>
+      <div class="game-text"><strong>Jogo da Velha</strong><span>Clássico</span></div>
+    </div>
+    <p class="keys" aria-label="Controles">
+      <span>clique numa casa para jogar</span>
+      <span><kbd>R</kbd> nova rodada</span>
+      <span><kbd>M</kbd> som</span>
+    </p>
+  </header>
+
+  <div id="arena" class="arena">
+    <main id="stage" class="stage" aria-label="Jogo da Velha">
+      <div id="modes" class="seg" role="radiogroup" aria-label="Modo de jogo">
+        <button type="button" role="radio" data-mode="two">2 jogadores</button>
+        <button type="button" role="radio" data-mode="ai">Contra a IA</button>
+      </div>
+      <div id="levels" class="seg" role="radiogroup" aria-label="Dificuldade da IA">
+        <button type="button" role="radio" data-level="easy">Fácil</button>
+        <button type="button" role="radio" data-level="medium">Médio</button>
+        <button type="button" role="radio" data-level="hard">Difícil</button>
+      </div>
+      <div id="starters" class="starter" role="radiogroup" aria-label="Quem começa">
+        <span>Quem começa</span>
+        <button type="button" role="radio" data-starter="X" class="sx-btn">X</button>
+        <button type="button" role="radio" data-starter="O" class="so-btn">O</button>
+      </div>
+
+      <section class="scores" aria-label="Placar da sessão">
+        <div class="score score-x" id="card-X"><span id="name-X">Jogador X</span><strong id="score-X">0</strong></div>
+        <div class="score score-d" id="card-D"><span>Empates</span><strong id="score-D">0</strong></div>
+        <div class="score score-o" id="card-O"><span id="name-O">Jogador O</span><strong id="score-O">0</strong></div>
+      </section>
+
+      <p id="status" class="status" aria-live="polite"></p>
+      <div class="board-wrap"><div id="board" class="board" role="group" aria-label="Tabuleiro 3 por 3"></div></div>
+
+      <div class="actions">
+        <button id="round-btn" class="btn" type="button">Reiniciar rodada</button>
+        <button id="session-btn" class="btn btn-alt" type="button">Zerar placar</button>
+        <button id="mute-btn" class="icon-btn" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
+            <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
+            <g class="icon-cross"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
+          </svg>
+        </button>
+      </div>
+      <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+    </main>
+  </div>
+  <script src="jogo_velha.js"></script>
+</body>
+</html>

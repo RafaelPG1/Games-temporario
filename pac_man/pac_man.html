@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07080c">
+  <title>Pac-Man · Arcádia</title>
+  <link rel="stylesheet" href="pac_man.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+      <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
+        <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Catálogo</span>
+    </a>
+    <div class="game-id">
+      <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="9" fill="#050824"/>
+        <path d="M16 16 L26 10.5 A11.5 11.5 0 1 0 26 21.5 Z" fill="#ffd21f"/>
+        <circle cx="16" cy="9" r="1.7" fill="#050824"/>
+      </svg>
+      <div class="game-text"><strong>Pac-Man</strong><span>Arcade</span></div>
+    </div>
+    <p class="keys" aria-label="Controles">
+      <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> ou <kbd>WASD</kbd></span>
+      <span><kbd>Espaço</kbd> pausa</span>
+      <span><kbd>M</kbd> som</span>
+    </p>
+  </header>
+
+  <div id="arena" class="arena">
+    <main id="stage" class="stage is-title" aria-label="Pac-Man">
+      <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+        <svg viewBox="0 0 16 16" fill="none" stroke="#050824" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+          <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="#050824"/>
+          <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
+          <g class="icon-cross" stroke="#c9372a"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
+        </svg>
+      </button>
+      <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (Espaço)">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="#050824"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="#050824"/></svg>
+      </button>
+
+      <section class="hud" aria-label="Partida">
+        <div class="stat"><span>Pontos</span><strong id="score">0</strong></div>
+        <div class="stat"><span>Vidas</span><strong id="lives" class="lives" aria-live="polite"></strong></div>
+        <div class="stat"><span>Fase</span><strong id="level">1</strong></div>
+        <div class="stat stat-best"><span>Recorde</span><strong id="best">0</strong></div>
+      </section>
+
+      <div class="board">
+        <canvas id="canvas" class="canvas" role="img" aria-label="Labirinto do Pac-Man"></canvas>
+      </div>
+
+      <div class="pad" aria-label="Controle direcional">
+        <button class="pad-btn pad-up" type="button" data-dir="up" aria-label="Cima"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 13l6-6 6 6" /></svg></button>
+        <button class="pad-btn pad-left" type="button" data-dir="left" aria-label="Esquerda"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 4l-6 6 6 6" /></svg></button>
+        <button class="pad-btn pad-right" type="button" data-dir="right" aria-label="Direita"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6" /></svg></button>
+        <button class="pad-btn pad-down" type="button" data-dir="down" aria-label="Baixo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7l6 6 6-6" /></svg></button>
+      </div>
+
+      <section class="screen screen-title" role="dialog" aria-labelledby="title-h">
+        <h1 id="title-h" class="logo">Pac-Man</h1>
+        <p class="screen-text">Coma todas as bolinhas e fuja dos fantasmas. Power pellets deixam os fantasmas vulneráveis.</p>
+        <p class="screen-hint">Setas ou WASD · Espaço pausa · no celular, deslize ou use os botões</p>
+        <p class="screen-text">Recorde <b id="title-best">0</b></p>
+        <button id="start-button" class="btn" type="button">Começar</button>
+      </section>
+      <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
+        <h2 id="pause-title" class="screen-title">Pausado</h2>
+        <button id="resume-button" class="btn" type="button">Continuar</button>
+      </section>
+      <section class="screen screen-over" role="dialog" aria-labelledby="over-title">
+        <h2 id="over-title" class="screen-title">Fim de jogo</h2>
+        <p class="screen-text"><span id="over-score">0</span> pontos · fase <span id="over-level">1</span></p>
+        <p id="over-record" class="record" hidden>Novo recorde</p>
+        <button id="again-button" class="btn" type="button">Jogar de novo</button>
+      </section>
+      <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+    </main>
+  </div>
+  <script src="pac_man.js"></script>
+</body>
+</html>
