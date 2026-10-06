@@ -5,7 +5,8 @@
   --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
   --closed: #5b7a8c; --closed-hi: #86a2b2; --closed-lo: #3a5160;
   --open: #161c29; --open-line: #232c40; --coral: #ff5a4e; --focus: #4ec0e8;
-  --cell: 34px; --cols: 9; --gap: 2px;
+  --cell: 34px; --cols: 9; --gap: 2px; --bevel: 2px; --fs: .54; --chrome: 40px;
+  --cpad: 14px; --fpad: 9px; --apad-y: 14px; --apad-x: clamp(8px, 2vw, 20px);
 }
 * { box-sizing: border-box; }
 html, body {
@@ -41,12 +42,20 @@ body {
 
 /* Arena: rola na vertical se a tela for baixa; nunca na horizontal */
 .arena {
-  position: relative; flex: 1 1 0; min-height: 0; display: flex; overflow-x: hidden; overflow-y: auto; padding: 14px clamp(8px, 2vw, 20px);
+  position: relative; flex: 1 1 0; min-height: 0; display: flex; overflow-x: hidden; overflow-y: auto; padding: var(--apad-y) var(--apad-x);
+  scrollbar-gutter: stable both-edges;   /* a largura útil não muda quando a barra vertical aparece/some */
   background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg);
 }
+/* Caixa do jogo: o botão de ajuda fica pendurado ao lado dela, fora da área jogável */
+.game-wrap {
+  position: relative; width: 100%; min-width: min(100%, 300px); margin: auto;
+  max-width: max(300px, calc(var(--cols) * var(--cell) + (var(--cols) - 1) * var(--gap) + var(--chrome)));
+}
+/* Container do jogo: envolve níveis, placar, botões e tabuleiro (o botão "?" fica fora, ao lado) */
 .game {
-  width: 100%; min-width: min(100%, 300px); margin: auto; display: flex; flex-direction: column; gap: 10px;
-  max-width: max(320px, calc(var(--cols) * var(--cell) + (var(--cols) - 1) * var(--gap) + 20px));
+  width: 100%; display: flex; flex-direction: column; gap: 10px; padding: var(--cpad);
+  background: linear-gradient(180deg, #151925, #10131c); border: 1px solid var(--shell-line); border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05);
 }
 
 /* Dificuldade */
@@ -83,7 +92,7 @@ body {
 
 /* Tabuleiro */
 .frame {
-  position: relative; max-width: 100%; padding: 9px; background: #0b0e15; border: 1px solid var(--shell-line);
+  position: relative; max-width: 100%; padding: var(--fpad); background: #0b0e15; border: 1px solid var(--shell-line);
   border-radius: 14px; box-shadow: inset 0 3px 8px rgba(0,0,0,.5), 0 8px 24px rgba(0,0,0,.45);
 }
 .field { max-width: 100%; overflow-x: auto; overflow-y: hidden; border-radius: 6px; touch-action: pan-x pan-y; }
@@ -94,8 +103,8 @@ body {
 .cell {
   position: relative; display: grid; place-items: center; border-radius: 4px; cursor: pointer; color: var(--shell-text);
   font-family: "Arial Black", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif; font-weight: 900;
-  font-size: calc(var(--cell) * .54); line-height: 1; font-variant-numeric: tabular-nums;
-  background: var(--closed); box-shadow: inset 2px 2px 0 var(--closed-hi), inset -2px -2px 0 var(--closed-lo);
+  font-size: calc(var(--cell) * var(--fs)); line-height: 1; font-variant-numeric: tabular-nums;
+  background: var(--closed); box-shadow: inset var(--bevel) var(--bevel) 0 var(--closed-hi), inset calc(var(--bevel) * -1) calc(var(--bevel) * -1) 0 var(--closed-lo);
 }
 .cell svg { width: 62%; height: 62%; pointer-events: none; }
 @media (hover: hover) and (pointer: fine) { .game:not(.is-over) .cell:not(.open):hover { background: #6b8c9f; } }
@@ -107,6 +116,7 @@ body {
 .is-over .cell { cursor: default; }
 .n1 { color: #5cb3ff; } .n2 { color: #5fd07a; } .n3 { color: #ff6b6b; } .n4 { color: #b08cff; }
 .n5 { color: #ff9f4a; } .n6 { color: #3fd6c9; } .n7 { color: #e8e2cf; } .n8 { color: #9aa3b8; }
+.is-idle .field { pointer-events: none; }
 .is-flag-mode .field { box-shadow: 0 0 0 2px rgba(255,200,87,.55); }
 @keyframes pop { from { transform: scale(.72); opacity: .5; } to { transform: scale(1); opacity: 1; } }
 @keyframes boom { 0% { transform: scale(.8); } 55% { transform: scale(1.18); } 100% { transform: scale(1); } }
@@ -125,5 +135,105 @@ body {
 .end-text { margin: 0 0 6px; font-size: 15px; font-variant-numeric: tabular-nums; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
+/* Tela inicial (sobre o tabuleiro parado): casas fechadas escurecidas + título + dica */
+.start {
+  position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 16px; text-align: center; border-radius: inherit; cursor: pointer; touch-action: manipulation;
+  --tile: calc(var(--cell) + var(--gap));
+  background:
+    radial-gradient(ellipse at center, rgba(8,10,16,.82) 0 38%, rgba(8,10,16,.5) 100%),
+    linear-gradient(90deg, transparent calc(100% - var(--gap)), #0b0e15 0) var(--fpad) var(--fpad) / var(--tile) var(--tile),
+    linear-gradient(transparent calc(100% - var(--gap)), #0b0e15 0) var(--fpad) var(--fpad) / var(--tile) var(--tile),
+    var(--closed-lo);
+  animation: fade .25s ease-out;
+}
+.start[hidden] { display: none; }
+.start:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
+.start-mark { width: 44px; height: 44px; color: var(--coral); filter: drop-shadow(0 0 14px rgba(255,90,78,.45)); }
+.start-title {
+  margin: 0; display: flex; flex-direction: column; align-items: center; line-height: .98; text-transform: uppercase;
+  font-family: "Arial Black", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif; font-weight: 900; letter-spacing: .02em;
+}
+.start-title span:first-child { font-size: clamp(30px, 9vw, 44px); color: var(--shell-accent); }
+.start-title span:last-child { font-size: clamp(22px, 6.5vw, 32px); color: var(--shell-text); }
+.start-best { margin: 0; font-size: 13px; color: var(--shell-muted); font-variant-numeric: tabular-nums; }
+.start-best[hidden] { display: none; }
+.start-best strong { color: var(--shell-accent); }
+.start-hint {
+  margin: 8px 0 0; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 14px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em; animation: blink 1.4s ease-in-out infinite;
+}
+.hint-or { font-size: 11px; font-weight: 600; letter-spacing: .1em; color: var(--shell-muted); }
+.cap {
+  display: inline-grid; place-items: center; height: 26px; min-width: 26px; padding: 0 8px; font-family: inherit; font-size: 12px;
+  font-weight: 800; line-height: 1; letter-spacing: .03em; text-transform: uppercase; color: var(--shell-bg); background: var(--shell-text);
+  border: 2px solid var(--shell-line); border-radius: 5px; box-shadow: 0 3px 0 #4a5068;
+}
+.cap-wide { min-width: 64px; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+
+/* Ajuda: botão só com ícone ao lado do jogo; popover (fixo, posicionado pelo JS) abre abaixo do botão */
+.help { position: absolute; top: 0; left: calc(100% + 16px); z-index: 20; width: 44px; height: 44px; }
+/* Sem espaço lateral (celular em pé): o botão desce para uma faixa sob o jogo */
+.arena.help-bottom .game-wrap { padding-bottom: 56px; }
+.arena.help-bottom .help { top: auto; bottom: 6px; left: auto; right: 0; }
+.help-btn {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: var(--shell-text); background: var(--shell-surface);
+  border: 1px solid var(--shell-line); border-radius: 50%; cursor: pointer; touch-action: manipulation;
+  transition: border-color .2s, background .2s, box-shadow .25s, transform .1s;
+}
+.help-btn svg { transition: color .2s; }
+.help-btn:hover, .help-btn[aria-expanded="true"] { background: #141722; border-color: rgba(255,200,87,.6); box-shadow: 0 0 0 4px rgba(255,200,87,.08); }
+.help-btn:hover svg, .help-btn[aria-expanded="true"] svg { color: var(--shell-accent); }
+.help-btn:active { transform: scale(.95); }
+.help-btn:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+
+.help-popover {
+  --arrow-x: 22px;
+  position: fixed; z-index: 40; width: 264px; padding: 14px 16px 12px; text-align: left; overflow-y: auto; overscroll-behavior: contain;
+  color: var(--shell-text); background: var(--shell-surface); border: 1px solid rgba(255,200,87,.55); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.6); transform-origin: var(--arrow-x) top; animation: help-in .16s ease-out;
+}
+.help-popover[hidden] { display: none; }
+.help-popover[data-placement="above"] { transform-origin: var(--arrow-x) bottom; }
+.help-popover::before {
+  content: ""; position: absolute; left: calc(var(--arrow-x) - 6px); width: 12px; height: 12px; background: var(--shell-surface);
+  border: 1px solid rgba(255,200,87,.55); transform: rotate(45deg);
+}
+.help-popover[data-placement="below"]::before { top: -7px; border-right: 0; border-bottom: 0; }
+.help-popover[data-placement="above"]::before { bottom: -7px; border-left: 0; border-top: 0; }
+.help-title { margin: 0 30px 8px 0; font-size: 17px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; color: var(--shell-accent); }
+.help-text { margin: 0 0 10px; font-size: 13px; line-height: 1.4; }
+.help-text b { color: var(--shell-accent); }
+.help-sub {
+  margin: 0 0 6px; padding-top: 10px; font-size: 11px; line-height: 1; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--shell-muted); border-top: 1px dashed var(--shell-line);
+}
+.ctl-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.ctl-list li { display: flex; align-items: center; gap: 12px; }
+.ctl-keys { flex: none; display: inline-flex; gap: 5px; min-width: 70px; }
+.ctl-label { font-size: 13px; }
+.help-note { margin: 12px 0 0; font-size: 12px; line-height: 1.35; color: var(--shell-muted); }
+.help-close {
+  position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
+  color: var(--shell-muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; touch-action: manipulation;
+}
+.help-close svg { width: 12px; height: 12px; }
+.help-close:hover { color: var(--shell-text); background: rgba(255,255,255,.06); }
+.help-close:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: -2px; }
+@keyframes help-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+
 @media (max-width: 640px) { .topbar { height: 52px; } }
-@media (prefers-reduced-motion: reduce) { .cell.open, .cell.boom, .end { animation: none; } .back, .back svg, .btn { transition: none; } }
+/* Celular: menos folga lateral e menos altura nos controles, para sobrar largura/altura ao tabuleiro */
+@media (max-width: 520px) {
+  :root { --cpad: 6px; --fpad: 3px; --apad-y: 8px; --apad-x: 4px; }
+  .game { gap: 8px; border-radius: 14px; }
+  .frame { border-radius: 10px; }
+  .levels, .hud, .tools { gap: 6px; }
+  .levels button { min-height: 42px; }
+  .stat { padding: 6px 10px; gap: 2px; } .stat strong { font-size: 22px; }
+  .btn { min-height: 42px; font-size: 14px; }
+  .start-title span:first-child { font-size: clamp(26px, 9vw, 38px); } .start-title span:last-child { font-size: clamp(20px, 6.5vw, 28px); }
+}
+@media (max-height: 480px) { :root { --apad-y: 8px; } .stat strong { font-size: 22px; } }
+@media (prefers-reduced-motion: reduce) { .cell.open, .cell.boom, .end, .start, .start-hint, .help-popover { animation: none; } .help-btn { transition: none; } .back, .back svg, .btn { transition: none; } }

@@ -7,7 +7,6 @@
   <title>Campo Minado · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="campo_minado.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
@@ -22,7 +21,7 @@
         <rect width="32" height="32" rx="9" fill="#2c4150"/>
         <rect x="5" y="5" width="10" height="10" rx="2" fill="#5b7a8c"/><rect x="17" y="5" width="10" height="10" rx="2" fill="#161c29"/>
         <rect x="5" y="17" width="10" height="10" rx="2" fill="#161c29"/><rect x="17" y="17" width="10" height="10" rx="2" fill="#5b7a8c"/>
-        <path d="M22 19v6" stroke="#eceef5" stroke-width="1.5" stroke-linecap="round"/><path d="M22.4 19.3l3.6 1.5-3.6 1.5z" fill="#ffc857"/>
+        <path d="M22 19v6" stroke="#eceef5" stroke-width="1.5" stroke-linecap="round"/><path d="M22.4 19.3l3.6 1.5-3.6 1.5z" fill="#ff3b30"/>
         <circle cx="10" cy="22" r="2.4" fill="#ff5a4e"/>
       </svg>
       <div class="game-text"><h1>Campo Minado</h1></div>
@@ -30,7 +29,8 @@
   </header>
 
   <div id="arena" class="arena">
-    <main id="game" class="game" aria-label="Campo Minado">
+    <div id="game-wrap" class="game-wrap">
+    <main id="game" class="game is-idle" aria-label="Campo Minado">
       <div class="levels" role="radiogroup" aria-label="Dificuldade">
         <button type="button" role="radio" data-level="easy"><b>Fácil</b><i>9×9 · 10</i></button>
         <button type="button" role="radio" data-level="medium"><b>Médio</b><i>16×16 · 40</i></button>
@@ -44,7 +44,7 @@
 
       <div class="tools">
         <button id="flag-button" class="btn btn-alt" type="button" aria-pressed="false" title="Modo bandeira (F)">
-          <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false"><path d="M4.5 2v12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M5 2.6l8 3.2-8 3.2z" fill="#ffc857"/><path d="M2.5 14.5h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false"><path d="M4.5 2v12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M5 2.6l8 3.2-8 3.2z" fill="#ff3b30" stroke="#a31812" stroke-width=".8" stroke-linejoin="round"/><path d="M2.5 14.5h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
           <span>Bandeira</span>
         </button>
         <button id="new-button" class="btn" type="button" title="Novo jogo (R)">Novo jogo</button>
@@ -54,6 +54,16 @@
         <div id="field" class="field">
           <div id="grid" class="grid" role="grid" aria-label="Tabuleiro"></div>
         </div>
+        <section id="start" class="start" role="button" tabindex="0" aria-label="Toque para iniciar ou pressione Space">
+          <svg class="start-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></g><circle cx="8" cy="8" r="4.2" fill="currentColor"/><circle cx="6.7" cy="6.7" r="1.2" fill="#fff" opacity=".7"/></svg>
+          <p class="start-title" aria-hidden="true"><span>Campo</span><span>Minado</span></p>
+          <p id="start-best" class="start-best" hidden>Melhor tempo: <strong id="start-best-value">0:00</strong></p>
+          <p class="start-hint">
+            <span class="hint-text">Toque para iniciar</span>
+            <span class="hint-or">ou</span>
+            <kbd class="cap cap-wide">Space</kbd>
+          </p>
+        </section>
         <section id="end" class="end" role="dialog" aria-labelledby="end-title" hidden>
           <h2 id="end-title" class="end-title"></h2>
           <p id="end-text" class="end-text"></p>
@@ -64,24 +74,42 @@
       <p id="status" class="status" aria-live="polite"></p>
       <noscript><p class="status">Ative o JavaScript para jogar.</p></noscript>
     </main>
-  </div>
-  <div id="game-menu" class="gmenu" hidden role="dialog" aria-labelledby="gmenu-title">
-  <div class="gmenu-card">
-    <h2 id="gmenu-title" class="gmenu-title">Campo Minado</h2>
-    <p class="menu-desc">Abra todas as casas sem pisar em nenhuma mina. Os números mostram quantas minas há ao redor.</p>
-    <p class="gmenu-sub">Dificuldade</p>
-    <div class="gmenu-opts" role="radiogroup" aria-label="Dificuldade" data-mirror=".levels button"></div>
-    <ul class="menu-keys" aria-label="Comandos">
-      <li><span class="keycaps"><kbd>R</kbd></span><span>novo jogo</span></li>
-      <li><span class="keycaps"><kbd>F</kbd></span><span>modo bandeira</span></li>
-    </ul>
-    <p class="menu-touch">Toque para abrir; segure para marcar uma bandeira</p>
-    <button type="button" class="gmenu-play" data-menu-play>Jogar</button>
-  </div>
-</div>
 
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
+      <!-- Ajuda: botão só com ícone, ao lado do jogo (fora do cabeçalho, do placar e do tabuleiro) + popover ancorado a ele -->
+      <div class="help">
+        <button id="help-button" class="help-btn" type="button"
+                aria-haspopup="dialog" aria-expanded="false" aria-controls="help-popover"
+                aria-label="Como jogar" title="Como jogar">
+          <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
+            <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="help-popover" class="help-popover" role="dialog" aria-labelledby="help-title" data-placement="below" hidden>
+    <button id="help-close" class="help-close" type="button" aria-label="Fechar">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square"/></svg>
+    </button>
+    <h2 id="help-title" class="help-title">Como jogar</h2>
+    <p class="help-text"><b>Objetivo:</b> abra todas as casas que não têm mina. Cada número mostra quantas minas existem nas 8 casas ao redor dele.</p>
+    <h3 class="help-sub">Revelar</h3>
+    <p class="help-text">Clique ou toque numa casa fechada para abrir. Se for uma mina, você perde; casas com 0 abrem as vizinhas sozinhas. O primeiro clique é sempre seguro.</p>
+    <h3 class="help-sub">Marcar uma mina</h3>
+    <p class="help-text">Botão direito, toque longo ou o modo bandeira marcam (ou desmarcam) uma casa. Casas marcadas não podem ser abertas.</p>
+    <h3 class="help-sub">Controles</h3>
+    <ul class="ctl-list">
+      <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">F</kbd></span><span class="ctl-label">Modo bandeira</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">R</kbd></span><span class="ctl-label">Novo jogo</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">Esc</kbd></span><span class="ctl-label">Fechar painéis</span></li>
+    </ul>
+    <p class="help-note">O contador mostra as minas restantes (minas menos bandeiras) e pode ficar negativo. Você vence ao abrir todas as casas seguras.</p>
+  </div>
+  <script src="campo_minado_storage.js"></script>
   <script src="campo_minado.js"></script>
 </body>
 </html>
