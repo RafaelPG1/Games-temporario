@@ -4,7 +4,7 @@
 
    Índice
      1. Configuração (todas as constantes de ajuste estão aqui)
-     2. Persistência (delegada ao game_storage compartilhado)
+     2. Persistência (flappy_bird_storage.js, exclusivo deste jogo)
      3. Áudio (Web Audio API)
      4. Estado da partida
      5. Física do pássaro
@@ -127,17 +127,11 @@
 
   /* ======================================================================
      2. PERSISTÊNCIA
-     Toda leitura/gravação passa pelo game_storage compartilhado (registro
-     "flappy_bird"), que trata dados inválidos e armazenamento indisponível.
+     Toda leitura/gravação (recorde e preferência de som) passa por
+     flappy_bird_storage.js, que precisa ser carregado antes deste arquivo.
+     Ele trata dados inválidos e armazenamento indisponível.
      ====================================================================== */
-  const store = GameStorage.game('flappy_bird');
-  store.migrate([{ from: 'flappy-bird:best', to: 'best', type: 'int' }, { from: 'flappy-bird:muted', to: 'muted', type: 'bool01' }]);
-  const Store = {
-    getBest: () => { const n = Math.floor(Number(store.get('best', 0))); return Number.isFinite(n) && n > 0 ? n : 0; },
-    setBest: (value) => { const n = Math.floor(Number(value)); if (Number.isFinite(n) && n > 0) store.setRecord('best', n); return Store.getBest(); },
-    isMuted: () => store.get('muted', false) === true,
-    setMuted: (value) => { store.set('muted', Boolean(value)); return Boolean(value); },
-  };
+  const Store = window.FlappyBirdStorage;
 
   /* ======================================================================
      3. ÁUDIO (efeitos gerados com Web Audio API, sem arquivos externos)
@@ -1011,6 +1005,7 @@
      ====================================================================== */
   const ui = {
     arena: document.getElementById('arena'),
+    stageWrap: document.getElementById('stage-wrap'),
     stage: document.getElementById('stage'),
     muteButton: document.getElementById('mute-button'),
     pauseButton: document.getElementById('pause-button'),
@@ -1020,6 +1015,9 @@
     overScore: document.getElementById('over-score'),
     overBest: document.getElementById('over-best'),
     overNew: document.getElementById('over-new'),
+    infoButton: document.getElementById('info-button'),
+    infoPopover: document.getElementById('info-popover'),
+    infoClose: document.getElementById('info-close'),
   };
 
   function syncUi() {
@@ -1062,6 +1060,111 @@
     syncMuteButton();
   }
 
+  // Ajuda "Como jogar": popover pequeno ancorado ao botão "?", fora da área do jogo.
+  // Abrir ou fechar NÃO inicia, pausa nem altera a partida: é só um painel de leitura.
+  let infoOpen = false;
+
+  const HELP = { gap: 12, edge: 8, compactWidth: 150, minWidth: 168, maxWidth: 240 };
+
+  function openInfo() {
+    if (infoOpen) return;
+    infoOpen = true;
+    ui.infoPopover.hidden = false;
+    ui.infoButton.setAttribute('aria-expanded', 'true');
+    placeHelp();
+  }
+
+  function closeInfo() {
+    if (!infoOpen) return;
+    infoOpen = false;
+    ui.infoPopover.hidden = true;
+    ui.infoButton.setAttribute('aria-expanded', 'false');
+  }
+
+  // Escolhe onde o painel abre. A preferência é SEMPRE abaixo do botão:
+  //   below = abaixo do botão, alinhado a ele (nunca sobre o jogo quando há espaço)
+  // Só quando o painel não cabe na altura que sobra abaixo do botão:
+  //   right = à direita do botão (celular deitado, botão ao lado do jogo)
+  //   above = acima do botão, que fica numa faixa sob o jogo (celular em pé, sem altura livre)
+  function placeHelp() {
+    if (!infoOpen) return;
+    const pop = ui.infoPopover;
+    const arena = ui.arena.getBoundingClientRect();
+    const btn = ui.infoButton.getBoundingClientRect();
+    const stage = ui.stage.getBoundingClientRect();
+    const bottomMode = ui.arena.classList.contains('help-bottom');
+
+    pop.style.removeProperty('--shift');
+    pop.style.removeProperty('--arrow-y');
+    pop.style.removeProperty('--pop-x');
+    pop.style.removeProperty('--arrow-x');
+    pop.style.removeProperty('max-height');
+    pop.style.removeProperty('overflow-y');
+
+    // 1) Largura e posição horizontal para abrir abaixo do botão.
+    let width;
+    let left;                                   // borda esquerda do painel, em coordenadas da janela
+    if (bottomMode) {
+      // Botão na faixa sob o jogo: painel alinhado à direita do botão, dentro da arena.
+      width = Math.min(HELP.maxWidth, arena.width - HELP.edge * 2);
+      left = btn.right - width;
+      left = Math.min(left, arena.right - HELP.edge - width);
+      left = Math.max(left, arena.left + HELP.edge);
+    } else {
+      // Botão ao lado do jogo: painel começa no botão e cresce para o lado de fora do palco.
+      const spanLeft = stage.right + HELP.edge;
+      const spanRight = arena.right - HELP.edge;
+      width = Math.min(HELP.maxWidth, spanRight - spanLeft);
+      if (width >= HELP.minWidth) {
+        left = Math.min(btn.left, spanRight - width);
+        left = Math.max(left, spanLeft);
+      } else {
+        // Sem largura livre ao lado do palco: único caso em que o painel invade um pouco o jogo,
+        // e o mínimo possível (largura mínima legível, encostada na borda direita da arena).
+        width = Math.min(Math.max(HELP.compactWidth, spanRight - spanLeft), HELP.minWidth, arena.width - HELP.edge * 2);
+        left = Math.max(arena.left + HELP.edge, spanRight - width);
+      }
+    }
+    width = Math.floor(width);
+    pop.style.width = `${width}px`;
+
+    // 2) Cabe na altura que sobra abaixo do botão?
+    const height = pop.offsetHeight;
+    const roomBelow = arena.bottom - (btn.bottom + HELP.gap) - HELP.edge;
+    const roomRight = arena.right - btn.right - HELP.gap - HELP.edge;
+    let placement = 'below';
+
+    if (height > roomBelow) {
+      if (!bottomMode && roomRight >= HELP.minWidth) placement = 'right';
+      else if (bottomMode) placement = 'above';
+    }
+
+    if (placement === 'below') {
+      const arrowX = Math.min(Math.max(btn.left + btn.width / 2 - left, 16), width - 16);
+      pop.style.setProperty('--pop-x', `${Math.round(left - btn.left)}px`);
+      pop.style.setProperty('--arrow-x', `${Math.round(arrowX)}px`);
+      if (height > roomBelow) {
+        // Sem espaço nem para os lados: limita a altura e deixa o conteúdo rolar.
+        pop.style.maxHeight = `${Math.max(96, Math.floor(roomBelow))}px`;
+        pop.style.overflowY = 'auto';
+      }
+    } else if (placement === 'right') {
+      const rightWidth = Math.floor(Math.min(HELP.maxWidth, roomRight));
+      pop.style.width = `${rightWidth}px`;
+      // Alinha ao topo do botão; se faltar altura, sobe o painel e a seta continua no botão.
+      const h = pop.offsetHeight;
+      let up = Math.max(0, btn.top + h - (arena.bottom - HELP.edge));
+      up = Math.min(up, Math.max(0, btn.top - (arena.top + HELP.edge)));
+      const arrow = Math.min(Math.max(19 + up, 16), Math.max(16, h - 16));
+      pop.style.setProperty('--shift', `${-up}px`);
+      pop.style.setProperty('--arrow-y', `${arrow}px`);
+    } else {
+      // above: último recurso do celular em pé, quando não sobra altura abaixo do botão.
+      pop.style.width = `${Math.floor(Math.max(150, Math.min(HELP.maxWidth, stage.width - 16, arena.width - HELP.edge * 2)))}px`;
+    }
+    pop.dataset.placement = placement;
+  }
+
   /* ======================================================================
      11. ENTRADA (teclado, mouse e toque)
      Todo comando válido passa por handleAction, que gera no máximo um
@@ -1080,6 +1183,13 @@
 
   function onKeyDown(event) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+    // Com a ajuda aberta, Esc fecha só o painel (não pausa); as demais teclas seguem normais.
+    if (infoOpen && event.code === 'Escape') {
+      event.preventDefault();
+      closeInfo();
+      return;
+    }
 
     if (FLAP_KEYS.has(event.code)) {
       event.preventDefault();                       // impede a rolagem da página
@@ -1105,8 +1215,16 @@
   }
 
   function onPointerDown(event) {
-    // Botões, links e o cabeçalho da Arcádia não contam como comando de voo.
-    if (event.target && event.target.closest && event.target.closest('button, a, header')) return;
+    const target = event.target;
+    const hit = (selector) => Boolean(target && target.closest && target.closest(selector));
+
+    // Ajuda aberta: tocar fora dela só a fecha. Se o toque foi no jogo, não vira voo nem início.
+    if (infoOpen && !hit('.help')) {
+      closeInfo();
+      if (!hit('button, a, header')) { event.preventDefault(); return; }
+    }
+    // Botões, links, o cabeçalho da Arcádia e a ajuda não contam como comando de voo.
+    if (hit('button, a, header, .help')) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;   // só o botão esquerdo
     event.preventDefault();
     handleAction();
@@ -1125,16 +1243,30 @@
      (Antes, largura e altura eram arredondadas separadamente e o buffer
      era arredondado de novo a partir do tamanho em CSS.)
      ====================================================================== */
-  function resizeCanvas() {
+  // O botão de ajuda fica ao lado do palco. Se não houver espaço lateral (celular em pé),
+  // ele vai para uma faixa logo abaixo do jogo, e essa faixa é descontada da altura.
+  const HELP_SIDE_ROOM = 72;     // botão (44) + folga (16) + margem
+  const HELP_STRIP = 56;         // faixa abaixo do palco no modo celular em pé
+
+  function fitUnit(boxWidth, boxHeight, pixelRatio, reserveY) {
     const { margin, maxCssHeight } = CONFIG.view;
+    const availableWidth = Math.max(1, boxWidth - margin * 2) * pixelRatio;
+    const availableHeight = Math.max(1, Math.min(boxHeight - margin * 2 - reserveY, maxCssHeight)) * pixelRatio;
+    // Maior múltiplo de 9 (em pixels físicos) que cabe na largura e, pela proporção, na altura.
+    return Math.max(1, Math.floor(Math.min(availableWidth / 9, availableHeight / 16)));
+  }
+
+  function resizeCanvas() {
     const pixelRatio = window.devicePixelRatio || 1;
     const boxWidth = ui.arena ? ui.arena.clientWidth : window.innerWidth;
     const boxHeight = ui.arena ? ui.arena.clientHeight : window.innerHeight;
-    const availableWidth = Math.max(1, boxWidth - margin * 2) * pixelRatio;
-    const availableHeight = Math.max(1, Math.min(boxHeight - margin * 2, maxCssHeight)) * pixelRatio;
 
-    // Maior múltiplo de 9 (em pixels físicos) que cabe na largura e, pela proporção, na altura.
-    const unit = Math.max(1, Math.floor(Math.min(availableWidth / 9, availableHeight / 16)));
+    let unit = fitUnit(boxWidth, boxHeight, pixelRatio, 0);
+    const sideRoom = (boxWidth - (unit * 9) / pixelRatio) / 2;
+    const helpBottom = sideRoom < HELP_SIDE_ROOM;
+    if (helpBottom) unit = fitUnit(boxWidth, boxHeight, pixelRatio, HELP_STRIP);
+    ui.arena.classList.toggle('help-bottom', helpBottom);
+
     const bufferWidth = unit * 9;
     const bufferHeight = unit * 16;           // 288:512 = 9:16, exato
 
@@ -1148,6 +1280,7 @@
     canvas.height = bufferHeight;
 
     render();     // redimensionar limpa o canvas: redesenha na hora para não piscar
+    placeHelp();  // reposiciona o painel de ajuda, se estiver aberto
   }
 
   /* ======================================================================
@@ -1195,10 +1328,14 @@
       ui.muteButton.blur();          // Espaço não deve acionar o botão depois
     });
 
-    document.getElementById('start-button').addEventListener('click', (event) => {
+    ui.infoButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      handleAction();
-      event.currentTarget.blur();
+      if (infoOpen) closeInfo(); else openInfo();
+      if (event.detail > 0) ui.infoButton.blur();   // clique/toque: Espaço não deve acionar o botão depois
+    });
+    ui.infoClose.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeInfo();
     });
     ui.pauseButton.addEventListener('click', (event) => {
       event.stopPropagation();

@@ -223,23 +223,49 @@ body {
   left: 8%;
   right: 8%;
   margin: 0;
-  font-size: max(13px, calc(var(--u) * 14));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 8);
+  font-size: max(14px, calc(var(--u) * 15));
   line-height: 1.25;
   animation: blink 1.4s ease-in-out infinite;
 }
+.hint-keys { display: inline-flex; align-items: center; gap: calc(var(--u) * 8); }
+.hint-or { font-size: max(11px, calc(var(--u) * 11)); text-transform: uppercase; }
 
-.controls {
-  position: absolute;
-  bottom: calc(112 / 512 * 100% + var(--u) * 10);   /* logo acima do chão */
-  left: 6%;
-  right: 6%;
-  margin: 0;
-  font-size: max(10px, calc(var(--u) * 9));
-  line-height: 1.3;
-  color: var(--white);
-  text-shadow: 0 calc(var(--u) * 1) 0 var(--ink), 0 calc(var(--u) * -1) 0 var(--ink),
-               calc(var(--u) * 1) 0 0 var(--ink), calc(var(--u) * -1) 0 0 var(--ink);
+/* ---------- Teclas (tela inicial e popover de ajuda) ---------- */
+.cap {
+  --cap: max(26px, calc(var(--u) * 26));
+  display: inline-grid;
+  place-items: center;
+  height: var(--cap);
+  min-width: var(--cap);
+  padding: 0 calc(var(--cap) * 0.28);
+  font-family: "Arial Black", "Trebuchet MS", Arial, sans-serif;
+  font-size: calc(var(--cap) * 0.46);
+  font-weight: 900;
+  line-height: 1;
+  color: var(--ink);
+  text-shadow: none;
+  background: var(--white);
+  border: 2px solid var(--ink);
+  border-radius: 4px;
+  box-shadow: 0 3px 0 var(--ink);
 }
+.cap-wide { min-width: calc(var(--cap) * 2); }
+.cap-icon { display: block; width: calc(var(--cap) * 0.6); height: calc(var(--cap) * 0.6); }
+
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  margin: -1px; padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 
 @keyframes blink {
   0%, 100% { opacity: 1; }
@@ -415,7 +441,6 @@ body {
 /* ---------- Telas muito baixas (celular deitado) ---------- */
 
 @media (max-height: 420px) {
-  .controls { display: none; }
   .topbar { height: 46px; }
   .game-text span { display: none; }
 }
@@ -428,9 +453,183 @@ body {
   .back, .back svg { transition: none; }
 }
 
-/* Menu inicial sobre o céu claro: texto branco com contorno escuro */
-.screen-ready .menu-desc, .screen-ready .menu-keys li, .screen-ready .menu-touch {
-  color: #fff; font-weight: 700;
-  text-shadow: calc(var(--o) * -1) calc(var(--o) * -1) 0 var(--ink), var(--o) calc(var(--o) * -1) 0 var(--ink), calc(var(--o) * -1) var(--o) 0 var(--ink), var(--o) var(--o) 0 var(--ink);
+/* ---------- Ajuda: botão (só ícone) + popover ancorado ---------- */
+
+/* Caixa com o mesmo tamanho do palco; o botão fica pendurado fora dela. */
+.stage-wrap { position: relative; width: fit-content; height: fit-content; }
+
+.help {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 16px);          /* ao lado do jogo, nunca em cima dele */
+  z-index: 20;
+  width: 44px;
+  height: 44px;
 }
-.screen-ready .menu-keys kbd { color: var(--ink); background: #fff; border-color: var(--ink); }
+/* Telas estreitas (sem espaço ao lado): o botão desce para uma faixa abaixo do jogo. */
+.arena.help-bottom .stage-wrap { margin-bottom: 56px; }
+.arena.help-bottom .help { top: calc(100% + 8px); left: auto; right: 0; }
+
+.help-btn {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--shell-text);
+  background: var(--shell-surface);
+  border: 1px solid var(--shell-line);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.2s, background 0.2s, box-shadow 0.25s, transform 0.1s;
+}
+.help-btn svg { transition: color 0.2s; }
+.help-btn:hover,
+.help-btn[aria-expanded="true"] {
+  background: #141722;
+  border-color: rgba(255, 200, 87, 0.6);
+  box-shadow: 0 0 0 4px rgba(255, 200, 87, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.help-btn:hover svg,
+.help-btn[aria-expanded="true"] svg { color: var(--shell-accent); }
+.help-btn:active { transform: scale(0.95); }
+.help-btn:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+
+.help-popover {
+  --arrow-y: 19px;                  /* altura da seta (modo "right"); o JS ajusta */
+  position: absolute;
+  z-index: 30;
+  width: 240px;                     /* o JS ajusta conforme o espaço livre */
+  padding: 14px 16px 12px;
+  color: var(--ink);
+  font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
+  font-weight: 700;
+  text-align: left;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow:
+    inset 0 0 0 2px var(--paper-light),
+    0 4px 0 rgba(0, 0, 0, 0.35),
+    0 12px 28px rgba(0, 0, 0, 0.45);
+  animation: help-in 0.16s ease-out;
+}
+.help-popover[hidden] { display: none; }
+
+/* Seta apontando para o botão */
+.help-popover::before {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  transform: rotate(45deg);
+}
+
+/* Alternativa quando não cabe abaixo: ao lado do botão (celular deitado) */
+.help-popover[data-placement="right"] {
+  left: calc(100% + 12px);
+  top: var(--shift, 0px);
+  transform-origin: left 22px;
+}
+.help-popover[data-placement="right"]::before {
+  left: -9px;
+  top: calc(var(--arrow-y) - 7px);
+  border-right: 0;
+  border-top: 0;
+}
+
+/* Padrão: abaixo do botão. O JS define --pop-x (deslocamento horizontal em relação
+   ao botão) e --arrow-x (posição da seta, sob o centro do botão). */
+.help-popover[data-placement="below"] {
+  top: calc(100% + 12px);
+  left: var(--pop-x, 0px);
+  transform-origin: var(--arrow-x, 22px) top;
+}
+.help-popover[data-placement="below"]::before { left: calc(var(--arrow-x, 22px) - 7px); top: -10px; border-right: 0; border-bottom: 0; }
+
+/* Último recurso (celular em pé, sem altura livre abaixo do botão): abre para cima */
+.help-popover[data-placement="above"] {
+  bottom: calc(100% + 12px);
+  right: 0;
+  transform-origin: right bottom;
+}
+.help-popover[data-placement="above"]::before { right: 12px; bottom: -10px; border-left: 0; border-top: 0; }
+
+.help-title {
+  margin: 0 28px 6px 0;
+  font-family: "Arial Black", "Trebuchet MS", Arial, sans-serif;
+  font-weight: 900;
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: #ff9a2a;
+  text-shadow:
+    -1.5px -1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px 1.5px 0 var(--ink), 1.5px 1.5px 0 var(--ink),
+    0 -1.5px 0 var(--ink), 0 1.5px 0 var(--ink), -1.5px 0 0 var(--ink), 1.5px 0 0 var(--ink),
+    0 3px 0 var(--ink);
+}
+.help-text { margin: 0 0 10px; font-size: 14px; line-height: 1.3; }
+
+.help-popover .ctl-list { margin: 0; padding: 10px 0 0; list-style: none; display: grid; gap: 8px; border-top: 2px dashed rgba(84, 56, 71, 0.35); }
+.help-popover .ctl-list li { display: flex; align-items: center; gap: 12px; }
+.help-popover .ctl-keys { flex: none; display: inline-flex; gap: 5px; min-width: 84px; }
+.help-popover .ctl-label { font-size: 14px; }
+.help-popover .cap { --cap: 26px; }
+.help-note { margin: 10px 0 0; font-size: 12px; line-height: 1.3; opacity: 0.8; }
+
+/* × discreto */
+.help-close {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  opacity: 0.6;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.help-close svg { width: 12px; height: 12px; }
+.help-close:hover { opacity: 1; background: rgba(84, 56, 71, 0.12); }
+.help-close:focus-visible { opacity: 1; outline: 2px solid #2d7be0; outline-offset: -2px; }
+
+@keyframes help-in {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .help-popover { animation: none; }
+  .help-btn { transition: none; }
+}
+
+/* ---------- Cabeçalho: voltar | nome do jogo | (espaço) ----------
+   Regras próprias do jogo: o layout do cabeçalho não depende de nenhum arquivo compartilhado. */
+.topbar {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px;
+  min-height: 46px; padding-top: 0; padding-bottom: 0; padding-left: clamp(12px, 3vw, 24px); padding-right: clamp(12px, 3vw, 24px);
+}
+.topbar .back { justify-self: start; min-height: 44px; }
+.topbar .game-id { justify-self: center; display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 100%; }
+.topbar .game-mark { flex: none; }
+.topbar .game-text { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1.15; }
+.topbar .game-text strong {
+  margin: 0; font-size: 16px; font-weight: 750; letter-spacing: .005em; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 480px) {
+  .topbar { gap: 8px; }
+  .topbar .back { width: 44px; padding: 0; justify-content: center; }
+  .topbar .back span { display: none; }
+  .topbar .game-text strong { font-size: 15px; }
+}
