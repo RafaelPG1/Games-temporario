@@ -3,9 +3,7 @@
 
 /* ===== Regras ===== */
 const CAP = 4, MAX_COLORS = 12;
-// Persistência: game_storage (registro "water_sort"): unlocked = maior fase liberada, last = última fase jogada, muted.
-const store = GameStorage.game('water_sort');
-store.migrate([{ from: 'arcadia.water_sort.muted', to: 'muted', type: 'bool01' }]);
+// Persistência: tudo passa por water_sort_storage.js (WaterSortStorage): unlocked = maior fase liberada, last = última fase jogada, muted.
 /* O deslocamento do tubo até o destino, a inclinação e o jato são a própria mecânica de despejo. Com true, eles rodam mesmo
    quando o sistema pede "reduzir movimento" (que continua desligando balanço, ondulação, respingos e brilhos decorativos).
    Com false, quem usa esse ajuste vê só os níveis mudarem no lugar, sem o tubo se mover. */
@@ -122,19 +120,28 @@ const $ = id => document.getElementById(id);
 const ui = {
   stage: $('stage'), canvas: $('game-canvas'), level: $('hud-level'), moves: $('hud-moves'),
   undo: $('undo-button'), restart: $('restart-button'), fresh: $('new-button'), mute: $('mute-button'),
-  dTitle: $('dialog-title'), dText: $('dialog-text'), dOk: $('dialog-ok'), dNo: $('dialog-cancel')
+  dTitle: $('dialog-title'), dText: $('dialog-text'), dOk: $('dialog-ok'), dNo: $('dialog-cancel'),
+  arena: $('arena'), frame: $('frame'), start: $('start-button'), startLevel: $('start-level'),
+  helpButton: $('help-button'), helpPopover: $('help-popover'), helpClose: $('help-close'),
+  levelsBtn: $('levels-button'), lvScreen: $('levels-screen'), lvClose: $('levels-close'), lvWrap: $('levels-wrap'), lvGrid: $('levels-grid'),
+  lvPrev: $('levels-prev'), lvNext: $('levels-next'), lvPage: $('levels-page')
 };
 const ctx = ui.canvas.getContext('2d');
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 let cw = 288, ch = 512, dpr = 1, lay = null, clock = 0, winT = -1, dialogOk = null;
 
-const G = { level: 1, best: Math.max(1, Math.floor(Number(store.get('unlocked', 1))) || 1), tubes: [], initial: [], moves: 0, history: [], selected: -1, busy: false, anim: null, won: false };
+const G = { level: 1, best: WaterSortStorage.getUnlocked(), tubes: [], initial: [], moves: 0, history: [], selected: -1, busy: false, anim: null, won: false };
+let ready = true;   // tela inicial: o jogo fica parado até tocar/clicar ou apertar Space
+let helpOpen = false;
+const HELP = { gap: 12, edge: 8, maxWidth: 270, button: 40, side: 18 };
+const LV = { open: false, page: 0, per: 15, lookahead: 5, minCell: 40, maxCols: 5, maxRows: 3 };
+const STAGE_W = 288, STAGE_H = 512, MARGIN = 6, MAX_CSS_HEIGHT = 1000;
 let vis = [], parts = [], booted = false;   // booted: só grava "last" depois da fase inicial carregada
 
 /* --- Som --- */
 const sfx = (() => {
   let ac = null, muted = false, noise = null;
-  muted = store.get('muted', false) === true;
+  muted = WaterSortStorage.isMuted();
   const get = () => {
     if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
     if (ac.state === 'suspended') ac.resume().catch(() => {});
@@ -150,7 +157,8 @@ const sfx = (() => {
   }
   return {
     get muted() { return muted; },
-    toggle() { muted = !muted; store.set('muted', muted); return muted; },
+    toggle() { muted = !muted; WaterSortStorage.setMuted(muted); return muted; },
+    unlock() { if (!muted) get(); },
     select: () => tone(620, 0.08, 'triangle', 0.07),
     bad: () => tone(150, 0.14, 'square', 0.04, 0, 0.7),
     done: () => { tone(700, 0.1, 'triangle', 0.07); tone(930, 0.14, 'triangle', 0.07, 0.09); },
@@ -170,22 +178,22 @@ const sfx = (() => {
 
 /* --- Fluxo do jogo --- */
 function setGame(level, initial, tubes, history) {
-  G.level = level; G.best = Math.max(G.best, level); if (booted) store.set('last', level); G.initial = initial; G.tubes = tubes; G.history = history; G.moves = history.length;
+  G.level = level; G.best = Math.max(G.best, level); if (booted) WaterSortStorage.setLast(level); G.initial = initial; G.tubes = tubes; G.history = history; G.moves = history.length;
   G.selected = -1; G.busy = false; G.anim = null; G.won = false; winT = -1; parts = [];
   vis = tubes.map(t => ({ lift: 0, shake: 0, flash: 0, wob: 0, wt: 0, imp: 0, impx: 0, rt: 0, cap: isPure(t) ? 1 : 0, lock: 0 }));
   closeDialog(); relayout(); updateHud();
 }
 function startLevel(n) { const g = generateLevel(n); setGame(n, copyTubes(g.tubes), g.tubes, []); }
-function restartLevel() { if (!G.busy && !G.won) setGame(G.level, G.initial, copyTubes(G.initial), []); }
+function restartLevel() { if (!ready && !G.busy && !G.won) setGame(G.level, G.initial, copyTubes(G.initial), []); }
 function undo() {
-  if (G.busy || G.won || !G.history.length) return;
+  if (ready || G.busy || G.won || !G.history.length) return;
   const h = G.history.pop();
   for (let i = 0; i < h.count; i++) G.tubes[h.from].push(G.tubes[h.to].pop());
   G.moves = G.history.length; G.selected = -1;
   vis[h.from].wob = vis[h.to].wob = 0.6; sfx.select(); updateHud();
 }
 function newGame() {
-  if (G.busy) return;
+  if (ready || G.busy) return;
   if (G.won || !G.moves) return startLevel(G.level);
   openDialog('Novo jogo', `Gerar uma nova configuração da fase ${G.level}? A partida atual será descartada.`, 'Novo jogo', true, () => startLevel(G.level));
 }
@@ -226,7 +234,7 @@ function endMove() {
   if (isSolved(G.tubes)) win();
 }
 function win() {
-  G.won = true; winT = 0; G.best = Math.max(G.best, G.level + 1); store.set('unlocked', G.best); sfx.win();
+  G.won = true; winT = 0; G.best = Math.max(G.best, G.level + 1); WaterSortStorage.setUnlocked(G.best); sfx.win();
   G.tubes.forEach((t, i) => t.length && sparkle(i, 6));
   setTimeout(() => {
     if (!G.won) return;
@@ -241,8 +249,10 @@ function openDialog(title, text, ok, cancel, fn) {
 function closeDialog() { ui.stage.classList.remove('is-dialog'); dialogOk = null; }
 function updateHud() {
   ui.level.textContent = G.level; ui.moves.textContent = G.moves;
-  ui.undo.disabled = G.busy || G.won || !G.history.length;
-  ui.restart.disabled = G.busy || G.won || !G.history.length;
+  ui.undo.disabled = ready || G.busy || G.won || !G.history.length;
+  ui.restart.disabled = ready || G.busy || G.won || !G.history.length;
+  ui.fresh.disabled = ready;
+  ui.startLevel.textContent = G.level;
 }
 function sparkle(i, n) {
   if (reduced.matches || !lay) return;
@@ -279,11 +289,26 @@ function hit(x, y) {
   });
   return found;
 }
+/* O botão "?" fica fora do jogo: ao lado (reserva dos dois lados, para o jogo seguir centralizado) ou, se faltar
+   largura, logo abaixo. Escolhe o formato que permite o maior jogo. */
 function resize() {
+  const aw = Math.max(1, ui.arena.clientWidth - MARGIN * 2), ah = Math.max(1, ui.arena.clientHeight - MARGIN * 2), help = HELP.button + HELP.side;
+  let best = { w: 0, pos: 'side' };
+  for (const pos of ['side', 'below']) {
+    const w = Math.max(1, aw - (pos === 'side' ? help * 2 : 0)), h = Math.max(1, ah - (pos === 'below' ? help : 0));
+    let sw = Math.min(h, MAX_CSS_HEIGHT) * (STAGE_W / STAGE_H);
+    if (sw > w) sw = w;
+    sw = Math.floor(sw);
+    if (sw > best.w) best = { w: sw, pos };
+  }
+  ui.frame.dataset.helpPos = best.pos;
+  ui.stage.style.width = `${best.w}px`; ui.stage.style.height = `${Math.floor(best.w / (STAGE_W / STAGE_H))}px`;
   const r = ui.stage.getBoundingClientRect(); if (!r.width) return;
   cw = r.width; ch = r.height; dpr = Math.min(window.devicePixelRatio || 1, 3);
   ui.canvas.width = Math.round(cw * dpr); ui.canvas.height = Math.round(ch * dpr);
   ui.stage.style.setProperty('--u', `${cw / 288}px`); relayout();
+  placeHelp();                 // reposiciona o painel de ajuda, se estiver aberto
+  if (LV.open) renderLevels(); // e refaz a grade de fases com o novo espaço
 }
 
 /* --- Física do líquido: níveis horizontais no mundo dentro de um tubo inclinado --- */
@@ -618,13 +643,13 @@ function update(dt) {
   }
   if (winT >= 0) winT += dt;
   parts = parts.filter(q => { q.life -= dt; q.vy += q.g * dt; q.x += q.vx * dt; q.y += q.vy * dt; return q.life > 0; });
-  if (ui.undo.disabled !== (G.busy || G.won || !G.history.length)) updateHud();
+  if (ui.undo.disabled !== (ready || G.busy || G.won || !G.history.length)) updateHud();
 }
 
 /* --- Entrada e inicialização --- */
 ui.canvas.addEventListener('pointerdown', e => {
   e.preventDefault();
-  if (G.busy || G.won || ui.stage.classList.contains('is-dialog')) return;
+  if (ready || LV.open || G.busy || G.won || ui.stage.classList.contains('is-dialog')) return;
   const r = ui.canvas.getBoundingClientRect(), i = hit((e.clientX - r.left) * cw / r.width, (e.clientY - r.top) * ch / r.height);
   if (i >= 0) tapTube(i);
 });
@@ -635,14 +660,27 @@ ui.dOk.addEventListener('click', () => { const f = dialogOk; closeDialog(); if (
 ui.dNo.addEventListener('click', closeDialog);
 function syncMute() { ui.mute.classList.toggle('is-muted', sfx.muted); ui.mute.setAttribute('aria-pressed', String(sfx.muted)); ui.mute.setAttribute('aria-label', sfx.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros'); }
 ui.mute.addEventListener('click', () => { sfx.toggle(); syncMute(); });
+const isDialog = () => ui.stage.classList.contains('is-dialog');
 window.addEventListener('keydown', e => {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
-  const k = e.key.toLowerCase(), dlg = ui.stage.classList.contains('is-dialog');
-  if (k === 'escape' && dlg && !ui.dNo.hidden) closeDialog();
-  else if (dlg) return;
+  const k = e.key.toLowerCase(), dlg = isDialog();
+  if (k === 'escape') {
+    if (helpOpen) { e.preventDefault(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); }
+    else if (LV.open) closeLevels();
+    else if (dlg && !ui.dNo.hidden) closeDialog();
+    return;
+  }
+  if (e.code === 'Space') {
+    if (e.target.closest && e.target.closest('#help-button, #help-close')) return;   // deixa o botão focado agir
+    if (e.repeat) return;
+    if (ready && !dlg && !LV.open) { e.preventDefault(); beginPlay(); }
+    return;
+  }
+  if (dlg) return;
+  if (k === 'm') { sfx.toggle(); syncMute(); }
+  else if (LV.open) return;
   else if (k === 'z') undo();
   else if (k === 'r') restartLevel();
-  else if (k === 'm') { sfx.toggle(); syncMute(); }
 });
 window.addEventListener('resize', resize);
 window.addEventListener('orientationchange', resize);
@@ -655,21 +693,105 @@ syncMute(); resize();
 startLevel(G.best); // continua na fase liberada mais recente (G.best = próxima fase disponível); cada início gera uma nova configuração
 booted = true;
 
-/* ===== Menu inicial: continuar, progresso e grade de fases ===== */
-const LEVEL_PREVIEW = 4;   // quantas fases bloqueadas aparecem depois da fase atual
-let reopened = false, levelsView = null;
-function refreshMenu() {
-  const next = G.best, done = next - 1;
-  const play = document.querySelector('#game-menu [data-menu-play]');
-  play.textContent = reopened ? `Voltar à fase ${G.level}` : done === 0 ? 'Iniciar fase 1' : `Continuar na fase ${next}`;
-  document.getElementById('menu-progress-text').innerHTML = done === 0
-    ? 'As fases ficam mais difíceis a cada vitória.'
-    : `<b>${done}</b> ${done === 1 ? 'fase concluída' : 'fases concluídas'} · próxima: fase <b>${next}</b>`;
-  const state = { total: next + LEVEL_PREVIEW, unlocked: next, completed: Array.from({ length: done }, (_, i) => i + 1), current: next, selected: reopened ? G.level : undefined };
-  if (levelsView) levelsView.update(state);
-  else levelsView = GameUI.levels.mount(document.getElementById('menu-levels'), { ...state, onPick(n) { reopened = false; GameUI.menu.current.close(); startLevel(n); } });
-  const cur = document.querySelector('#menu-levels .is-current'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+/* ===== Tela inicial ===== */
+function beginPlay() {
+  if (!ready) return;
+  ready = false; ui.stage.classList.remove('is-ready'); sfx.unlock(); updateHud();
 }
-GameUI.menu.mount({ el: '#game-menu', onOpen: refreshMenu, onPlay() { reopened = false; } });
-document.getElementById('levels-button').addEventListener('click', () => { if (G.busy) return; reopened = true; GameUI.menu.current.open(); });
+
+/* ===== Seleção de fases =====
+   O jogo gera fases por fórmula (levelConfig), então não há quantidade fixa: continua infinito. A grade mostra da fase 1 até a
+   fase liberada + algumas bloqueadas (sempre completando a última página) e ganha páginas novas conforme o jogador avança.
+   Estados: concluída (abaixo da liberada, com marca), atual (a liberada mais alta, destacada), bloqueada (cadeado). */
+const ICON_LOCK = '<svg class="lock" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3" y="7" width="10" height="7.5" rx="1.8" fill="currentColor"/><path d="M5.2 7V5.2a2.8 2.8 0 0 1 5.6 0V7" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>';
+const ICON_TICK = '<span class="tick" aria-hidden="true"><svg viewBox="0 0 12 12" focusable="false"><path d="M2.6 6.3l2.4 2.4 4.4-4.9" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+/* Quantas fases cabem por página: depende do espaço real da grade (mínimo de 40px por alvo de toque) */
+function measureLevels() {
+  const gap = parseFloat(getComputedStyle(ui.lvGrid).columnGap) || 6, W = ui.lvWrap.clientWidth, H = ui.lvWrap.clientHeight;
+  const cols = clamp(Math.floor((W + gap) / (LV.minCell + gap)), 3, LV.maxCols), side = (W - gap * (cols - 1)) / cols;
+  const rows = clamp(Math.floor((H + gap) / (side + gap)), 1, LV.maxRows);
+  ui.lvGrid.style.setProperty('--cols', cols);
+  LV.per = cols * rows;
+}
+function renderLevels(toCurrent) {
+  measureLevels();
+  const per = LV.per, total = Math.ceil((G.best + LV.lookahead) / per) * per, pages = total / per;
+  if (toCurrent) LV.page = Math.floor((G.best - 1) / per);
+  LV.page = clamp(LV.page, 0, pages - 1);
+  let html = '';
+  for (let n = LV.page * per + 1; n <= (LV.page + 1) * per; n++) {
+    const locked = n > G.best, done = n < G.best, cur = n === G.best;
+    const cls = ['lv', locked ? 'is-locked' : '', done ? 'is-done' : '', cur ? 'is-current' : '', n === G.level && !cur ? 'is-playing' : ''].filter(Boolean).join(' ');
+    const label = locked ? `Fase ${n}, bloqueada` : done ? `Fase ${n}, concluída` : cur ? `Fase ${n}, atual` : `Fase ${n}`;
+    html += `<button type="button" class="${cls}" data-n="${n}" aria-label="${label}"${locked ? ' disabled' : ''}${n === G.level ? ' aria-current="true"' : ''}>${locked ? ICON_LOCK : ''}<span>${n}</span>${done ? ICON_TICK : ''}</button>`;
+  }
+  ui.lvGrid.innerHTML = html;
+  ui.lvPage.textContent = `${LV.page + 1} / ${pages}`;
+  ui.lvPrev.disabled = LV.page === 0; ui.lvNext.disabled = LV.page >= pages - 1;
+}
+function openLevels() {
+  if (LV.open || G.busy || G.won || isDialog()) return;
+  LV.open = true; ui.stage.classList.add('is-levels'); renderLevels(true);
+  const cur = ui.lvGrid.querySelector('.is-current'); (cur || ui.lvClose).focus({ preventScroll: true });
+}
+function closeLevels() { if (!LV.open) return; LV.open = false; ui.stage.classList.remove('is-levels'); }
+function pickLevel(n) {
+  if (!(n >= 1 && n <= G.best)) return;
+  closeLevels(); beginPlay();
+  if (n === G.level && G.moves > 0 && !G.won) return;   // mesma fase em andamento: só volta para ela, sem perder a partida
+  startLevel(n);
+}
+
+/* ===== Ajuda "Como jogar": popover ancorado ABAIXO do botão "?", fora da área do jogo ===== */
+function openHelp() {
+  if (helpOpen) return;
+  helpOpen = true; ui.helpPopover.hidden = false; ui.helpButton.setAttribute('aria-expanded', 'true'); placeHelp();
+}
+function closeHelp() {
+  if (!helpOpen) return;
+  helpOpen = false; ui.helpPopover.hidden = true; ui.helpButton.setAttribute('aria-expanded', 'false');
+}
+// Abre sempre ABAIXO do botão (com rolagem interna se faltar altura). Só inverte para cima quando o botão
+// está sob o jogo (celular), onde pode não sobrar espaço embaixo.
+function placeHelp() {
+  if (!helpOpen) return;
+  const pop = ui.helpPopover;
+  for (const v of ['max-height', 'overflow-y']) pop.style.removeProperty(v);
+  const arena = ui.arena.getBoundingClientRect(), btn = ui.helpButton.getBoundingClientRect();
+  const width = Math.floor(Math.min(HELP.maxWidth, arena.width - HELP.edge * 2));
+  const left = Math.max(arena.left + HELP.edge, Math.min(btn.left, arena.right - HELP.edge - width));
+  pop.style.width = `${width}px`; pop.style.left = `${Math.round(left)}px`;
+  pop.style.setProperty('--arrow-x', `${Math.round(Math.min(Math.max(btn.left + btn.width / 2 - left, 16), width - 16))}px`);
+  const height = pop.offsetHeight, roomBelow = window.innerHeight - btn.bottom - HELP.gap - HELP.edge, roomAbove = btn.top - HELP.gap - HELP.edge;
+  let placement = 'below';
+  if (ui.frame.dataset.helpPos !== 'side' && height > roomBelow && roomAbove > roomBelow) placement = 'above';
+  const room = placement === 'below' ? roomBelow : roomAbove;
+  if (height > room) { pop.style.maxHeight = `${Math.max(96, Math.floor(room))}px`; pop.style.overflowY = 'auto'; }
+  const finalHeight = pop.offsetHeight;
+  pop.style.top = `${Math.round(placement === 'below' ? btn.bottom + HELP.gap : btn.top - HELP.gap - finalHeight)}px`;
+  pop.dataset.placement = placement;
+}
+
+/* ===== Ligações ===== */
+ui.start.addEventListener('click', beginPlay);
+ui.levelsBtn.addEventListener('click', openLevels);
+ui.lvClose.addEventListener('click', closeLevels);
+ui.lvPrev.addEventListener('click', () => { LV.page--; renderLevels(); });
+ui.lvNext.addEventListener('click', () => { LV.page++; renderLevels(); });
+ui.lvGrid.addEventListener('click', e => { const b = e.target.closest('.lv'); if (b && !b.disabled) pickLevel(Number(b.dataset.n)); });
+ui.helpButton.addEventListener('click', e => {
+  e.stopPropagation();
+  if (helpOpen) closeHelp(); else openHelp();
+  if (e.detail > 0) ui.helpButton.blur();   // clique/toque: Space não deve acionar o botão depois
+});
+ui.helpClose.addEventListener('click', e => { e.stopPropagation(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); });
+// Um toque fora do popover só o fecha.
+document.addEventListener('pointerdown', e => {
+  if (helpOpen && !(e.target.closest && e.target.closest('#help-popover, #help-button'))) closeHelp();
+}, true);
+// Depois de um clique/toque, o botão solta o foco: assim Space inicia a partida em vez de reacionar o botão.
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
+document.addEventListener('pointerdown', () => sfx.unlock());
+updateHud();
 requestAnimationFrame(frame);

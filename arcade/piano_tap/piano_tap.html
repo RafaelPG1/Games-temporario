@@ -6,8 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Piano Tap · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="piano_tap.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
+  <link rel="stylesheet" href="piano_tap.css?v=2">
 </head>
 <body>
   <header class="topbar">
@@ -59,21 +58,29 @@
     </section>
 
     <div id="play" class="play">
+      <!-- frame = tabuleiro + botão "?" lateral (controle externo à área do jogo) -->
+      <div id="frame" class="frame" data-help-pos="side">
       <div id="board" class="board is-ready" aria-label="Teclado do Piano Tap">
         <canvas id="game-canvas" aria-label="Área do jogo"></canvas>
         <p id="toast" class="toast" role="status"></p>
 
-        <section class="screen screen-ready" aria-labelledby="ready-title">
-          <h1 id="ready-title" class="title">Piano Tap</h1>
-          <p class="menu-desc">Toque só nas teclas pretas enquanto elas descem. Não toque nas brancas e não deixe nenhuma escapar.</p>
-          <ul class="menu-keys" aria-label="Comandos">
-            <li><span class="keycaps"><kbd>D</kbd><kbd>F</kbd><kbd>J</kbd><kbd>K</kbd></span><span>tocar as colunas</span></li>
-            <li><span class="keycaps"><kbd>P</kbd><kbd>Esc</kbd></span><span>pausar</span></li>
-            <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
-          </ul>
-          <p class="menu-touch">Toque direto nas teclas pretas</p>
-          <button id="start-button" class="btn" type="button">Jogar</button>
-        </section>
+        <!-- Tela inicial: o jogo fica parado até tocar/clicar ou apertar Space -->
+        <button id="start-button" class="start" type="button" aria-label="Iniciar partida">
+          <span class="start-card">
+            <svg class="start-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+              <rect width="32" height="32" rx="9" fill="#17152b"/>
+              <rect x="5.5" y="7" width="4.5" height="18" rx="1.6" fill="#e9e6ff"/>
+              <rect x="11" y="7" width="4.5" height="18" rx="1.6" fill="#0a0912" stroke="#9d8cff" stroke-width="1.2"/>
+              <rect x="16.5" y="7" width="4.5" height="18" rx="1.6" fill="#e9e6ff"/>
+              <rect x="22" y="7" width="4.5" height="18" rx="1.6" fill="#e9e6ff"/>
+            </svg>
+            <span class="start-title">Piano Tap</span>
+            <span class="start-rule" aria-hidden="true"></span>
+            <span class="start-text">Toque para iniciar</span>
+            <span class="start-or">ou</span>
+            <kbd class="cap">Space</kbd>
+          </span>
+        </button>
 
         <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
           <h2 id="pause-title" class="over-title">Pausado</h2>
@@ -89,12 +96,43 @@
           <button id="restart-button" class="btn" type="button">Jogar novamente</button>
         </section>
       </div>
+
+      <button id="help-button" class="help-btn" type="button"
+              aria-haspopup="dialog" aria-expanded="false" aria-controls="help-popover"
+              aria-label="Como jogar" title="Como jogar">
+        <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
+          <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
+        </svg>
+      </button>
+      </div>
     </div>
   </main>
 
+  <!-- Como jogar: popover ancorado abaixo do botão "?" (fora da área do jogo) -->
+  <div id="help-popover" class="help-popover" role="dialog" aria-labelledby="help-title" data-placement="below" hidden>
+    <button id="help-close" class="help-close" type="button" aria-label="Fechar">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </button>
+    <h2 id="help-title" class="help-title">Como jogar</h2>
+    <p class="help-text"><b>Objetivo:</b> tocar o maior número de teclas pretas possível. Cada acerto vale 1 ponto e toca uma nota da melodia.</p>
+    <p class="help-text">As teclas descem pelo teclado. Toque só nas pretas, da mais baixa para a mais alta, antes que cheguem à linha vermelha no fim da tela. A velocidade aumenta a cada ponto, até um limite.</p>
+    <h3 class="help-sub">Controles</h3>
+    <ul class="ctl-list">
+      <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Tecla preta</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">D</kbd><kbd class="cap">F</kbd><kbd class="cap">J</kbd><kbd class="cap">K</kbd></span><span class="ctl-label">Colunas 1 a 4</span></li>
+      <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar / continuar</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">P</kbd><span class="ctl-or">/</span><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
+    </ul>
+    <h3 class="help-sub">Fim de jogo</h3>
+    <p class="help-text">A partida acaba se você tocar numa tecla branca (ela fica marcada com um X) ou se uma tecla preta escapar pelo fim da tela.</p>
+    <p class="help-note">O recorde fica salvo neste aparelho. Abrir esta ajuda durante a partida pausa o jogo.</p>
+  </div>
+
   <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
-  <script src="piano_tap.js"></script>
+  <script src="piano_tap_storage.js?v=2"></script>
+  <script src="piano_tap.js?v=2"></script>
 </body>
 </html>
