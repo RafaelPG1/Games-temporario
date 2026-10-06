@@ -50,16 +50,17 @@ body {
   position: relative; flex: 1 1 0; min-height: 0; display: grid; place-items: center; overflow: hidden;
   background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg);
 }
+.stage-wrap { position: relative; width: fit-content; height: fit-content; }
 .stage {
   position: relative; aspect-ratio: 288 / 512; height: min(100%, calc(100vw * 512 / 288));
   overflow: hidden; background: #4ec0e8;
   box-shadow: 0 0 0 calc(var(--u) * 2) var(--ink), 0 0 0 calc(var(--u) * 3) rgba(255,255,255,.08),
               0 calc(var(--u) * 6) calc(var(--u) * 16) rgba(0,0,0,.55);
 }
-#game-canvas { display: block; width: 100%; height: 100%; image-rendering: crisp-edges; image-rendering: pixelated; }
+#game-canvas { touch-action: none; display: block; width: 100%; height: 100%; image-rendering: crisp-edges; image-rendering: pixelated; }
 
 /* Textos com contorno */
-.title, .over-title, .hint, .final {
+.title, .over-title, .hint, .final, .ready-best {
   text-shadow:
     calc(var(--o) * -1) calc(var(--o) * -1) 0 var(--ink), var(--o) calc(var(--o) * -1) 0 var(--ink),
     calc(var(--o) * -1) var(--o) 0 var(--ink), var(--o) var(--o) 0 var(--ink),
@@ -76,21 +77,38 @@ body {
 .is-ready .screen-ready, .is-paused .screen-paused, .is-over .screen-over {
   opacity: 1; visibility: visible; transform: none; transition-delay: 0s;
 }
-.screen-ready { padding-top: calc(var(--u) * 34); gap: calc(var(--u) * 9); }
+.screen-ready { padding-top: calc(var(--u) * 44); gap: calc(var(--u) * 10); }
 .title {
-  margin: 0; font-size: calc(var(--u) * 58); line-height: .95; letter-spacing: calc(var(--u) * 1);
-  text-transform: uppercase; color: #ffb62b;
+  margin: 0; display: flex; flex-direction: column; align-items: center;
+  line-height: .95; letter-spacing: calc(var(--u) * 1); text-transform: uppercase;
 }
+/* Duas palavras empilhadas: a principal maior (amarelo-âmbar), a segunda menor (coral) */
+.title-main { font-size: calc(var(--u) * 66); color: #ffb62b; }
+.title-sub { font-size: calc(var(--u) * 40); color: #ff6b57; }
+.ready-best { margin: calc(var(--u) * 6) 0 0; font-size: max(13px, calc(var(--u) * 15)); text-transform: uppercase; color: #fff; }
+.ready-best[hidden] { display: none; }
+.ready-best strong { color: #ffe36a; }
+
 .hint {
-  position: absolute; top: 50%; left: 8%; right: 8%; margin: 0; font-size: max(13px, calc(var(--u) * 14));
-  text-transform: uppercase; animation: blink 1.4s ease-in-out infinite;
+  position: absolute; top: 50%; left: 8%; right: 8%; margin: 0;
+  display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 10);
+  font-size: max(13px, calc(var(--u) * 14)); text-transform: uppercase; animation: blink 1.4s ease-in-out infinite;
 }
-.controls {
-  position: absolute; bottom: calc(var(--u) * 12); left: 6%; right: 6%; margin: 0;
-  font-size: max(10px, calc(var(--u) * 9)); line-height: 1.5; color: var(--white);
-  text-shadow: 0 calc(var(--u) * 1) 0 var(--ink), 0 calc(var(--u) * -1) 0 var(--ink),
-               calc(var(--u) * 1) 0 0 var(--ink), calc(var(--u) * -1) 0 0 var(--ink);
+
+/* Teclas (tela inicial e popover de ajuda) */
+.cap {
+  --cap: max(26px, calc(var(--u) * 26));
+  display: inline-grid; place-items: center; height: var(--cap); min-width: var(--cap);
+  padding: 0 calc(var(--cap) * .28); font-family: "Arial Black", "Trebuchet MS", Arial, sans-serif;
+  font-size: calc(var(--cap) * .44); font-weight: 900; line-height: 1; letter-spacing: .02em;
+  text-transform: uppercase; color: var(--ink); text-shadow: none; background: var(--white);
+  border: 2px solid var(--ink); border-radius: 4px; box-shadow: 0 3px 0 var(--ink);
 }
+.cap-wide { min-width: calc(var(--cap) * 2.6); }
+.cap-icon { display: block; width: calc(var(--cap) * .58); height: calc(var(--cap) * .58); }
+.hint-or { font-size: max(11px, calc(var(--u) * 11)); letter-spacing: .08em; }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
 .screen-paused, .screen-over { justify-content: center; gap: calc(var(--u) * 16); padding: 0 8%; transform: translateY(calc(var(--u) * 14)); }
@@ -127,12 +145,73 @@ body {
 .noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
 @media (max-width: 640px) { .topbar { height: 52px; } }
-@media (max-height: 420px) { .controls { display: none; } .topbar { height: 46px; } .game-text span { display: none; } }
-@media (prefers-reduced-motion: reduce) { .hint { animation: none; } .screen { transition: none; } .back, .back svg { transition: none; } }
+@media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }
+@media (prefers-reduced-motion: reduce) { .hint { animation: none; } .screen { transition: none; } .back, .back svg { transition: none; } .help-popover { animation: none; } .help-btn { transition: none; } }
 
-/* Menu inicial sobre o céu claro: texto branco com contorno escuro */
-.screen-ready .menu-desc, .screen-ready .menu-keys li, .screen-ready .menu-touch {
-  color: #fff; font-weight: 700;
-  text-shadow: calc(var(--o) * -1) calc(var(--o) * -1) 0 var(--ink), var(--o) calc(var(--o) * -1) 0 var(--ink), calc(var(--o) * -1) var(--o) 0 var(--ink), var(--o) var(--o) 0 var(--ink);
+/* Ajuda: botão só com ícone, ao lado do palco (fora do jogo), + popover ancorado a ele */
+.help { position: absolute; top: 0; left: calc(100% + 16px); z-index: 20; width: 44px; height: 44px; }
+/* Sem espaço lateral (celular em pé): o botão desce para uma faixa sob o jogo */
+.arena.help-bottom .stage-wrap { padding-bottom: 56px; }
+.arena.help-bottom .help { top: auto; bottom: 6px; left: auto; right: 0; }
+
+.help-btn {
+  display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%;
+  cursor: pointer; touch-action: manipulation;
+  transition: border-color .2s, background .2s, box-shadow .25s, transform .1s;
 }
-.screen-ready .menu-keys kbd { color: var(--ink); background: #fff; border-color: var(--ink); }
+.help-btn svg { transition: color .2s; }
+.help-btn:hover, .help-btn[aria-expanded="true"] {
+  background: #141722; border-color: rgba(255,200,87,.6); box-shadow: 0 0 0 4px rgba(255,200,87,.08);
+}
+.help-btn:hover svg, .help-btn[aria-expanded="true"] svg { color: var(--shell-accent); }
+.help-btn:active { transform: scale(.95); }
+.help-btn:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+
+.help-popover {
+  --arrow-x: 22px; --arrow-y: 22px;
+  position: absolute; z-index: 30; width: 240px; padding: 14px 16px 12px;
+  color: var(--ink); font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif; font-weight: 700; text-align: left;
+  background: var(--paper); border: 3px solid var(--ink);
+  box-shadow: inset 0 0 0 2px var(--paper-light), 0 4px 0 rgba(0,0,0,.35), 0 12px 28px rgba(0,0,0,.45);
+  animation: help-in .16s ease-out;
+}
+.help-popover[hidden] { display: none; }
+.help-popover::before {
+  content: ""; position: absolute; width: 14px; height: 14px; background: var(--paper);
+  border: 3px solid var(--ink); transform: rotate(45deg);
+}
+/* Padrão: abaixo do botão. O JS define --pop-x (deslocamento) e --arrow-x (seta sob o botão). */
+.help-popover[data-placement="below"] { top: calc(100% + 12px); left: var(--pop-x, 0px); transform-origin: var(--arrow-x) top; }
+.help-popover[data-placement="below"]::before { left: calc(var(--arrow-x) - 7px); top: -10px; border-right: 0; border-bottom: 0; }
+/* Faixa sob o jogo (celular em pé): não há espaço abaixo, abre acima do botão */
+.help-popover[data-placement="above"] { bottom: calc(100% + 12px); left: var(--pop-x, 0px); transform-origin: var(--arrow-x) bottom; }
+.help-popover[data-placement="above"]::before { left: calc(var(--arrow-x) - 7px); bottom: -10px; border-left: 0; border-top: 0; }
+/* Celular deitado, se não couber abaixo: ao lado do botão */
+.help-popover[data-placement="side"] { left: calc(100% + 12px); top: var(--pop-y, 0px); transform-origin: left 22px; }
+.help-popover[data-placement="side"]::before { left: -9px; top: calc(var(--arrow-y) - 7px); border-right: 0; border-top: 0; }
+
+.help-title {
+  margin: 0 28px 6px 0; font-family: "Arial Black", "Trebuchet MS", Arial, sans-serif; font-weight: 900;
+  font-size: 17px; line-height: 1; text-transform: uppercase; letter-spacing: .01em;
+}
+.help-text { margin: 0 0 10px; font-size: 13px; line-height: 1.35; }
+.help-sub {
+  margin: 0 0 8px; padding-top: 10px; font-size: 11px; line-height: 1; letter-spacing: .08em; text-transform: uppercase;
+  color: var(--orange-dark); border-top: 2px dashed rgba(84,56,71,.35);
+}
+.ctl-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.ctl-list li { display: flex; align-items: center; gap: 12px; }
+.ctl-keys { flex: none; display: inline-flex; gap: 5px; min-width: 66px; }
+.ctl-label { font-size: 13px; }
+.help-popover .cap { --cap: 26px; }
+.help-note { margin: 10px 0 0; font-size: 12px; line-height: 1.3; opacity: .8; }
+
+.help-close {
+  position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  color: var(--ink); background: transparent; border: 0; border-radius: 4px; opacity: .6; cursor: pointer; touch-action: manipulation;
+}
+.help-close svg { width: 12px; height: 12px; }
+.help-close:hover { opacity: 1; background: rgba(84,56,71,.12); }
+.help-close:focus-visible { opacity: 1; outline: 2px solid #2d7be0; outline-offset: -2px; }
+@keyframes help-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }

@@ -1,0 +1,68 @@
+/* ==========================================================================
+   arcade/tetris/tetris_storage.js - persistência exclusiva do Tetris
+
+   Script clássico (sem módulos ES). Carregue ANTES de tetris.js.
+   Expõe um único objeto global: TetrisStorage.
+
+   Dados guardados (chaves iguais às que o jogo já usava):
+     tetris:best  -> recorde: maior score já alcançado (inteiro >= 0)
+     tetris:muted -> '1' = som desligado, '0' = som ligado
+
+   Garantias:
+     - nunca lança exceção (modo privado, cookies bloqueados, cota cheia...);
+     - sem armazenamento persistente, os valores ficam em memória na sessão;
+     - dado ausente ou inválido vira o padrão seguro (recorde 0, som ligado);
+     - o recorde salvo nunca diminui por engano.
+   ========================================================================== */
+(() => {
+  'use strict';
+
+  const KEYS = Object.freeze({ best: 'tetris:best', muted: 'tetris:muted' });
+  const DEFAULTS = Object.freeze({ best: 0, muted: false });
+  const memory = {};
+
+  function readRaw(key) {
+    try {
+      const value = window.localStorage.getItem(key);
+      if (value !== null) return value;
+    } catch (error) { /* armazenamento indisponível: usa a memória */ }
+    return Object.prototype.hasOwnProperty.call(memory, key) ? memory[key] : null;
+  }
+
+  function writeRaw(key, value) {
+    const text = String(value);
+    memory[key] = text;
+    try { window.localStorage.setItem(key, text); return true; }
+    catch (error) { return false; }     // o jogo segue normalmente, só sem persistência
+  }
+
+  function getBest() {
+    const parsed = parseInt(readRaw(KEYS.best), 10);
+    if (!Number.isFinite(parsed) || parsed <= 0) return DEFAULTS.best;
+    return Math.min(parsed, Number.MAX_SAFE_INTEGER);
+  }
+
+  // Grava apenas se for um número válido e maior que o recorde atual. Devolve o recorde vigente.
+  function setBest(value) {
+    const number = Math.floor(Number(value));
+    if (!Number.isFinite(number) || number <= 0) return getBest();
+    const best = Math.max(number, getBest());
+    writeRaw(KEYS.best, best);
+    return best;
+  }
+
+  function isMuted() {
+    const raw = readRaw(KEYS.muted);
+    if (raw === '1') return true;
+    if (raw === '0') return false;
+    return DEFAULTS.muted;
+  }
+
+  function setMuted(value) {
+    const muted = Boolean(value);
+    writeRaw(KEYS.muted, muted ? '1' : '0');
+    return muted;
+  }
+
+  window.TetrisStorage = Object.freeze({ KEYS, DEFAULTS, getBest, setBest, isMuted, setMuted });
+})();

@@ -99,20 +99,16 @@
 
   /* ======================================================================
      2. PERSISTÊNCIA
-     Tudo passa pelo game_storage compartilhado, que cai para a memória se o
-     o armazenamento do navegador estiver indisponível (modo privado, bloqueio de cookies...).
+     Tudo passa pelo tetris_storage.js (TetrisStorage), isolado do restante do projeto,
+     que cai para a memória se o armazenamento do navegador estiver indisponível
+     (modo privado, bloqueio de cookies...).
      ====================================================================== */
-  // Persistência: game_storage compartilhado (registro "tetris"); chaves antigas migradas uma vez.
-  const store = GameStorage.game('tetris');
-  store.migrate([{ from: 'tetris:best', to: 'best', type: 'int' }, { from: 'tetris:muted', to: 'muted', type: 'bool01' }]);
-
   function loadBest() {
-    const n = Number(store.get('best', 0));
-    return Number.isFinite(n) && n > 0 ? n : 0;
+    return TetrisStorage.getBest();
   }
 
   function saveBest(value) {
-    store.set('best', value);
+    TetrisStorage.setBest(value);
   }
 
   /* ======================================================================
@@ -125,7 +121,7 @@
     let master = null;
     let noiseBuffer = null;
     let unavailable = false;
-    let muted = store.get('muted', false) === true;
+    let muted = TetrisStorage.isMuted();
 
     function ensureContext() {
       if (unavailable) return null;
@@ -204,7 +200,7 @@
       unlock() { if (!muted) safely(ensureContext); },
       setMuted(value) {
         muted = Boolean(value);
-        store.set('muted', muted);
+        TetrisStorage.setMuted(muted);
         if (!muted) safely(ensureContext);
       },
       move() { safely(() => tone({ type: 'square', from: 260, to: 220, duration: 0.03, volume: 0.1 })); },
@@ -791,7 +787,9 @@
     touchAct: document.getElementById('touch-act'),
     pauseButton: document.getElementById('pause-button'),
     muteButton: document.getElementById('mute-button'),
-    startButton: document.getElementById('start-button'),
+    helpButton: document.getElementById('help-button'),
+    helpPopover: document.getElementById('help-popover'),
+    helpClose: document.getElementById('help-close'),
     resumeButton: document.getElementById('resume-button'),
     restartButton: document.getElementById('restart-button'),
     hudScore: document.getElementById('hud-score'),
@@ -834,6 +832,56 @@
     Sound.setMuted(!Sound.muted);
     syncMuteButton();
     Sound.click();
+  }
+
+  // Ajuda "Como jogar": popover pequeno ancorado ao botão "?", fora do tabuleiro.
+  // Abrir ou fechar não inicia, pausa nem altera a partida: é só um painel de leitura.
+  let helpOpen = false;
+  const HELP = { gap: 12, edge: 8, maxWidth: 250 };
+
+  function openHelp() {
+    if (helpOpen) return;
+    helpOpen = true;
+    ui.helpPopover.hidden = false;
+    ui.helpButton.setAttribute('aria-expanded', 'true');
+    placeHelp();
+  }
+
+  function closeHelp() {
+    if (!helpOpen) return;
+    helpOpen = false;
+    ui.helpPopover.hidden = true;
+    ui.helpButton.setAttribute('aria-expanded', 'false');
+  }
+
+  // Preferência: abrir ABAIXO do botão, dentro da arena. Se não couber, abre acima; se ainda
+  // assim não couber (celular deitado), limita a altura e deixa o conteúdo rolar.
+  function placeHelp() {
+    if (!helpOpen) return;
+    const pop = ui.helpPopover;
+    for (const v of ['max-height', 'overflow-y']) pop.style.removeProperty(v);
+    const arena = ui.arena.getBoundingClientRect();
+    const btn = ui.helpButton.getBoundingClientRect();
+
+    const width = Math.floor(Math.min(HELP.maxWidth, arena.width - HELP.edge * 2));
+    const left = Math.max(arena.left + HELP.edge, Math.min(btn.left, arena.right - HELP.edge - width));
+    pop.style.width = `${width}px`;
+    pop.style.left = `${Math.round(left)}px`;
+    pop.style.setProperty('--arrow-x', `${Math.round(Math.min(Math.max(btn.left + btn.width / 2 - left, 16), width - 16))}px`);
+
+    const height = pop.offsetHeight;
+    const roomBelow = arena.bottom - btn.bottom - HELP.gap - HELP.edge;
+    const roomAbove = btn.top - arena.top - HELP.gap - HELP.edge;
+    let placement = 'below';
+    if (height > roomBelow && roomAbove > roomBelow) placement = 'above';
+    const room = placement === 'below' ? roomBelow : roomAbove;
+    if (height > room) {
+      pop.style.maxHeight = `${Math.max(96, Math.floor(room))}px`;
+      pop.style.overflowY = 'auto';
+    }
+    const finalHeight = pop.offsetHeight;
+    pop.style.top = `${Math.round(placement === 'below' ? btn.bottom + HELP.gap : btn.top - HELP.gap - finalHeight)}px`;
+    pop.dataset.placement = placement;
   }
 
   /* ======================================================================
@@ -889,6 +937,10 @@
   function onKeyDown(event) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
     const code = event.code;
+    // Com a ajuda aberta, Esc fecha só o painel.
+    if (helpOpen && code === 'Escape') { event.preventDefault(); closeHelp(); return; }
+    // Espaço/Enter com um botão focado (ex.: o "?") ativa o botão, não o jogo.
+    if ((code === 'Space' || code === 'Enter') && event.target.closest && event.target.closest('button')) return;
     if (BLOCKED_KEYS.has(code)) event.preventDefault();      // impede a rolagem da página
     if (event.repeat) return;                                // a repetição é feita pelo jogo
     Sound.unlock();
@@ -920,7 +972,7 @@
       const held = Object.keys(KEY_ACTIONS).some((k) => KEY_ACTIONS[k] === action && pressedKeys.has(k));
       if (!held) releaseAction(action);
     }
-    if (event.code === 'Space') event.preventDefault();
+    if (event.code === 'Space' && !(event.target.closest && event.target.closest('button'))) event.preventDefault();
   }
 
   function bindTouchButton(button) {
@@ -990,6 +1042,7 @@
     renderNext();
 
     render();       // redimensionar limpa os canvas: redesenha na hora para não piscar
+    placeHelp();    // reposiciona o painel de ajuda, se estiver aberto
   }
 
   /* ======================================================================
@@ -1037,11 +1090,33 @@
       if (game.score > game.best) saveBest(game.score);
     });
 
-    ui.startButton.addEventListener('click', (event) => {
-      event.stopPropagation();
+    // Tocar/clicar no tabuleiro inicia a partida (sem botão "Jogar"). Com a ajuda aberta, o
+    // primeiro toque fora dela só a fecha.
+    let helpClosedBy = null;
+    document.addEventListener('pointerdown', (event) => {
+      if (helpOpen && !(event.target.closest && event.target.closest('#help-popover, #help-button'))) {
+        closeHelp();
+        helpClosedBy = event;
+      }
+    }, true);
+    ui.stage.addEventListener('pointerdown', (event) => {
+      if (event.target.closest && event.target.closest('button')) return;
+      if (helpClosedBy === event) return;
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      if (game.state !== STATES.READY) return;
+      event.preventDefault();
       Sound.unlock();
       startGame();
-      ui.startButton.blur();
+    });
+    ui.helpButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (helpOpen) closeHelp(); else openHelp();
+      if (event.detail > 0) ui.helpButton.blur();   // clique/toque: Espaço não deve acionar o botão depois
+    });
+    ui.helpClose.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeHelp();
+      ui.helpButton.focus({ preventScroll: true });
     });
     ui.resumeButton.addEventListener('click', (event) => {
       event.stopPropagation();

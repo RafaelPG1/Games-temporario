@@ -87,15 +87,13 @@ const STATES = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAME_OVER
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-// Persistência: game_storage (registro "jumpy"); chave antiga migrada uma vez.
-const store = GameStorage.game('jumpy');
-store.migrate([{ from: 'jumpy:muted', to: 'muted', type: 'bool01' }]);
+// Persistência: jumpy_storage.js (JumpyStorage), isolado do restante do projeto.
 
 /* ===== ÁUDIO (Web Audio API, sem arquivos externos) ===== */
 const Sound = (() => {
   let audioContext = null, master = null, noiseBuffer = null, unavailable = false;
   let muted = false;
-  muted = store.get('muted', false) === true;
+  muted = JumpyStorage.isMuted();
 
   function ensureContext() {
     if (unavailable) return null;
@@ -157,7 +155,7 @@ const Sound = (() => {
     unlock() { if (!muted) safely(ensureContext); },
     setMuted(value) {
       muted = Boolean(value);
-      store.set('muted', muted);
+      JumpyStorage.setMuted(muted);
       if (!muted) safely(ensureContext);
     },
     bounce() {
@@ -247,6 +245,7 @@ function resetRound() {
 function startGame() {
   if (game.state !== STATES.READY) return;
   game.state = STATES.PLAYING;
+  closeHelp();
   Sound.click();
   syncUi();
 }
@@ -255,6 +254,7 @@ function endGame() {
   if (game.state !== STATES.PLAYING) return;
   game.state = STATES.GAME_OVER;
   game.overTime = 0;
+  JumpyStorage.setBest(game.score);   // só grava se superar o recorde salvo
   input.pointers.clear();
   Sound.hit();
   syncUi();
@@ -427,7 +427,7 @@ const input = { left: false, right: false, pointers: new Map() };
 
 function direction() {
   let dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-  for (const side of input.pointers.values()) dir += side;
+  for (const drag of input.pointers.values()) dir += drag.dir;
   return clamp(dir, -1, 1);
 }
 
@@ -539,7 +539,8 @@ function update(dt) {
   
   const steps = Math.max(1, Math.ceil(dt / CONFIG.timing.physicsStep));
   const h = dt / steps;
-  for (let i = 0; i < steps; i++) stepPlayer(h, playing ? direction() : 0, true);
+  // Antes de iniciar (READY) o personagem fica parado: sem gravidade nem pulo.
+  if (playing) for (let i = 0; i < steps; i++) stepPlayer(h, direction(), true);
   animatePlayer(dt);
   
   if (!playing) return;
@@ -880,6 +881,11 @@ const ui = {
   resumeButton: document.getElementById('resume-button'),
   restartButton: document.getElementById('restart-button'),
   overScore: document.getElementById('over-score'),
+  readyBest: document.getElementById('ready-best'),
+  readyBestValue: document.getElementById('ready-best-value'),
+  helpButton: document.getElementById('help-button'),
+  helpPopover: document.getElementById('help-popover'),
+  helpClose: document.getElementById('help-close'),
 };
 
 function syncUi() {
@@ -889,6 +895,11 @@ function syncUi() {
   ui.stage.classList.toggle('is-paused', s === STATES.PAUSED);
   ui.stage.classList.toggle('is-over', s === STATES.GAME_OVER);
   if (s === STATES.GAME_OVER) ui.overScore.textContent = String(game.score);
+  if (s === STATES.READY) {                     // recorde na tela inicial (só depois de existir um)
+    const best = JumpyStorage.getBest();
+    ui.readyBest.hidden = best <= 0;
+    ui.readyBestValue.textContent = String(best);
+  }
   if (s === STATES.PAUSED) ui.resumeButton.focus({ preventScroll: true });
 }
 
@@ -905,12 +916,93 @@ function toggleMute() {
   Sound.click();
 }
 
+// Ajuda "Como jogar": popover pequeno ancorado ao botão "?", fora da área do jogo.
+// Abrir ou fechar não inicia, pausa nem altera a partida: é só um painel de leitura.
+let helpOpen = false;
+const HELP = { gap: 12, edge: 8, minWidth: 176, maxWidth: 244 };
+
+function openHelp() {
+  if (helpOpen) return;
+  helpOpen = true;
+  ui.helpPopover.hidden = false;
+  ui.helpButton.setAttribute('aria-expanded', 'true');
+  placeHelp();
+}
+
+function closeHelp() {
+  if (!helpOpen) return;
+  helpOpen = false;
+  ui.helpPopover.hidden = true;
+  ui.helpButton.setAttribute('aria-expanded', 'false');
+}
+
+// Preferência: abrir ABAIXO do botão. Se faltar altura abaixo, abre ao lado do botão (celular deitado).
+// Na faixa sob o jogo (celular em pé) não há espaço abaixo: abre acima do botão.
+function placeHelp() {
+  if (!helpOpen) return;
+  const pop = ui.helpPopover;
+  for (const v of ['--pop-x', '--pop-y', '--arrow-x', '--arrow-y', 'max-height', 'overflow-y']) pop.style.removeProperty(v);
+
+  const arena = ui.arena.getBoundingClientRect();
+  const btn = ui.helpButton.getBoundingClientRect();
+  const stage = ui.stage.getBoundingClientRect();
+  const strip = ui.arena.classList.contains('help-bottom');
+
+  // Largura e borda esquerda (coordenadas da janela) do painel quando ele fica abaixo/acima do botão.
+  const freeSide = arena.right - HELP.edge - (stage.right + HELP.edge);   // faixa livre à direita do palco
+  let width, left;
+  if (strip) {
+    width = Math.min(HELP.maxWidth, arena.width - HELP.edge * 2);
+    left = Math.max(arena.left + HELP.edge, Math.min(btn.right, arena.right - HELP.edge) - width);
+  } else if (freeSide >= HELP.minWidth) {
+    width = Math.min(HELP.maxWidth, freeSide);
+    left = Math.max(stage.right + HELP.edge, Math.min(btn.left, arena.right - HELP.edge - width));
+  } else {
+    // Sem faixa livre ao lado do palco: o painel invade o mínimo possível do jogo.
+    width = Math.min(HELP.minWidth, arena.width - HELP.edge * 2);
+    left = Math.max(arena.left + HELP.edge, arena.right - HELP.edge - width);
+  }
+  width = Math.floor(width);
+  pop.style.width = `${width}px`;
+
+  const height = pop.offsetHeight;
+  const roomBelow = arena.bottom - btn.bottom - HELP.gap - HELP.edge;
+  const roomAbove = btn.top - arena.top - HELP.gap - HELP.edge;
+  const roomSide = arena.right - btn.right - HELP.gap - HELP.edge;
+  let placement = strip ? 'above' : 'below';
+  if (!strip && height > roomBelow && roomSide >= HELP.minWidth) placement = 'side';
+
+  if (placement === 'side') {
+    pop.style.width = `${Math.floor(Math.min(HELP.maxWidth, roomSide))}px`;
+    const h = pop.offsetHeight;
+    // Alinha ao topo do botão; se faltar altura, sobe o painel (a seta continua apontando para o botão).
+    let up = Math.max(0, btn.top + h - (arena.bottom - HELP.edge));
+    up = Math.min(up, Math.max(0, btn.top - (arena.top + HELP.edge)));
+    pop.style.setProperty('--pop-y', `${-up}px`);
+    pop.style.setProperty('--arrow-y', `${Math.min(Math.max(22 + up, 16), Math.max(16, h - 16))}px`);
+  } else {
+    const arrowX = Math.min(Math.max(btn.left + btn.width / 2 - left, 16), width - 16);
+    pop.style.setProperty('--pop-x', `${Math.round(left - btn.left)}px`);
+    pop.style.setProperty('--arrow-x', `${Math.round(arrowX)}px`);
+    const room = placement === 'above' ? roomAbove : roomBelow;
+    if (height > room) {            // último recurso: limita a altura e deixa o conteúdo rolar
+      pop.style.maxHeight = `${Math.max(96, Math.floor(room))}px`;
+      pop.style.overflowY = 'auto';
+    }
+  }
+  pop.dataset.placement = placement;
+}
+
 /* ===== 9. ENTRADA ===== */
 const LEFT_KEYS = new Set(['ArrowLeft', 'KeyA']);
 const RIGHT_KEYS = new Set(['ArrowRight', 'KeyD']);
 
 function onKeyDown(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  // Com a ajuda aberta, Esc fecha só o painel (não pausa o jogo).
+  if (helpOpen && e.code === 'Escape') { e.preventDefault(); closeHelp(); return; }
+  // Espaço/Enter com um botão focado (ex.: o "?") ativa o botão, não o jogo.
+  if ((e.code === 'Space' || e.code === 'Enter') && e.target.closest && e.target.closest('button')) return;
   Sound.unlock();
   const isLeft = LEFT_KEYS.has(e.code), isRight = RIGHT_KEYS.has(e.code);
   if (isLeft || isRight) {
@@ -933,38 +1025,65 @@ function onKeyUp(e) {
   if (RIGHT_KEYS.has(e.code)) input.right = false;
 }
 
-function sideOf(e) {
-  const r = ui.stage.getBoundingClientRect();
-  return e.clientX < r.left + r.width / 2 ? -1 : 1;
+// Controle por arrastar (toque/mouse): o dedo "puxa" um ponto de referência. Arrastar além de
+// DRAG_RANGE arrasta a referência junto, então inverter o sentido é rápido; dentro da zona morta
+// o personagem não anda. A direção continua discreta (-1, 0, 1), igual à do teclado.
+function updateDrag(drag, x) {
+  const range = Math.max(10, ui.stage.getBoundingClientRect().width * 0.045);
+  if (x - drag.anchor > range) drag.anchor = x - range;
+  else if (drag.anchor - x > range) drag.anchor = x + range;
+  const dx = x - drag.anchor;
+  const dead = range * 0.35;
+  drag.dir = dx > dead ? 1 : dx < -dead ? -1 : 0;
 }
 
 function onPointerDown(e) {
-  if (e.target.closest && e.target.closest('button, a, header')) return;
+  const hit = (selector) => Boolean(e.target.closest && e.target.closest(selector));
+  // Ajuda aberta: tocar fora só a fecha (não vira início de partida nem movimento).
+  if (helpOpen && !hit('.help')) {
+    closeHelp();
+    if (!hit('button, a, header')) { e.preventDefault(); return; }
+  }
+  if (hit('button, a, header, .help')) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   e.preventDefault();
   Sound.unlock();
   if (game.state === STATES.READY) startGame();
-  if (game.state === STATES.PLAYING) input.pointers.set(e.pointerId, sideOf(e));
+  if (game.state === STATES.PLAYING) input.pointers.set(e.pointerId, { anchor: e.clientX, dir: 0 });
 }
 
 function onPointerMove(e) {
-  if (input.pointers.has(e.pointerId)) input.pointers.set(e.pointerId, sideOf(e));
+  const drag = input.pointers.get(e.pointerId);
+  if (!drag) return;
+  if (e.cancelable) e.preventDefault();
+  updateDrag(drag, e.clientX);
 }
 
 function onPointerEnd(e) { input.pointers.delete(e.pointerId); }
 
 /* ===== 10. REDIMENSIONAMENTO ===== */
-function resizeCanvas() {
+// O botão de ajuda fica ao lado do palco. Sem espaço lateral (celular em pé), ele vai
+// para uma faixa logo abaixo do jogo, e essa faixa é descontada da altura disponível.
+const HELP_SIDE_ROOM = 68;   // folga (16) + botão (44) + margem (8)
+const HELP_STRIP = 56;
+
+function fitStage(reserveY) {
   const { margin, maxCssHeight } = CONFIG.view;
   const availW = Math.max(1, ui.arena.clientWidth - margin * 2);
-  const availH = Math.max(1, ui.arena.clientHeight - margin * 2);
+  const availH = Math.max(1, ui.arena.clientHeight - margin * 2 - reserveY);
   const ratio = W / H;
   let cssH = Math.min(availH, maxCssHeight);
   let cssW = cssH * ratio;
-  
   if (cssW > availW) { cssW = availW; cssH = cssW / ratio; }
-  cssW = Math.floor(cssW); cssH = Math.floor(cssH);
-  
+  return { cssW: Math.floor(cssW), cssH: Math.floor(cssH) };
+}
+
+function resizeCanvas() {
+  let { cssW, cssH } = fitStage(0);
+  const stripMode = (ui.arena.clientWidth - cssW) / 2 < HELP_SIDE_ROOM;
+  if (stripMode) ({ cssW, cssH } = fitStage(HELP_STRIP));
+  ui.arena.classList.toggle('help-bottom', stripMode);
+
   const dpr = window.devicePixelRatio || 1;
   ui.stage.style.width = `${cssW}px`;
   ui.stage.style.height = `${cssH}px`;
@@ -972,6 +1091,7 @@ function resizeCanvas() {
   canvas.width = Math.max(1, Math.round(cssW * dpr));
   canvas.height = Math.max(1, Math.round(cssH * dpr));
   render();
+  placeHelp();   // reposiciona o painel de ajuda, se estiver aberto
 }
 
 /* ===== 11. LOOP E INICIALIZAÇÃO ===== */
@@ -991,12 +1111,14 @@ function init() {
   initClouds();
   resetRound();
   syncMuteButton();
-  document.getElementById('start-button').addEventListener('click', (e) => { e.stopPropagation(); Sound.unlock(); startGame(); e.currentTarget.blur(); });
-  
   document.addEventListener('keydown', onKeyDown, { passive: false });
   document.addEventListener('keyup', onKeyUp);
   document.addEventListener('pointerdown', onPointerDown, { passive: false });
-  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointermove', onPointerMove, { passive: false });
+  // Reforço para navegadores que ignoram touch-action: arrastar no jogo nunca rola a página.
+  document.addEventListener('touchmove', (e) => {
+    if (e.cancelable && !(e.target.closest && e.target.closest('.help-popover'))) e.preventDefault();
+  }, { passive: false });
   document.addEventListener('pointerup', (e) => { onPointerEnd(e); Sound.unlock(); });
   document.addEventListener('pointercancel', onPointerEnd);
   document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -1008,6 +1130,12 @@ function init() {
   });
   document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) setPaused(true); });
 
+  ui.helpButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (helpOpen) closeHelp(); else openHelp();
+    if (e.detail > 0) ui.helpButton.blur();   // clique/toque: Espaço não deve acionar o botão depois
+  });
+  ui.helpClose.addEventListener('click', (e) => { e.stopPropagation(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); });
   ui.muteButton.addEventListener('click', (e) => { e.stopPropagation(); toggleMute(); ui.muteButton.blur(); });
   ui.pauseButton.addEventListener('click', (e) => { e.stopPropagation(); setPaused(true); ui.pauseButton.blur(); });
   ui.resumeButton.addEventListener('click', (e) => { e.stopPropagation(); setPaused(false); });

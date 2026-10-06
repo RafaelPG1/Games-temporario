@@ -23,7 +23,7 @@ const CATEGORIES = [
 
 const GAMES = [
   { id: 'flappy_bird',   title: 'Flappy Bird',              category: 'arcade' },
-  { id: 'jumpy',         title: 'Pula-Pula',                category: 'arcade' },
+  { id: 'jumpy',         title: 'Pulo Alto',                category: 'arcade' },
   { id: 'tetris',        title: 'Tetris',                   category: 'arcade' },
   { id: 'breakout',      title: 'Quebra-Blocos',            category: 'arcade' },
   { id: 'stack_tower',   title: 'Torre de Blocos',          category: 'arcade' },

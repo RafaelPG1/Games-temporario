@@ -4,10 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07080c">
-  <title>Pula-Pula · Arcádia</title>
+  <title>Pulo Alto · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="jumpy.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
@@ -24,63 +23,103 @@
         <rect x="12" y="12" width="3" height="4" fill="#fff"/><rect x="18" y="12" width="3" height="4" fill="#fff"/>
         <rect x="6" y="25" width="20" height="3" fill="#74d160" stroke="#543847" stroke-width="1.5"/>
       </svg>
-      <div class="game-text"><strong>Pula-Pula</strong></div>
+      <div class="game-text"><strong>Pulo Alto</strong></div>
     </div>
   </header>
 
+  <!-- Ícones das setas, usados nas teclas do painel de ajuda -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="icon-left" viewBox="0 0 16 16"><path d="M13 8H3.5M7.6 3.8L3.4 8l4.2 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+    <symbol id="icon-right" viewBox="0 0 16 16"><path d="M3 8h9.5M8.4 3.8L12.6 8l-4.2 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+  </svg>
+
   <div id="arena" class="arena">
-    <main id="stage" class="stage is-ready" aria-label="Jumpy">
-      <canvas id="game-canvas" aria-label="Área do jogo"></canvas>
+    <!-- Mesma caixa do palco: o botão de ajuda fica pendurado ao lado dele, fora da área jogável -->
+    <div id="stage-wrap" class="stage-wrap">
+      <main id="stage" class="stage is-ready" aria-label="Pulo Alto">
+        <canvas id="game-canvas" aria-label="Área do jogo"></canvas>
 
-      <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
-        <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
-          <path fill="#543847" d="M1 6h3l4-3v10l-4-3H1z"/>
-          <g class="icon-waves" fill="#543847">
-            <rect x="10" y="6" width="1" height="4"/><rect x="12" y="4" width="1" height="8"/><rect x="14" y="2" width="1" height="12"/>
-          </g>
-          <g class="icon-cross" fill="#e5432b">
-            <rect x="10" y="5" width="2" height="2"/><rect x="12" y="7" width="2" height="2"/><rect x="14" y="9" width="2" height="2"/>
-            <rect x="14" y="5" width="2" height="2"/><rect x="10" y="9" width="2" height="2"/>
-          </g>
-        </svg>
-      </button>
+        <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+            <path fill="#543847" d="M1 6h3l4-3v10l-4-3H1z"/>
+            <g class="icon-waves" fill="#543847">
+              <rect x="10" y="6" width="1" height="4"/><rect x="12" y="4" width="1" height="8"/><rect x="14" y="2" width="1" height="12"/>
+            </g>
+            <g class="icon-cross" fill="#e5432b">
+              <rect x="10" y="5" width="2" height="2"/><rect x="12" y="7" width="2" height="2"/><rect x="14" y="9" width="2" height="2"/>
+              <rect x="14" y="5" width="2" height="2"/><rect x="10" y="9" width="2" height="2"/>
+            </g>
+          </svg>
+        </button>
 
-      <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (P)">
-        <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
-          <rect x="3" y="2" width="4" height="12" fill="#543847"/><rect x="9" y="2" width="4" height="12" fill="#543847"/>
-        </svg>
-      </button>
+        <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (P)">
+          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+            <rect x="3" y="2" width="4" height="12" fill="#543847"/><rect x="9" y="2" width="4" height="12" fill="#543847"/>
+          </svg>
+        </button>
 
-      <section class="screen screen-ready" aria-live="polite">
-        <h1 class="title">Pula-Pula</h1>
-        <p class="menu-desc">Salte de plataforma em plataforma e suba o mais alto que puder.</p>
-        <ul class="menu-keys" aria-label="Comandos">
-          <li><span class="keycaps"><kbd>←</kbd><kbd>→</kbd></span><span>mover</span></li>
-          <li><span class="keycaps"><kbd>A</kbd><kbd>D</kbd></span><span>mover</span></li>
-          <li><span class="keycaps"><kbd>P</kbd><kbd>Esc</kbd></span><span>pausar</span></li>
-          <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
-        </ul>
-        <p class="menu-touch">Toque no lado esquerdo ou direito da tela</p>
-        <button id="start-button" class="btn" type="button">Jogar</button>
-      </section>
+        <!-- Tela inicial: só o nome do jogo e a indicação de início -->
+        <section class="screen screen-ready" aria-live="polite">
+          <h1 class="title" aria-label="Pulo Alto"><span class="title-main" aria-hidden="true">Pulo</span><span class="title-sub" aria-hidden="true">Alto</span></h1>
+          <p id="ready-best" class="ready-best" hidden>Recorde: <strong id="ready-best-value">0</strong></p>
+          <p class="hint">
+            <span class="hint-text">Toque para iniciar</span>
+            <span class="hint-or">ou</span>
+            <kbd class="cap cap-wide">Space</kbd>
+          </p>
+        </section>
 
-      <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
-        <h2 id="pause-title" class="over-title">Pausado</h2>
-        <button id="resume-button" class="btn" type="button">Continuar</button>
-      </section>
+        <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
+          <h2 id="pause-title" class="over-title">Pausado</h2>
+          <button id="resume-button" class="btn" type="button">Continuar</button>
+        </section>
 
-      <section class="screen screen-over" role="dialog" aria-labelledby="over-title">
-        <h2 id="over-title" class="over-title">Game Over</h2>
-        <p class="final">Score: <span id="over-score">0</span></p>
-        <button id="restart-button" class="btn" type="button">Jogar novamente</button>
-      </section>
+        <section class="screen screen-over" role="dialog" aria-labelledby="over-title">
+          <h2 id="over-title" class="over-title">Game Over</h2>
+          <p class="final">Score: <span id="over-score">0</span></p>
+          <button id="restart-button" class="btn" type="button">Jogar novamente</button>
+        </section>
 
-      <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
-    </main>
+        <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+      </main>
+
+      <!-- Ajuda: botão só com ícone + popover pequeno ancorado a ele (fora do jogo) -->
+      <div class="help">
+        <button id="help-button" class="help-btn" type="button"
+                aria-haspopup="dialog" aria-expanded="false" aria-controls="help-popover"
+                aria-label="Como jogar" title="Como jogar">
+          <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
+            <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
+          </svg>
+        </button>
+
+        <div id="help-popover" class="help-popover" role="dialog" aria-labelledby="help-title" data-placement="below" hidden>
+          <button id="help-close" class="help-close" type="button" aria-label="Fechar">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square"/>
+            </svg>
+          </button>
+
+          <h2 id="help-title" class="help-title">Como jogar</h2>
+          <p class="help-text">Pule de plataforma em plataforma e suba o mais alto que puder. Os pulos são automáticos, e quem sai por um lado da tela volta pelo outro.</p>
+
+          <h3 class="help-sub">Controles</h3>
+          <ul class="ctl-list">
+            <li><span class="ctl-keys"><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-left"/></svg><span class="sr-only">Seta para a esquerda</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-right"/></svg><span class="sr-only">Seta para a direita</span></kbd></span><span class="ctl-label">Mover</span></li>
+            <li><span class="ctl-keys"><kbd class="cap">A</kbd><kbd class="cap">D</kbd></span><span class="ctl-label">Mover</span></li>
+            <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar / continuar</span></li>
+            <li><span class="ctl-keys"><kbd class="cap">P</kbd><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar</span></li>
+            <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
+          </ul>
+          <p class="help-note">No celular, toque e arraste o dedo para a esquerda ou direita para mover.</p>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
+  <script src="jumpy_storage.js"></script>
   <script src="jumpy.js"></script>
 </body>
 </html>
