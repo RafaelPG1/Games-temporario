@@ -1,10 +1,10 @@
 /* ==========================================================================
-   flappy_bird/flappy_bird.js - HTML5 Canvas + JavaScript puro
+   arcade/flappy_bird/flappy_bird.js - HTML5 Canvas + JavaScript puro
    Sem dependências. Funciona abrindo o index.html direto no navegador.
 
    Índice
      1. Configuração (todas as constantes de ajuste estão aqui)
-     2. Persistência (recorde e preferência de som)
+     2. Persistência (delegada ao game_storage compartilhado)
      3. Áudio (Web Audio API)
      4. Estado da partida
      5. Física do pássaro
@@ -92,11 +92,6 @@
       masterVolume: 0.3,
     },
 
-    storage: {
-      bestKey: 'flappy-bird:best',
-      mutedKey: 'flappy-bird:muted',
-    },
-
     view: {
       margin: 6,                // folga ao redor do palco (px de tela)
       maxCssHeight: 1000,       // não estica o jogo em telas enormes
@@ -132,39 +127,17 @@
 
   /* ======================================================================
      2. PERSISTÊNCIA
-     localStorage pode lançar exceção (modo privado, bloqueio de cookies,
-     file:// em alguns navegadores). Nesses casos usamos a memória.
+     Toda leitura/gravação passa pelo game_storage compartilhado (registro
+     "flappy_bird"), que trata dados inválidos e armazenamento indisponível.
      ====================================================================== */
-  const Storage = (() => {
-    const memory = {};
-    return {
-      read(key) {
-        try {
-          const value = window.localStorage.getItem(key);
-          return value === null ? (memory[key] ?? null) : value;
-        } catch (error) {
-          return memory[key] ?? null;
-        }
-      },
-      write(key, value) {
-        memory[key] = String(value);
-        try {
-          window.localStorage.setItem(key, String(value));
-        } catch (error) {
-          /* sem armazenamento persistente: o jogo continua normalmente */
-        }
-      },
-    };
-  })();
-
-  function loadBest() {
-    const parsed = parseInt(Storage.read(CONFIG.storage.bestKey), 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  }
-
-  function saveBest(value) {
-    Storage.write(CONFIG.storage.bestKey, value);
-  }
+  const store = GameStorage.game('flappy_bird');
+  store.migrate([{ from: 'flappy-bird:best', to: 'best', type: 'int' }, { from: 'flappy-bird:muted', to: 'muted', type: 'bool01' }]);
+  const Store = {
+    getBest: () => { const n = Math.floor(Number(store.get('best', 0))); return Number.isFinite(n) && n > 0 ? n : 0; },
+    setBest: (value) => { const n = Math.floor(Number(value)); if (Number.isFinite(n) && n > 0) store.setRecord('best', n); return Store.getBest(); },
+    isMuted: () => store.get('muted', false) === true,
+    setMuted: (value) => { store.set('muted', Boolean(value)); return Boolean(value); },
+  };
 
   /* ======================================================================
      3. ÁUDIO (efeitos gerados com Web Audio API, sem arquivos externos)
@@ -175,7 +148,7 @@
     let master = null;
     let noiseBuffer = null;
     let unavailable = false;
-    let muted = Storage.read(CONFIG.storage.mutedKey) === '1';
+    let muted = Store.isMuted();
 
     function ensureContext() {
       if (unavailable) return null;
@@ -255,7 +228,7 @@
       },
       setMuted(value) {
         muted = Boolean(value);
-        Storage.write(CONFIG.storage.mutedKey, muted ? '1' : '0');
+        Store.setMuted(muted);
         if (!muted) safely(ensureContext);
       },
       flap() {
@@ -288,6 +261,7 @@
     scroll: 0,            // distância acumulada de rolagem do chão (px)
     overTime: 0,          // tempo desde o fim da partida
     panelShown: false,
+    paused: false,        // true = simulação congelada (só vale durante a partida)
     flash: 0,             // intensidade do clarão da colisão (0 a 1)
     lastGapY: null,       // centro da abertura do último par gerado
     bird: null,
@@ -314,6 +288,7 @@
     game.newBest = false;
     game.overTime = 0;
     game.panelShown = false;
+    game.paused = false;
     game.flash = 0;
     game.lastGapY = null;
     game.pipes.length = 0;
@@ -324,6 +299,7 @@
   function startGame() {
     if (game.state !== STATES.READY) return;
     game.state = STATES.PLAYING;
+    game.paused = false;
     game.overTime = 0;
     game.panelShown = false;
     syncUi();
@@ -333,6 +309,7 @@
   function endGame() {
     if (game.state !== STATES.PLAYING) return;   // encerra uma única vez
     game.state = STATES.GAME_OVER;
+    game.paused = false;
     game.overTime = 0;
     game.panelShown = false;
     game.flash = 1;
@@ -340,7 +317,7 @@
     if (game.score > game.best) {
       game.best = game.score;
       game.newBest = true;
-      saveBest(game.best);
+      Store.setBest(game.best);
     }
     Sound.hit();
     syncUi();
@@ -350,6 +327,26 @@
     if (game.state !== STATES.GAME_OVER) return;
     if (game.overTime < CONFIG.timing.gameOverDelay) return;   // evita reinício acidental
     resetRound();
+  }
+
+  // Pausa e retomada só existem durante a partida. Pausar não encerra nem
+  // altera nada: apenas deixa de chamar update() (ver frame()).
+  function pauseGame() {
+    if (game.state !== STATES.PLAYING || game.paused) return;
+    game.paused = true;
+    syncUi();
+  }
+
+  function resumeGame() {
+    if (game.state !== STATES.PLAYING || !game.paused) return;
+    game.paused = false;
+    lastTime = null;          // o primeiro quadro depois de continuar tem dt = 0: sem saltos
+    syncUi();
+  }
+
+  function togglePause() {
+    if (game.paused) resumeGame();
+    else pauseGame();
   }
 
   /* ======================================================================
@@ -1016,6 +1013,7 @@
     arena: document.getElementById('arena'),
     stage: document.getElementById('stage'),
     muteButton: document.getElementById('mute-button'),
+    pauseButton: document.getElementById('pause-button'),
     restartButton: document.getElementById('restart-button'),
     readyBest: document.getElementById('ready-best'),
     readyBestValue: document.getElementById('ready-best-value'),
@@ -1030,6 +1028,16 @@
     stage.classList.toggle('is-playing', game.state === STATES.PLAYING);
     stage.classList.toggle('is-over', game.state === STATES.GAME_OVER);
     stage.classList.toggle('show-panel', game.state === STATES.GAME_OVER && game.panelShown);
+
+    // Botão de pausa: só aparece durante a partida; o rótulo acompanha o estado.
+    const playing = game.state === STATES.PLAYING;
+    stage.classList.toggle('is-paused', playing && game.paused);
+    ui.pauseButton.hidden = !playing;
+    const pauseText = game.paused ? 'Continuar' : 'Pausar';     // só para leitores de tela e dica
+    ui.pauseButton.classList.toggle('is-paused', game.paused);
+    ui.pauseButton.setAttribute('aria-pressed', game.paused ? 'true' : 'false');
+    ui.pauseButton.setAttribute('aria-label', pauseText);
+    ui.pauseButton.title = pauseText + ' (P)';
 
     ui.readyBest.hidden = game.best <= 0;
     ui.readyBestValue.textContent = String(game.best);
@@ -1060,6 +1068,7 @@
      impulso por comando.
      ====================================================================== */
   function handleAction() {
+    if (game.paused) return;          // pausado: voar/tocar não faz nada (só o botão continua)
     Sound.unlock();
     if (game.state === STATES.READY) startGame();
     else if (game.state === STATES.PLAYING) flap();
@@ -1078,12 +1087,14 @@
       keysHeld.add(event.code);
       handleAction();
     } else if (event.code === 'Enter') {
-      if (game.state === STATES.GAME_OVER) {
+      if (game.state === STATES.GAME_OVER && !game.paused) {
         event.preventDefault();
         tryRestart();
       }
     } else if (event.code === 'KeyM' && !event.repeat) {
       toggleMute();
+    } else if ((event.code === 'KeyP' || event.code === 'Escape') && !event.repeat) {
+      togglePause();
     }
   }
 
@@ -1103,33 +1114,38 @@
 
   /* ======================================================================
      12. REDIMENSIONAMENTO
-     Mantém a proporção 288:512 e o canvas nítido (resolução física).
-     O palco ocupa a arena (a janela menos o cabeçalho).
+     O mundo (288 x 512) é ampliado para o canvas visível. Para não haver
+     linhas irregulares, falhas ou bordas nas emendas, o tamanho é calculado
+     UMA vez, em pixels físicos, e sempre na proporção exata 9:16:
+       - largura = múltiplo de 9  ->  altura = largura * 16 / 9 é inteira,
+         então a escala é idêntica na horizontal e na vertical;
+       - o buffer do canvas tem exatamente o tamanho do palco em pixels
+         físicos (1 pixel do buffer = 1 pixel da tela), sem segunda
+         reamostragem feita pelo navegador.
+     (Antes, largura e altura eram arredondadas separadamente e o buffer
+     era arredondado de novo a partir do tamanho em CSS.)
      ====================================================================== */
   function resizeCanvas() {
     const { margin, maxCssHeight } = CONFIG.view;
+    const pixelRatio = window.devicePixelRatio || 1;
     const boxWidth = ui.arena ? ui.arena.clientWidth : window.innerWidth;
     const boxHeight = ui.arena ? ui.arena.clientHeight : window.innerHeight;
-    const availableWidth = Math.max(1, boxWidth - margin * 2);
-    const availableHeight = Math.max(1, boxHeight - margin * 2);
-    const ratio = WORLD.width / WORLD.height;
+    const availableWidth = Math.max(1, boxWidth - margin * 2) * pixelRatio;
+    const availableHeight = Math.max(1, Math.min(boxHeight - margin * 2, maxCssHeight)) * pixelRatio;
 
-    let cssHeight = Math.min(availableHeight, maxCssHeight);
-    let cssWidth = cssHeight * ratio;
-    if (cssWidth > availableWidth) {
-      cssWidth = availableWidth;
-      cssHeight = cssWidth / ratio;
-    }
-    cssWidth = Math.floor(cssWidth);
-    cssHeight = Math.floor(cssHeight);
+    // Maior múltiplo de 9 (em pixels físicos) que cabe na largura e, pela proporção, na altura.
+    const unit = Math.max(1, Math.floor(Math.min(availableWidth / 9, availableHeight / 16)));
+    const bufferWidth = unit * 9;
+    const bufferHeight = unit * 16;           // 288:512 = 9:16, exato
 
-    const pixelRatio = window.devicePixelRatio || 1;
+    const cssWidth = bufferWidth / pixelRatio;
+    const cssHeight = bufferHeight / pixelRatio;
     ui.stage.style.width = `${cssWidth}px`;
     ui.stage.style.height = `${cssHeight}px`;
     ui.stage.style.setProperty('--u', `${cssWidth / WORLD.width}px`);
 
-    canvas.width = Math.max(1, Math.round(cssWidth * pixelRatio));
-    canvas.height = Math.max(1, Math.round(cssHeight * pixelRatio));
+    canvas.width = bufferWidth;
+    canvas.height = bufferHeight;
 
     render();     // redimensionar limpa o canvas: redesenha na hora para não piscar
   }
@@ -1145,7 +1161,7 @@
     if (lastTime === null) lastTime = now;
     const dt = Math.min(Math.max((now - lastTime) / 1000, 0), CONFIG.timing.maxFrameTime);
     lastTime = now;
-    update(dt);
+    if (!game.paused) update(dt);     // pausado: nada avança, mas o loop (único) continua
     render();
   }
 
@@ -1156,7 +1172,7 @@
   }
 
   function init() {
-    game.best = loadBest();
+    game.best = Store.getBest();
     initClouds();
     resetRound();
     syncMuteButton();
@@ -1177,6 +1193,17 @@
       event.stopPropagation();
       toggleMute();
       ui.muteButton.blur();          // Espaço não deve acionar o botão depois
+    });
+
+    document.getElementById('start-button').addEventListener('click', (event) => {
+      event.stopPropagation();
+      handleAction();
+      event.currentTarget.blur();
+    });
+    ui.pauseButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      togglePause();
+      ui.pauseButton.blur();         // Espaço não deve acionar o botão depois
     });
 
     window.addEventListener('resize', resizeCanvas);

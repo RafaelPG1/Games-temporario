@@ -1,5 +1,5 @@
 /* ==========================================================================
-jumpy/jumpy.js - Endless jumper em HTML5 Canvas + JavaScript puro.
+arcade/jumpy/jumpy.js - Endless jumper em HTML5 Canvas + JavaScript puro.
 Índice: 1 Configuração · 2 Estado · 3 Plataformas · 4 Física · 5 Câmera
 e pontuação · 6 Sprites · 7 Renderização · 8 Interface · 9 Entrada
 · 10 Redimensionamento · 11 Loop e inicialização
@@ -66,7 +66,7 @@ const CONFIG = {
   },
   timing: { maxFrameTime: 1 / 30, physicsStep: 1 / 120 },
   scenery: { cloudCount: 6 },
-  audio: { masterVolume: 0.3, mutedKey: 'jumpy:muted' },
+  audio: { masterVolume: 0.3 },
   view: { margin: 6, maxCssHeight: 1000 },
 };
 
@@ -87,11 +87,15 @@ const STATES = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAME_OVER
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 
+// Persistência: game_storage (registro "jumpy"); chave antiga migrada uma vez.
+const store = GameStorage.game('jumpy');
+store.migrate([{ from: 'jumpy:muted', to: 'muted', type: 'bool01' }]);
+
 /* ===== ÁUDIO (Web Audio API, sem arquivos externos) ===== */
 const Sound = (() => {
   let audioContext = null, master = null, noiseBuffer = null, unavailable = false;
   let muted = false;
-  try { muted = window.localStorage.getItem(CONFIG.audio.mutedKey) === '1'; } catch (e) { /* sem armazenamento */ }
+  muted = store.get('muted', false) === true;
 
   function ensureContext() {
     if (unavailable) return null;
@@ -153,7 +157,7 @@ const Sound = (() => {
     unlock() { if (!muted) safely(ensureContext); },
     setMuted(value) {
       muted = Boolean(value);
-      try { window.localStorage.setItem(CONFIG.audio.mutedKey, muted ? '1' : '0'); } catch (e) {}
+      store.set('muted', muted);
       if (!muted) safely(ensureContext);
     },
     bounce() {
@@ -987,6 +991,7 @@ function init() {
   initClouds();
   resetRound();
   syncMuteButton();
+  document.getElementById('start-button').addEventListener('click', (e) => { e.stopPropagation(); Sound.unlock(); startGame(); e.currentTarget.blur(); });
   
   document.addEventListener('keydown', onKeyDown, { passive: false });
   document.addEventListener('keyup', onKeyUp);

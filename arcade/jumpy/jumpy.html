@@ -4,12 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07080c">
-  <title>Jumpy · Arcádia</title>
+  <title>Pula-Pula · Arcádia</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="jumpy.css">
+  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+    <a class="back" href="../../index.html" aria-label="Voltar ao catálogo da Arcádia">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
         <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -22,13 +24,8 @@
         <rect x="12" y="12" width="3" height="4" fill="#fff"/><rect x="18" y="12" width="3" height="4" fill="#fff"/>
         <rect x="6" y="25" width="20" height="3" fill="#74d160" stroke="#543847" stroke-width="1.5"/>
       </svg>
-      <div class="game-text"><strong>Jumpy</strong><span>Arcade</span></div>
+      <div class="game-text"><strong>Pula-Pula</strong></div>
     </div>
-    <p class="keys" aria-label="Controles">
-      <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> mover</span>
-      <span><kbd>P</kbd> pausa</span>
-      <span><kbd>M</kbd> som</span>
-    </p>
   </header>
 
   <div id="arena" class="arena">
@@ -55,9 +52,16 @@
       </button>
 
       <section class="screen screen-ready" aria-live="polite">
-        <h1 class="title">Jumpy</h1>
-        <p class="hint">Toque para começar</p>
-        <p class="controls">Use &larr; &rarr; ou A D para se mover<br>No celular, toque no lado esquerdo ou direito</p>
+        <h1 class="title">Pula-Pula</h1>
+        <p class="menu-desc">Salte de plataforma em plataforma e suba o mais alto que puder.</p>
+        <ul class="menu-keys" aria-label="Comandos">
+          <li><span class="keycaps"><kbd>←</kbd><kbd>→</kbd></span><span>mover</span></li>
+          <li><span class="keycaps"><kbd>A</kbd><kbd>D</kbd></span><span>mover</span></li>
+          <li><span class="keycaps"><kbd>P</kbd><kbd>Esc</kbd></span><span>pausar</span></li>
+          <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
+        </ul>
+        <p class="menu-touch">Toque no lado esquerdo ou direito da tela</p>
+        <button id="start-button" class="btn" type="button">Jogar</button>
       </section>
 
       <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
@@ -75,6 +79,8 @@
     </main>
   </div>
 
+  <script src="../../shared/game_storage.js"></script>
+  <script src="../../shared/game_ui.js"></script>
   <script src="jumpy.js"></script>
 </body>
 </html>

@@ -4,12 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#0b0820">
-  <title>Stack Tower 2D · Arcádia</title>
+  <title>Torre de Blocos · Arcádia</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="stack_tower.css">
+  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+    <a class="back" href="../../index.html" aria-label="Voltar ao catálogo da Arcádia">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
         <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -17,17 +19,12 @@
     </a>
     <div class="game-id">
       <span class="game-mark" aria-hidden="true"><i></i><i></i><i></i></span>
-      <div class="game-text"><strong>Stack Tower 2D</strong><span>Arcade</span></div>
+      <div class="game-text"><strong>Torre de Blocos</strong></div>
     </div>
-    <p class="keys" aria-label="Controles">
-      <span><kbd>Espaço</kbd> soltar</span>
-      <span><kbd>P</kbd> pausa</span>
-      <span><kbd>M</kbd> som</span>
-    </p>
   </header>
 
   <div id="arena" class="arena">
-    <main id="stage" class="stage is-ready" aria-label="Stack Tower 2D">
+    <main id="stage" class="stage is-ready" aria-label="Torre de Blocos">
 
       <!-- Cenário e torre (mundo 288 x 512, escalado pelo JS) -->
       <div id="scene" class="scene" aria-hidden="true">
@@ -81,9 +78,15 @@
 
       <section class="screen screen-ready" aria-live="polite">
         <div class="logo" aria-hidden="true"><i></i><i></i><i></i></div>
-        <h1 class="title">Stack<br>Tower</h1>
-        <p class="hint">Toque ou aperte espaço</p>
-        <p class="controls">Solte o bloco no momento certo.<br>O que sobrar para fora é cortado.</p>
+        <h1 class="title">Torre<br>de Blocos</h1>
+        <p class="menu-desc">Solte cada bloco no momento certo. O que sobrar para fora é cortado.</p>
+        <ul class="menu-keys" aria-label="Comandos">
+          <li><span class="keycaps"><kbd>Espaço</kbd></span><span>soltar o bloco</span></li>
+          <li><span class="keycaps"><kbd>P</kbd><kbd>Esc</kbd></span><span>pausar</span></li>
+          <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
+        </ul>
+        <p class="menu-touch">Toque na tela para soltar o bloco</p>
+        <button id="start-button" class="btn" type="button">Jogar</button>
       </section>
 
       <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
@@ -109,6 +112,8 @@
     </main>
   </div>
 
+  <script src="../../shared/game_storage.js"></script>
+  <script src="../../shared/game_ui.js"></script>
   <script src="stack_tower.js"></script>
 </body>
 </html>

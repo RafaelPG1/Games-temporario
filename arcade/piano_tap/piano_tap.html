@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07080c">
   <title>Piano Tap · Arcádia</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="piano_tap.css">
+  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+    <a class="back" href="../../index.html" aria-label="Voltar ao catálogo da Arcádia">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
         <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -23,13 +25,8 @@
         <rect x="16.5" y="7" width="4.5" height="18" rx="1.6" fill="#e9e6ff"/>
         <rect x="22" y="7" width="4.5" height="18" rx="1.6" fill="#e9e6ff"/>
       </svg>
-      <div class="game-text"><strong>Piano Tap</strong><span>Teclas pretas</span></div>
+      <div class="game-text"><strong>Piano Tap</strong></div>
     </div>
-    <p class="keys" aria-label="Controles">
-      <span><kbd>D</kbd><kbd>F</kbd><kbd>J</kbd><kbd>K</kbd> colunas</span>
-      <span><kbd>P</kbd> pausa</span>
-      <span><kbd>M</kbd> som</span>
-    </p>
   </header>
 
   <main id="arena" class="arena">
@@ -68,9 +65,14 @@
 
         <section class="screen screen-ready" aria-labelledby="ready-title">
           <h1 id="ready-title" class="title">Piano Tap</h1>
-          <p class="lead">Toque nas teclas pretas enquanto elas descem.<br>Não toque nas brancas e não deixe nenhuma escapar.</p>
-          <button id="start-button" class="btn" type="button">Começar</button>
-          <p class="help">Toque, clique ou use D F J K</p>
+          <p class="menu-desc">Toque só nas teclas pretas enquanto elas descem. Não toque nas brancas e não deixe nenhuma escapar.</p>
+          <ul class="menu-keys" aria-label="Comandos">
+            <li><span class="keycaps"><kbd>D</kbd><kbd>F</kbd><kbd>J</kbd><kbd>K</kbd></span><span>tocar as colunas</span></li>
+            <li><span class="keycaps"><kbd>P</kbd><kbd>Esc</kbd></span><span>pausar</span></li>
+            <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
+          </ul>
+          <p class="menu-touch">Toque direto nas teclas pretas</p>
+          <button id="start-button" class="btn" type="button">Jogar</button>
         </section>
 
         <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
@@ -91,6 +93,8 @@
   </main>
 
   <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+  <script src="../../shared/game_storage.js"></script>
+  <script src="../../shared/game_ui.js"></script>
   <script src="piano_tap.js"></script>
 </body>
 </html>

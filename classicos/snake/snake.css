@@ -1,9 +1,9 @@
-/* snake/snake.css - --cell = tamanho de uma célula em px (atualizado pelo JS) */
+/* classicos/snake/snake.css - --cell = tamanho de uma célula em px (atualizado pelo JS) */
 :root {
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
   --shell-text: #eceef5; --shell-muted: #8d93a8;
   --moss-a: #15302a; --moss-b: #112821; --wall: #2e5a45; --wall-dark: #1c3a2c;
-  --mint: #7ee08a; --lime: #c8f26b; --berry: #ff4f7b; --gold: #ffc857; --ink: #07140f;
+  --menu-accent: #7ee08a; --mint: #7ee08a; --lime: #c8f26b; --berry: #ff4f7b; --gold: #ffc857; --ink: #07140f;
   --cell: 20px; --bw: 320px;
 }
 * { box-sizing: border-box; }
@@ -40,12 +40,6 @@ button { font: inherit; color: inherit; }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys span { display: inline-flex; align-items: center; gap: 4px; }
-.keys kbd {
-  min-width: 22px; padding: 1px 6px; font: inherit; font-size: 12px; font-weight: 600; text-align: center; color: var(--shell-text);
-  background: var(--shell-surface); border: 1px solid var(--shell-line); border-bottom-width: 2px; border-radius: 6px;
-}
 
 /* Arena: placar em cima, tabuleiro no meio, botões de toque embaixo */
 .arena {
@@ -108,9 +102,9 @@ button { font: inherit; color: inherit; }
   padding: 0 8%; text-align: center; background: rgba(6,18,13,.62); backdrop-filter: blur(2px);
   opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s;
 }
-.screen-ready { background: rgba(6,18,13,.35); backdrop-filter: none; }
+.screen-ready { background: rgba(6,18,13,.8); backdrop-filter: none; }
 .is-ready .screen-ready, .is-paused .screen-paused, .is-over .screen-over { opacity: 1; visibility: visible; transition-delay: 0s; }
-.title { margin: 0; font-size: calc(var(--cell) * 3.4); font-weight: 900; letter-spacing: .02em; color: var(--mint); text-shadow: 0 calc(var(--cell) * .18) 0 #14352a, 0 0 calc(var(--cell) * 1.2) rgba(126,224,138,.4); }
+.title { margin: 0; font-size: calc(var(--cell) * 2.4); font-weight: 900; letter-spacing: .02em; color: var(--mint); text-shadow: 0 calc(var(--cell) * .18) 0 #14352a, 0 0 calc(var(--cell) * 1.2) rgba(126,224,138,.4); }
 .hint { margin: 0; font-size: max(14px, calc(var(--cell) * .85)); font-weight: 800; animation: blink 1.4s ease-in-out infinite; }
 .help { margin: 0; font-size: max(12px, calc(var(--cell) * .62)); line-height: 1.5; color: rgba(236,238,245,.75); }
 @keyframes blink { 50% { opacity: .45; } }
@@ -141,10 +135,10 @@ button { font: inherit; color: inherit; }
 
 .noscript { position: fixed; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } }
+@media (max-width: 640px) { .topbar { height: 52px; } }
 /* Celular deitado: placar à esquerda, tabuleiro no centro, botões à direita */
 @media (max-height: 500px) and (orientation: landscape) {
-  .topbar { height: 46px; } .game-text span { display: none; } .keys { display: none; }
+  .topbar { height: 46px; } .game-text span { display: none; } 
   .arena { flex-direction: row; justify-content: center; padding: 8px 12px; }
   .hud { flex-direction: column; width: 150px; }
   .play { width: auto; flex: 1 1 0; height: 100%; }

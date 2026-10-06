@@ -1,6 +1,6 @@
 /* ==========================================================================
-   Tetris/Tetris.js - HTML5 Canvas + JavaScript puro
-   Sem dependências. Funciona abrindo o Tetris.html direto no navegador.
+   arcade/tetris/tetris.js - HTML5 Canvas + JavaScript puro
+   Sem dependências. Funciona abrindo o arcade/tetris/tetris.html direto no navegador.
 
    Índice
      1. Configuração (todas as constantes de ajuste estão aqui)
@@ -69,11 +69,6 @@
       masterVolume: 0.3,
     },
 
-    storage: {
-      bestKey: 'tetris:best',
-      mutedKey: 'tetris:muted',
-    },
-
     view: {
       ring: 6,                 // folga para a moldura do tabuleiro (px de tela)
       maxCell: 50,             // tamanho máximo de cada bloco (px de tela)
@@ -104,38 +99,20 @@
 
   /* ======================================================================
      2. PERSISTÊNCIA
-     localStorage pode lançar exceção (modo privado, bloqueio de cookies,
-     file:// em alguns navegadores). Nesses casos usamos a memória.
+     Tudo passa pelo game_storage compartilhado, que cai para a memória se o
+     o armazenamento do navegador estiver indisponível (modo privado, bloqueio de cookies...).
      ====================================================================== */
-  const Storage = (() => {
-    const memory = {};
-    return {
-      read(key) {
-        try {
-          const value = window.localStorage.getItem(key);
-          return value === null ? (memory[key] ?? null) : value;
-        } catch (error) {
-          return memory[key] ?? null;
-        }
-      },
-      write(key, value) {
-        memory[key] = String(value);
-        try {
-          window.localStorage.setItem(key, String(value));
-        } catch (error) {
-          /* sem armazenamento persistente: o jogo continua normalmente */
-        }
-      },
-    };
-  })();
+  // Persistência: game_storage compartilhado (registro "tetris"); chaves antigas migradas uma vez.
+  const store = GameStorage.game('tetris');
+  store.migrate([{ from: 'tetris:best', to: 'best', type: 'int' }, { from: 'tetris:muted', to: 'muted', type: 'bool01' }]);
 
   function loadBest() {
-    const parsed = parseInt(Storage.read(CONFIG.storage.bestKey), 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+    const n = Number(store.get('best', 0));
+    return Number.isFinite(n) && n > 0 ? n : 0;
   }
 
   function saveBest(value) {
-    Storage.write(CONFIG.storage.bestKey, value);
+    store.set('best', value);
   }
 
   /* ======================================================================
@@ -148,7 +125,7 @@
     let master = null;
     let noiseBuffer = null;
     let unavailable = false;
-    let muted = Storage.read(CONFIG.storage.mutedKey) === '1';
+    let muted = store.get('muted', false) === true;
 
     function ensureContext() {
       if (unavailable) return null;
@@ -227,7 +204,7 @@
       unlock() { if (!muted) safely(ensureContext); },
       setMuted(value) {
         muted = Boolean(value);
-        Storage.write(CONFIG.storage.mutedKey, muted ? '1' : '0');
+        store.set('muted', muted);
         if (!muted) safely(ensureContext);
       },
       move() { safely(() => tone({ type: 'square', from: 260, to: 220, duration: 0.03, volume: 0.1 })); },

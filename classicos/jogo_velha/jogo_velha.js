@@ -1,7 +1,6 @@
 'use strict';
 /* Jogo da Velha · Arcádia. Fonte única de verdade: o objeto S. O DOM só reflete S (função render). */
 const LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
-const STORE = { mode: 'jogo_velha:mode', level: 'jogo_velha:level', starter: 'jogo_velha:starter', muted: 'jogo_velha:muted' };
 const AI_DELAY_MS = 380, CONFIRM_MS = 3000;
 const W = 288, H = 512, MARGIN = 6, MAX_CSS_HEIGHT = 1000;
 const SYMBOL = {
@@ -21,11 +20,12 @@ const S = {
   thinking: false, confirm: 0, muted: false,
 };
 
-/* ===== Armazenamento (nunca pode quebrar o jogo) ===== */
-const store = {
-  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } },
-};
+/* ===== Armazenamento: game_storage (registro "jogo_velha"); chaves antigas migradas uma vez ===== */
+const store = GameStorage.game('jogo_velha');
+store.migrate([
+  { from: 'jogo_velha:mode', to: 'mode' }, { from: 'jogo_velha:level', to: 'level' }, { from: 'jogo_velha:starter', to: 'starter' },
+  { from: 'jogo_velha:muted', to: 'muted', type: 'bool01' },
+]);
 
 /* ===== Áudio (Web Audio, sem arquivos externos; falhas nunca interrompem o jogo) ===== */
 const Sound = (() => {
@@ -147,9 +147,9 @@ function newRound() {
 }
 function resetSession() { S.score = { X: 0, O: 0, D: 0 }; newRound(); } // placar + rodada (troca de modo/dificuldade)
 function resetScore() { S.score = { X: 0, O: 0, D: 0 }; clearConfirm(); render(); } // só o placar; o tabuleiro continua
-function setMode(m) { if (m !== S.mode) { Sound.click(); S.mode = m; store.set(STORE.mode, m); resetSession(); } }
-function setLevel(l) { if (l !== S.level) { Sound.click(); S.level = l; store.set(STORE.level, l); resetSession(); } }
-function setStarter(s) { if (s !== S.starter) { Sound.click(); S.starter = s; store.set(STORE.starter, s); newRound(); } }
+function setMode(m) { if (m !== S.mode) { Sound.click(); S.mode = m; store.set('mode', m); resetSession(); } }
+function setLevel(l) { if (l !== S.level) { Sound.click(); S.level = l; store.set('level', l); resetSession(); } }
+function setStarter(s) { if (s !== S.starter) { Sound.click(); S.starter = s; store.set('starter', s); newRound(); } }
 function clearConfirm() { clearTimeout(S.confirm); S.confirm = 0; }
 function onSession() { // zerar o placar pede um segundo toque (expira sozinho) e não mexe no tabuleiro
   Sound.click();
@@ -157,7 +157,7 @@ function onSession() { // zerar o placar pede um segundo toque (expira sozinho) 
   resetScore();
 }
 function onRound() { Sound.click(); newRound(); } // "Reiniciar rodada" e "Jogar de novo" são o mesmo comando
-function toggleMute() { S.muted = !S.muted; store.set(STORE.muted, S.muted ? '1' : '0'); if (!S.muted) { Sound.unlock(); Sound.click(); } render(); }
+function toggleMute() { S.muted = !S.muted; store.set('muted', S.muted); if (!S.muted) { Sound.unlock(); Sound.click(); } render(); }
 
 /* ===== Renderização ===== */
 function render() {
@@ -203,11 +203,11 @@ function resizeStage() {
 
 /* ===== Entradas ===== */
 function init() {
-  const m = store.get(STORE.mode), l = store.get(STORE.level), s = store.get(STORE.starter);
+  const m = store.get('mode'), l = store.get('level'), s = store.get('starter');
   if (m === 'two' || m === 'ai') S.mode = m;
   if (['easy', 'medium', 'hard'].includes(l)) S.level = l;
   if (s === 'X' || s === 'O') S.starter = s;
-  S.muted = store.get(STORE.muted) === '1';
+  S.muted = store.get('muted', false) === true;
   for (let i = 0; i < 9; i++) {
     const c = document.createElement('button'); c.type = 'button'; c.dataset.i = i; c.dataset.v = '';
     ui.board.appendChild(c); ui.cells.push(c);

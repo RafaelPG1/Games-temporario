@@ -1,4 +1,4 @@
-<!-- Tetris/Tetris.html -->
+<!-- arcade/tetris/tetris.html -->
 
 <!DOCTYPE html>
 <html lang="pt-BR">
@@ -7,13 +7,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07080c">
   <title>Tetris · Arcádia</title>
-  <link rel="stylesheet" href="Tetris.css">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="tetris.css">
+  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body data-state="ready">
 
   <!-- Cabeçalho: voltar ao catálogo da Arcádia + identificação do jogo + pausa e som -->
   <header class="topbar">
-    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+    <a class="back" href="../../index.html" aria-label="Voltar ao catálogo da Arcádia">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
         <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -33,20 +35,8 @@
           <rect x="19.5" y="19.5" width="7" height="7" fill="#ff6b57"/>
         </g>
       </svg>
-      <div class="game-text">
-        <strong>Tetris</strong>
-        <span>Arcade</span>
-      </div>
+      <div class="game-text"><strong>Tetris</strong></div>
     </div>
-
-    <p class="keys" aria-label="Controles">
-      <span><kbd>&larr;</kbd><kbd>&rarr;</kbd> mover</span>
-      <span><kbd>&uarr;</kbd> girar</span>
-      <span><kbd>&darr;</kbd> acelerar</span>
-      <span><kbd>Espaço</kbd> queda</span>
-      <span><kbd>P</kbd> pausa</span>
-      <span><kbd>M</kbd> som</span>
-    </p>
   </header>
 
   <div id="arena" class="arena">
@@ -63,9 +53,17 @@
             <h1 class="title" aria-label="Tetris">
               <span class="c-red">T</span><span class="c-orange">E</span><span class="c-yellow">T</span><span class="c-green">R</span><span class="c-cyan">I</span><span class="c-purple">S</span>
             </h1>
-            <button id="start-button" class="btn" type="button">Começar</button>
-            <p class="controls only-keys">&larr; &rarr; ou A D mover<br>&uarr; ou W girar &nbsp;&middot;&nbsp; &darr; ou S acelerar<br>Espaço queda &nbsp;&middot;&nbsp; P pausa</p>
-            <p class="controls only-touch">Use os botões para jogar</p>
+            <p class="menu-desc">Encaixe as peças para completar linhas e não deixe a pilha chegar ao topo.</p>
+            <ul class="menu-keys" aria-label="Comandos">
+              <li><span class="keycaps"><kbd>←</kbd><kbd>→</kbd></span><span>mover</span></li>
+              <li><span class="keycaps"><kbd>↑</kbd></span><span>girar</span></li>
+              <li><span class="keycaps"><kbd>↓</kbd></span><span>acelerar</span></li>
+              <li><span class="keycaps"><kbd>Espaço</kbd></span><span>queda direta</span></li>
+              <li><span class="keycaps"><kbd>P</kbd></span><span>pausar</span></li>
+              <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
+            </ul>
+            <p class="menu-touch">Use os botões na tela para jogar</p>
+            <button id="start-button" class="btn" type="button">Jogar</button>
           </section>
 
           <!-- Pausa -->
@@ -165,6 +163,8 @@
     </div>
   </div>
 
-  <script src="Tetris.js"></script>
+  <script src="../../shared/game_storage.js"></script>
+  <script src="../../shared/game_ui.js"></script>
+  <script src="tetris.js"></script>
 </body>
 </html>

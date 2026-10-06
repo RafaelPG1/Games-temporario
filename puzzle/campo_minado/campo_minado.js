@@ -7,7 +7,6 @@ const LEVELS = {  // único lugar para ajustar tamanhos e quantidade de minas
 };
 const DEFAULT_LEVEL = 'easy';
 const CELL_MIN = 30, CELL_MAX = 44, FLAG_TAP_GUARD_MS = 450;
-const STORE_LEVEL = 'campo_minado:level';
 const $ = (id) => document.getElementById(id);
 const ui = {
   arena: $('arena'), game: $('game'), field: $('field'), grid: $('grid'), mines: $('mines'), time: $('time'), status: $('status'),
@@ -25,10 +24,9 @@ const S = {
   opened: 0, flags: 0, hit: -1, t0: 0, elapsed: 0, flagMode: false, lastFlagAt: -1e9,
 };
 
-const store = {
-  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } },
-};
+// Persistência: game_storage (registro "campo_minado"); chave antiga migrada uma vez.
+const store = GameStorage.game('campo_minado');
+store.migrate([{ from: 'campo_minado:level', to: 'level' }]);
 const fmt = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 const elapsedNow = () => (S.status === 'playing' ? performance.now() - S.t0 : S.elapsed);
 const isOver = () => S.status === 'won' || S.status === 'lost';
@@ -121,7 +119,7 @@ function newGame(level) {
     frag.appendChild(el); return el;
   });
   ui.grid.appendChild(frag);
-  store.set(STORE_LEVEL, level);
+  store.set('level', level);
   sizeBoard(); render();
 }
 
@@ -158,7 +156,7 @@ function sizeBoard() {
 const cellIndex = (e) => { const t = e.target.closest && e.target.closest('.cell'); return t ? Number(t.dataset.i) : -1; };
 function setFlagMode(on) { S.flagMode = on; render(); }
 function init() {
-  newGame(LEVELS[store.get(STORE_LEVEL)] ? store.get(STORE_LEVEL) : DEFAULT_LEVEL);
+  newGame(LEVELS[store.get('level')] ? store.get('level') : DEFAULT_LEVEL);
   ui.grid.addEventListener('click', (e) => {
     const i = cellIndex(e); if (i < 0) return;
     if (performance.now() - S.lastFlagAt < FLAG_TAP_GUARD_MS) return;   // evita contar duas vezes o mesmo gesto

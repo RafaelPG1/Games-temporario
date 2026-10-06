@@ -1,5 +1,5 @@
 /* ==========================================================================
-piano_tap/piano_tap.js - Jogo de reflexos com teclas de piano em HTML5 Canvas + JavaScript puro.
+arcade/piano_tap/piano_tap.js - Jogo de reflexos com teclas de piano em HTML5 Canvas + JavaScript puro.
 Índice: 1 Configuração · 2 Áudio · 3 Estado · 4 Lógica · 5 Efeitos
 · 6 Renderização · 7 Interface · 8 Entrada · 9 Redimensionamento · 10 Loop
 Unidades do mundo: 1 = largura de uma coluna. O tabuleiro tem 4 x 6 unidades.
@@ -14,7 +14,7 @@ const CONFIG = {
   speedStart: 2.4, speedMax: 8.4, speedStep: 0.07, speedEase: 3,   // unidades/s; +0,07 por ponto até o teto
   maxStep: 0.02, maxFrame: 0.1,                  // passo fixo máximo da simulação e limite de dt por quadro (s)
   historySize: 6, maxCol: 100, minCol: 24, margin: 14, restartLock: 500,
-  bestKey: 'piano-tap:best', mutedKey: 'piano-tap:muted', volume: 0.3,
+  volume: 0.3,
 };
 const COLORS = {
   seam: '#c4c8da', violet: '#9d8cff', violetSoft: '#e9e6ff', berry: '#ff4f7b', gold: '#ffc857', ink: '#120f2a',
@@ -31,8 +31,9 @@ function mix(a, b, t) {
   const c = (s) => Math.round(lerp((pa >> s) & 255, (pb >> s) & 255, t));
   return `rgb(${c(16)},${c(8)},${c(0)})`;
 }
-function load(key) { try { return window.localStorage.getItem(key); } catch (e) { return null; } }
-function save(key, value) { try { window.localStorage.setItem(key, value); } catch (e) { /* sem armazenamento */ } }
+// Persistência: game_storage (registro "piano_tap"); chaves antigas migradas uma vez.
+const store = GameStorage.game('piano_tap');
+store.migrate([{ from: 'piano-tap:best', to: 'best', type: 'int' }, { from: 'piano-tap:muted', to: 'muted', type: 'bool01' }]);
 
 /* ===== 2. ÁUDIO (Web Audio API, sem arquivos externos) ===== */
 // Cada acerto toca a próxima nota de uma melodia conhecida (Ode à Alegria, domínio público).
@@ -41,7 +42,7 @@ const MELODY = 'E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4 D4 D4 E4 E4 F4 G4 G4 F4 E
   .split(' ').map((n) => NOTE[n]);
 
 const Sound = (() => {
-  let ctx = null, master = null, unavailable = false, muted = load(CONFIG.mutedKey) === '1';
+  let ctx = null, master = null, unavailable = false, muted = store.get('muted', false) === true;
   function ensure() {
     if (unavailable) return null;
     if (!ctx) {
@@ -72,7 +73,7 @@ const Sound = (() => {
   return {
     get muted() { return muted; },
     unlock() { if (!muted) play(ensure); },
-    setMuted(v) { muted = Boolean(v); save(CONFIG.mutedKey, muted ? '1' : '0'); if (!muted) play(ensure); },
+    setMuted(v) { muted = Boolean(v); store.set('muted', muted); if (!muted) play(ensure); },
     note(freq) {
       play(() => {
         tone({ type: 'sine', from: freq, duration: 0.6, volume: 0.5 });
@@ -92,7 +93,7 @@ const Sound = (() => {
 const game = {
   state: STATES.READY, time: 0, offset: 0, speed: 0,
   rows: [], nextN: 0, history: [],
-  score: 0, startBest: 0, best: parseInt(load(CONFIG.bestKey), 10) || 0, newRecord: false,
+  score: 0, startBest: 0, best: Number(store.get('best', 0)) || 0, newRecord: false,
   noteIndex: 0, particles: [], floats: [],
   wrong: null, missRow: null, endReason: '', overAt: 0,
 };
@@ -198,7 +199,7 @@ function hitRow(row) {
     game.newRecord = true;
     if (first) { showToast('Novo recorde!'); Sound.record(); }
   }
-  if (game.score > game.best) { game.best = game.score; save(CONFIG.bestKey, String(game.best)); updateBest(true); }
+  if (game.score > game.best) { game.best = game.score; store.set('best', game.best); updateBest(true); }
 }
 
 function endRound(reason, info) {

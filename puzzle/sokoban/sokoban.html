@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07080c">
   <title>Sokoban · Arcádia</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="sokoban.css">
+  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+    <a class="back" href="../../index.html" aria-label="Voltar ao catálogo da Arcádia">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
         <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -22,14 +24,8 @@
         <path d="M8 11l10 10M18 11L8 21" stroke="#6b3f1a" stroke-width="1.6" stroke-linecap="round"/>
         <circle cx="23.5" cy="10" r="3.6" fill="#ffc857"/>
       </svg>
-      <div class="game-text"><h1>Sokoban</h1><span>Puzzle</span></div>
+      <div class="game-text"><h1>Sokoban</h1></div>
     </div>
-    <p class="keys" aria-label="Controles">
-      <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> ou <kbd>WASD</kbd></span>
-      <span><kbd>Z</kbd> desfazer</span>
-      <span><kbd>R</kbd> reiniciar</span>
-      <span><kbd>M</kbd> som</span>
-    </p>
   </header>
 
   <div id="arena" class="arena">
@@ -95,6 +91,30 @@
       <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
     </main>
   </div>
+  <div id="game-menu" class="gmenu" data-manual hidden role="dialog" aria-labelledby="gmenu-title">
+  <div class="gmenu-card">
+    <h2 id="gmenu-title" class="gmenu-title">Sokoban</h2>
+    <p class="menu-desc">Empurre todas as caixas até os destinos dourados. Você só empurra, nunca puxa.</p>
+    <div class="menu-progress">
+      <div class="menu-progress-bar" aria-hidden="true"><i id="menu-bar"></i></div>
+      <p id="menu-progress-text" class="menu-progress-text"></p>
+    </div>
+    <button type="button" id="menu-levels" class="gmenu-alt">Escolher fase</button>
+    <ul class="menu-keys" aria-label="Comandos">
+      <li><span class="keycaps"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span><span>mover</span></li>
+      <li><span class="keycaps"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>mover</span></li>
+      <li><span class="keycaps"><kbd>Z</kbd><kbd>U</kbd></span><span>desfazer</span></li>
+      <li><span class="keycaps"><kbd>R</kbd></span><span>reiniciar a fase</span></li>
+      <li><span class="keycaps"><kbd>L</kbd></span><span>escolher fase</span></li>
+      <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
+    </ul>
+    <p class="menu-touch">Use os botões direcionais na tela</p>
+    <button type="button" class="gmenu-play" data-menu-play>Jogar</button>
+  </div>
+</div>
+
+  <script src="../../shared/game_storage.js"></script>
+  <script src="../../shared/game_ui.js"></script>
   <script src="sokoban.js"></script>
 </body>
 </html>

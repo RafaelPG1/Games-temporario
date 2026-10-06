@@ -1,5 +1,5 @@
 /* ==========================================================================
-memory_match/memory_match.js - Jogo da Memória em JavaScript puro.
+puzzle/memory_match/memory_match.js - Jogo da Memória em JavaScript puro.
 Índice: 1 Configuração · 2 Símbolos · 3 Áudio · 4 Estado · 5 Lógica
 · 6 Interface · 7 Entrada · 8 Redimensionamento
 ========================================================================== */
@@ -12,7 +12,6 @@ const CONFIG = {
   matchPoints: 100, streakBonus: 25, missPenalty: 10,   // acerto, bônus por sequência, erro
   flipMs: 420,                                          // duração do giro da carta (vai para o CSS como --flip)
   mismatchDelay: 600, volume: 0.3,                      // erro: tempo que as duas cartas ficam à mostra (depois do giro) antes de fechar
-  bestKey: 'memory:best', mutedKey: 'memory:muted',
 };
 
 /* ===== 2. SÍMBOLOS (SVG próprio, viewBox 48; cor = currentColor via --c) ===== */
@@ -29,12 +28,13 @@ const SYMBOLS = [
   { hue: '#9a5bd6', svg: '<circle cx="15" cy="15" r="9" fill="none" stroke="currentColor" stroke-width="5"/><path d="M21 21l20 20M31 31l5-5M37 37l5-5" stroke="currentColor" stroke-width="5" stroke-linecap="round"/>' },
 ];
 
-const load = (k) => { try { return window.localStorage.getItem(k); } catch (e) { return null; } };
-const save = (k, v) => { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } };
+// Persistência: game_storage (registro "memory_match"); chaves antigas migradas uma vez.
+const store = GameStorage.game('memory_match');
+store.migrate([{ from: 'memory:best', to: 'best', type: 'int' }, { from: 'memory:muted', to: 'muted', type: 'bool01' }]);
 
 /* ===== 3. ÁUDIO ===== */
 const Sound = (() => {
-  let ctx = null, master = null, off = false, muted = load(CONFIG.mutedKey) === '1';
+  let ctx = null, master = null, off = false, muted = store.get('muted', false) === true;
   function ensure() {
     if (off) return null;
     if (!ctx) {
@@ -57,7 +57,7 @@ const Sound = (() => {
   return {
     get muted() { return muted; },
     unlock() { play(ensure); },
-    setMuted(v) { muted = Boolean(v); save(CONFIG.mutedKey, muted ? '1' : '0'); play(ensure); },
+    setMuted(v) { muted = Boolean(v); store.set('muted', muted); play(ensure); },
     flip() { play(() => tone('triangle', 420, 560, 0.06, 0.25)); },
     match() { play(() => { tone('triangle', 600, 600, 0.1, 0.3); tone('triangle', 900, 900, 0.16, 0.3, 0.09); }); },
     miss() { play(() => tone('sawtooth', 220, 130, 0.22, 0.2)); },
@@ -66,7 +66,7 @@ const Sound = (() => {
 })();
 
 /* ===== 4. ESTADO ===== */
-const g = { cards: [], first: null, second: null, busy: false, matched: 0, attempts: 0, score: 0, streak: 0, best: parseInt(load(CONFIG.bestKey), 10) || 0, over: false, round: 0 };
+const g = { cards: [], first: null, second: null, busy: false, matched: 0, attempts: 0, score: 0, streak: 0, best: Number(store.get('best', 0)) || 0, over: false, round: 0 };
 const $ = (id) => document.getElementById(id);
 const ui = {
   play: $('play'), arena: $('arena'), board: $('board'), score: $('score'), best: $('best'), bestCard: $('best-card'),
@@ -138,7 +138,7 @@ function pick(i) {
 function finish() {
   g.over = true;
   const record = g.score > g.best;
-  if (record) { g.best = g.score; save(CONFIG.bestKey, String(g.best)); }
+  if (record) { g.best = g.score; store.set('best', g.best); }
   ui.winScore.textContent = String(g.score);
   ui.winAttempts.textContent = String(g.attempts);
   ui.badge.hidden = !record;

@@ -1,5 +1,5 @@
 /* ==========================================================================
-solitaire/solitaire.js - Solitário Klondike em JavaScript puro.
+casual/solitario/solitario.js - Solitário Klondike em JavaScript puro.
 Índice: 1 Configuração · 2 Baralho · 3 Áudio · 4 Estado · 5 Regras · 6 Jogadas
 · 7 Compra e reciclagem · 8 Desfazer · 9 Fim de jogo · 10 Renderização
 · 11 Entrada · 12 Diálogos e inicialização
@@ -14,13 +14,15 @@ const CONFIG = {
   moveMs: 240, autoMs: 110, winDelay: 1500,
   dragThreshold: 6, doubleTapMs: 320,
   points: { wasteToTableau: 5, toFoundation: 10, flip: 5, foundationToTableau: -15, recycle1: -100, recycle3: -20 },
-  keys: { best: 'solitaire:best', muted: 'solitaire:muted', mode: 'solitaire:mode' },
   drawMs: 300, drawStagger: 120, recycleMs: 280, recycleStagger: 28, recycleMaxDelay: 420,   // animação de compra e reciclagem
   volume: .3, undoLimit: 400,
 };
 
-const load = (k) => { try { return window.localStorage.getItem(k); } catch (e) { return null; } };
-const save = (k, v) => { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } };
+// Persistência: game_storage (registro "solitario"); chaves antigas (prefixo "solitaire:") migradas uma vez.
+const store = GameStorage.game('solitario');
+store.migrate([
+  { from: 'solitaire:best', to: 'best', type: 'int' }, { from: 'solitaire:muted', to: 'muted', type: 'bool01' }, { from: 'solitaire:mode', to: 'mode', type: 'int' },
+]);
 const reduceMotion = () => Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 /* ===== 2. BARALHO ===== */
@@ -56,7 +58,7 @@ const freshDeck = () => Array.from({ length: 52 }, (_, i) => i);
 
 /* ===== 3. ÁUDIO ===== */
 const Sound = (() => {
-  let ctx = null, master = null, off = false, muted = load(CONFIG.keys.muted) === '1';
+  let ctx = null, master = null, off = false, muted = store.get('muted', false) === true;
   function ensure() {
     if (off) return null;
     if (!ctx) {
@@ -79,7 +81,7 @@ const Sound = (() => {
   return {
     get muted() { return muted; },
     unlock() { play(ensure); },
-    setMuted(v) { muted = Boolean(v); save(CONFIG.keys.muted, muted ? '1' : '0'); play(ensure); },
+    setMuted(v) { muted = Boolean(v); store.set('muted', muted); play(ensure); },
     draw() { play(() => tone('triangle', 380, 520, 0.05, 0.22)); },
     place() { play(() => tone('triangle', 300, 240, 0.07, 0.25)); },
     found() { play(() => { tone('triangle', 620, 620, 0.08, 0.28); tone('triangle', 930, 930, 0.12, 0.28, 0.07); }); },
@@ -94,7 +96,7 @@ const G = {
   order: [],                 // distribuição inicial (para reiniciar a mesma partida)
   tableau: [[], [], [], [], [], [], []], found: [[], [], [], []], stock: [], waste: [], fan: 0,
   mode: 1, score: 0, moves: 0, time: 0, started: false, over: false, busy: false,
-  sel: null, undo: [], best: parseInt(load(CONFIG.keys.best), 10) || 0, token: 0, autoTimer: 0,
+  sel: null, undo: [], best: Number(store.get('best', 0)) || 0, token: 0, autoTimer: 0,
 };
 const $ = (id) => document.getElementById(id);
 const ui = {
@@ -296,7 +298,7 @@ function undo() {
 function win() {
   G.over = true; G.busy = false; G.sel = null; dests = []; clearTimeout(G.autoTimer);
   const record = G.score > G.best;
-  if (record) { G.best = G.score; save(CONFIG.keys.best, String(G.best)); }
+  if (record) { G.best = G.score; store.set('best', G.best); }
   render();
   Sound.win(); say('Vitória! Todas as cartas estão nas fundações.');
   const token = G.token;
@@ -606,7 +608,7 @@ const hasProgress = () => G.moves > 0 && !G.over;
 
 function askNew() {
   ui.newWarn.hidden = !hasProgress();
-  const r = document.querySelector(`input[name="mode"][value="${load(CONFIG.keys.mode) === '3' ? 3 : 1}"]`);
+  const r = document.querySelector(`input[name="mode"][value="${store.get('mode', 1) === 3 ? 3 : 1}"]`);
   if (r) r.checked = true;
   openDlg(ui.dlgNew); ui.newStart.focus({ preventScroll: true });
 }
@@ -647,7 +649,7 @@ function closeDlg(d) { if (!d.open) return; if (d.close) d.close(); else d.remov
 ui.newCancel.addEventListener('click', () => closeDlg(ui.dlgNew));
 ui.newStart.addEventListener('click', () => {
   const r = document.querySelector('input[name="mode"]:checked'), mode = r && r.value === '3' ? 3 : 1;
-  save(CONFIG.keys.mode, String(mode)); closeDlg(ui.dlgNew); Sound.unlock();
+  store.set('mode', mode); closeDlg(ui.dlgNew); Sound.unlock();
   startGame(shuffle(freshDeck()), mode);
 });
 ui.restartCancel.addEventListener('click', () => closeDlg(ui.dlgRestart));
@@ -664,6 +666,6 @@ if (window.ResizeObserver) new ResizeObserver(() => render()).observe(ui.play);
 buildSlots();
 buildCards();
 syncMute();
-startGame(shuffle(freshDeck()), load(CONFIG.keys.mode) === '3' ? 3 : 1);
+startGame(shuffle(freshDeck()), store.get('mode', 1) === 3 ? 3 : 1);
 window.__solitaire = { G, cards, CONFIG, SUITS, startGame, draw, undo, performMove, canMove, canTableau, canFoundation, isMovableSource, sourceCards, sequenceOk, integrity, shuffle, freshDeck, computeDests, autoFoundation, tapCard, render, restartNow, dropTarget: (x, y) => dropTarget(x, y) };
 })();

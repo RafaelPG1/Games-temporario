@@ -1,9 +1,11 @@
-/* water_sort/water_sort.js — regras e geração (puras) primeiro; interface e animação depois do marcador "UI". */
+/* puzzle/water_sort/water_sort.js — regras e geração (puras) primeiro; interface e animação depois do marcador "UI". */
 'use strict';
 
 /* ===== Regras ===== */
 const CAP = 4, MAX_COLORS = 12;
-const MUTE_KEY = 'arcadia.water_sort.muted';
+// Persistência: game_storage (registro "water_sort"): unlocked = maior fase liberada, last = última fase jogada, muted.
+const store = GameStorage.game('water_sort');
+store.migrate([{ from: 'arcadia.water_sort.muted', to: 'muted', type: 'bool01' }]);
 /* O deslocamento do tubo até o destino, a inclinação e o jato são a própria mecânica de despejo. Com true, eles rodam mesmo
    quando o sistema pede "reduzir movimento" (que continua desligando balanço, ondulação, respingos e brilhos decorativos).
    Com false, quem usa esse ajuste vê só os níveis mudarem no lugar, sem o tubo se mover. */
@@ -118,7 +120,7 @@ const PALETTE = [
 const INK = '#1b2150', PAPER = '#ffd84a';
 const $ = id => document.getElementById(id);
 const ui = {
-  stage: $('stage'), canvas: $('game-canvas'), level: $('hud-level'), moves: $('hud-moves'), best: $('best-label'),
+  stage: $('stage'), canvas: $('game-canvas'), level: $('hud-level'), moves: $('hud-moves'),
   undo: $('undo-button'), restart: $('restart-button'), fresh: $('new-button'), mute: $('mute-button'),
   dTitle: $('dialog-title'), dText: $('dialog-text'), dOk: $('dialog-ok'), dNo: $('dialog-cancel')
 };
@@ -126,13 +128,13 @@ const ctx = ui.canvas.getContext('2d');
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
 let cw = 288, ch = 512, dpr = 1, lay = null, clock = 0, winT = -1, dialogOk = null;
 
-const G = { level: 1, best: 1, tubes: [], initial: [], moves: 0, history: [], selected: -1, busy: false, anim: null, won: false };
-let vis = [], parts = [];
+const G = { level: 1, best: Math.max(1, Math.floor(Number(store.get('unlocked', 1))) || 1), tubes: [], initial: [], moves: 0, history: [], selected: -1, busy: false, anim: null, won: false };
+let vis = [], parts = [], booted = false;   // booted: só grava "last" depois da fase inicial carregada
 
 /* --- Som --- */
 const sfx = (() => {
   let ac = null, muted = false, noise = null;
-  try { muted = localStorage.getItem(MUTE_KEY) === '1'; } catch (e) { /* sem armazenamento */ }
+  muted = store.get('muted', false) === true;
   const get = () => {
     if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
     if (ac.state === 'suspended') ac.resume().catch(() => {});
@@ -148,7 +150,7 @@ const sfx = (() => {
   }
   return {
     get muted() { return muted; },
-    toggle() { muted = !muted; try { localStorage.setItem(MUTE_KEY, muted ? '1' : '0'); } catch (e) {} return muted; },
+    toggle() { muted = !muted; store.set('muted', muted); return muted; },
     select: () => tone(620, 0.08, 'triangle', 0.07),
     bad: () => tone(150, 0.14, 'square', 0.04, 0, 0.7),
     done: () => { tone(700, 0.1, 'triangle', 0.07); tone(930, 0.14, 'triangle', 0.07, 0.09); },
@@ -168,7 +170,7 @@ const sfx = (() => {
 
 /* --- Fluxo do jogo --- */
 function setGame(level, initial, tubes, history) {
-  G.level = level; G.best = Math.max(G.best, level); G.initial = initial; G.tubes = tubes; G.history = history; G.moves = history.length;
+  G.level = level; G.best = Math.max(G.best, level); if (booted) store.set('last', level); G.initial = initial; G.tubes = tubes; G.history = history; G.moves = history.length;
   G.selected = -1; G.busy = false; G.anim = null; G.won = false; winT = -1; parts = [];
   vis = tubes.map(t => ({ lift: 0, shake: 0, flash: 0, wob: 0, wt: 0, imp: 0, impx: 0, rt: 0, cap: isPure(t) ? 1 : 0, lock: 0 }));
   closeDialog(); relayout(); updateHud();
@@ -224,7 +226,7 @@ function endMove() {
   if (isSolved(G.tubes)) win();
 }
 function win() {
-  G.won = true; winT = 0; G.best = Math.max(G.best, G.level + 1); sfx.win();
+  G.won = true; winT = 0; G.best = Math.max(G.best, G.level + 1); store.set('unlocked', G.best); sfx.win();
   G.tubes.forEach((t, i) => t.length && sparkle(i, 6));
   setTimeout(() => {
     if (!G.won) return;
@@ -239,7 +241,6 @@ function openDialog(title, text, ok, cancel, fn) {
 function closeDialog() { ui.stage.classList.remove('is-dialog'); dialogOk = null; }
 function updateHud() {
   ui.level.textContent = G.level; ui.moves.textContent = G.moves;
-  ui.best.textContent = `Melhor: fase ${G.best}`;
   ui.undo.disabled = G.busy || G.won || !G.history.length;
   ui.restart.disabled = G.busy || G.won || !G.history.length;
 }
@@ -651,5 +652,24 @@ let lastT = 0;
 function frame(t) { const dt = Math.min(0.05, (t - lastT) / 1000 || 0); lastT = t; update(dt); draw(); requestAnimationFrame(frame); }
 
 syncMute(); resize();
-startLevel(1); // sem persistência: toda sessão começa na fase 1 com uma nova configuração
+startLevel(G.best); // continua na fase liberada mais recente (G.best = próxima fase disponível); cada início gera uma nova configuração
+booted = true;
+
+/* ===== Menu inicial: continuar, progresso e grade de fases ===== */
+const LEVEL_PREVIEW = 4;   // quantas fases bloqueadas aparecem depois da fase atual
+let reopened = false, levelsView = null;
+function refreshMenu() {
+  const next = G.best, done = next - 1;
+  const play = document.querySelector('#game-menu [data-menu-play]');
+  play.textContent = reopened ? `Voltar à fase ${G.level}` : done === 0 ? 'Iniciar fase 1' : `Continuar na fase ${next}`;
+  document.getElementById('menu-progress-text').innerHTML = done === 0
+    ? 'As fases ficam mais difíceis a cada vitória.'
+    : `<b>${done}</b> ${done === 1 ? 'fase concluída' : 'fases concluídas'} · próxima: fase <b>${next}</b>`;
+  const state = { total: next + LEVEL_PREVIEW, unlocked: next, completed: Array.from({ length: done }, (_, i) => i + 1), current: next, selected: reopened ? G.level : undefined };
+  if (levelsView) levelsView.update(state);
+  else levelsView = GameUI.levels.mount(document.getElementById('menu-levels'), { ...state, onPick(n) { reopened = false; GameUI.menu.current.close(); startLevel(n); } });
+  const cur = document.querySelector('#menu-levels .is-current'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+}
+GameUI.menu.mount({ el: '#game-menu', onOpen: refreshMenu, onPlay() { reopened = false; } });
+document.getElementById('levels-button').addEventListener('click', () => { if (G.busy) return; reopened = true; GameUI.menu.current.open(); });
 requestAnimationFrame(frame);

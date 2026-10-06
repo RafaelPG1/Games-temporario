@@ -1,5 +1,6 @@
-/* slide_puzzle/slide_puzzle.css - --u = largura do palco / 288 (atualizado pelo JS) */
+/* puzzle/slide_puzzle/slide_puzzle.css - --u = largura do palco / 288 (atualizado pelo JS) */
 :root {
+  --menu-accent: #f0a62a;
   --ink: #543847; --cream: #f3e8c3; --cream-edge: #c4b07a; --amber: #f0a62a; --amber-dark: #b8741a;
   --felt: #1f4a52; --tray: #10303a; --muted: #9fc9c4; --good: #5ac26a;
   --u: 1.5px;
@@ -43,13 +44,6 @@ body {
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys span { display: inline-flex; align-items: center; gap: 4px; }
-.keys kbd {
-  min-width: 24px; padding: 2px 7px; font: inherit; font-size: 12px; font-weight: 600; text-align: center;
-  color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line);
-  border-bottom-width: 2px; border-radius: 6px;
-}
 
 /* Arena e palco (mesma proporção 288 × 512 do Jumpy) */
 .arena {
@@ -196,7 +190,7 @@ body {
 .record[hidden] { display: none; }
 .noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } }
+@media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 520px) { .stage { --btn: max(36px, calc(var(--u) * 20)); gap: calc(var(--u) * 6); } .status { display: none; } .stat { min-height: calc(var(--u) * 34); } .levels button { min-height: 34px; } .btn { min-height: 40px; } }
 @media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }
 @media (prefers-reduced-motion: reduce) { .start span { animation: none; } .tile, .tile .face, .screen, .back, .back svg { transition: none; } }

@@ -25,7 +25,9 @@ const MAP = [
 ];
 const COLS = 19, ROWS = 21, T = 16, CW = COLS * T, CH = ROWS * T;
 const W = 288, H = 512, MARGIN = 6, MAX_CSS_HEIGHT = 1000;
-const STORE = { muted: 'pac_man:muted', best: 'pac_man:best' };
+// Persistência: game_storage (registro "pac_man"); chaves antigas migradas uma vez.
+const store = GameStorage.game('pac_man');
+store.migrate([{ from: 'pac_man:best', to: 'best', type: 'int' }, { from: 'pac_man:muted', to: 'muted', type: 'bool01' }]);
 const HOME = { c: 9, r: 9 }, EXIT = { c: 9, r: 7 };
 const DIRS = { up: { x: 0, y: -1 }, left: { x: -1, y: 0 }, down: { x: 0, y: 1 }, right: { x: 1, y: 0 } };
 const DLIST = [DIRS.up, DIRS.left, DIRS.down, DIRS.right]; // ordem de desempate clássica
@@ -44,11 +46,6 @@ const ui = {
 };
 const ctx = ui.canvas.getContext('2d');
 
-/* ===== Armazenamento (nunca pode quebrar o jogo) ===== */
-const store = {
-  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } },
-};
 
 /* ===== Mapa: parsing, validação e alcançabilidade ===== */
 const wrapC = (c) => ((c % COLS) + COLS) % COLS;
@@ -106,8 +103,9 @@ const G = {
   dots: [], left: 0, mode: 'scatter', modeIdx: 0, modeT: 0, fright: 0, chain: 0,
   t: 0, stateT: 0, P: null, ghosts: [], fx: [], pops: [], muted: false, eatAlt: 0,
 };
-G.best = Number(store.get(STORE.best)) || 0;
-G.muted = store.get(STORE.muted) === '1';
+G.best = Number(store.get('best', 0)) || 0;
+G.bestLevel = Number(store.get('bestLevel', 1)) || 1;   // estatística: fase mais alta alcançada em uma partida
+G.muted = store.get('muted', false) === true;
 
 /* ===== Áudio (Web Audio, sem arquivos externos) ===== */
 const Sound = (() => {
@@ -249,7 +247,7 @@ function newGame() {
   G.score = 0; G.lives = 3; G.level = 1; G.bestAtStart = G.best; G.newRecord = false; G.paused = false;
   G.fx.length = 0; G.pops.length = 0; loadLevel(); hud(); Sound.unlock(); startReady();
 }
-function nextLevel() { G.level++; loadLevel(); hud(); startReady(); }
+function nextLevel() { G.level++; if (G.level > G.bestLevel) { G.bestLevel = G.level; store.set('bestLevel', G.bestLevel); } loadLevel(); hud(); startReady(); }
 function gameOver() {
   G.newRecord = G.score > G.bestAtStart && G.score > 0;
   $('over-score').textContent = G.score; $('over-level').textContent = G.level; $('over-record').hidden = !G.newRecord;
@@ -259,7 +257,7 @@ function gameOver() {
 /* ===== Regras ===== */
 function addScore(n) {
   G.score += n;
-  if (G.score > G.best) { G.best = G.score; store.set(STORE.best, String(G.best)); }
+  if (G.score > G.best) { G.best = G.score; store.set('best', G.best); }
   hud();
 }
 function burst(c, r, color, n) {
@@ -340,7 +338,7 @@ function togglePause(want) {
 
 /* ===== Interface (HUD e classes) ===== */
 function hud() {
-  ui.score.textContent = G.score; ui.level.textContent = G.level; ui.best.textContent = G.best; $('title-best').textContent = G.best;
+  ui.score.textContent = G.score; ui.level.textContent = G.level; ui.best.textContent = G.best; $('title-best').textContent = G.best; $('title-level').textContent = G.bestLevel;
   const n = Math.max(0, G.lives);
   if (ui.lives.childElementCount !== n) {
     ui.lives.textContent = '';
@@ -355,7 +353,7 @@ function renderClasses() {
   ui.mute.classList.toggle('is-muted', G.muted); ui.mute.setAttribute('aria-pressed', G.muted);
   ui.mute.setAttribute('aria-label', G.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
 }
-function toggleMute() { G.muted = !G.muted; store.set(STORE.muted, G.muted ? '1' : '0'); if (!G.muted) Sound.unlock(); renderClasses(); }
+function toggleMute() { G.muted = !G.muted; store.set('muted', G.muted); if (!G.muted) Sound.unlock(); renderClasses(); }
 
 /* ===== Renderização ===== */
 let K = 1, maze = null;

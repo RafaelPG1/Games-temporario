@@ -1,5 +1,6 @@
-/* water_sort/water_sort.css - mesma moldura do Jumpy: --u = largura do palco / 288 (atualizado pelo JS); o fundo é desenhado no canvas */
+/* puzzle/water_sort/water_sort.css - mesma moldura do Jumpy: --u = largura do palco / 288 (atualizado pelo JS); o fundo é desenhado no canvas */
 :root {
+  --menu-accent: #7fb2ff;
   --ink: #1b2150; --paper: #e6efff; --paper-light: #ffffff;
   --blue: #3b82f6; --blue-dark: #1d4ed8; --blue-text: #2563eb; --white: #fff;
   --u: 1.5px; --o: max(1px, calc(var(--u) * 1.6));
@@ -40,12 +41,6 @@ body {
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys span { display: inline-flex; align-items: center; gap: 6px; }
-.keys kbd {
-  min-width: 24px; padding: 2px 7px; font: inherit; font-size: 12px; font-weight: 600; text-align: center;
-  color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line); border-bottom-width: 2px; border-radius: 6px;
-}
 
 /* Arena e palco (o canvas desenha o fundo, prateleiras e tubos) */
 .arena {
@@ -119,6 +114,6 @@ body {
 .btn[hidden] { display: none; }
 .noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } }
+@media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }
 @media (prefers-reduced-motion: reduce) { .dialog { transition: none; } .back, .back svg { transition: none; } }

@@ -1,7 +1,7 @@
-/* jumpy/jumpy.css - --u = largura do palco / 288 (atualizado pelo JS) */
+/* arcade/jumpy/jumpy.css - --u = largura do palco / 288 (atualizado pelo JS) */
 :root {
   --ink: #543847; --paper: #ded895; --paper-light: #f6efb4;
-  --orange: #f08a24; --orange-dark: #c9600d; --white: #fff;
+  --menu-accent: #f08a24; --orange: #f08a24; --orange-dark: #c9600d; --white: #fff;
   --u: 1.5px; --o: max(1px, calc(var(--u) * 1.6));
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
   --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
@@ -44,13 +44,6 @@ body {
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys span { display: inline-flex; align-items: center; gap: 6px; }
-.keys kbd {
-  min-width: 24px; padding: 2px 7px; font: inherit; font-size: 12px; font-weight: 600; text-align: center;
-  color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line);
-  border-bottom-width: 2px; border-radius: 6px;
-}
 
 /* Arena e palco */
 .arena {
@@ -83,7 +76,7 @@ body {
 .is-ready .screen-ready, .is-paused .screen-paused, .is-over .screen-over {
   opacity: 1; visibility: visible; transform: none; transition-delay: 0s;
 }
-.screen-ready { padding-top: calc(var(--u) * 60); }
+.screen-ready { padding-top: calc(var(--u) * 34); gap: calc(var(--u) * 9); }
 .title {
   margin: 0; font-size: calc(var(--u) * 58); line-height: .95; letter-spacing: calc(var(--u) * 1);
   text-transform: uppercase; color: #ffb62b;
@@ -133,6 +126,13 @@ body {
 .icon-button svg { width: 62%; height: 62%; }
 .noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } }
+@media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 420px) { .controls { display: none; } .topbar { height: 46px; } .game-text span { display: none; } }
 @media (prefers-reduced-motion: reduce) { .hint { animation: none; } .screen { transition: none; } .back, .back svg { transition: none; } }
+
+/* Menu inicial sobre o céu claro: texto branco com contorno escuro */
+.screen-ready .menu-desc, .screen-ready .menu-keys li, .screen-ready .menu-touch {
+  color: #fff; font-weight: 700;
+  text-shadow: calc(var(--o) * -1) calc(var(--o) * -1) 0 var(--ink), var(--o) calc(var(--o) * -1) 0 var(--ink), calc(var(--o) * -1) var(--o) 0 var(--ink), var(--o) var(--o) 0 var(--ink);
+}
+.screen-ready .menu-keys kbd { color: var(--ink); background: #fff; border-color: var(--ink); }

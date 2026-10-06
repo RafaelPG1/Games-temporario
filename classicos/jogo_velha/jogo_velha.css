@@ -1,5 +1,6 @@
-/* jogo_velha/jogo_velha.css - --u = largura do palco / 288 (atualizado pelo JS) */
+/* classicos/jogo_velha/jogo_velha.css - --u = largura do palco / 288 (atualizado pelo JS) */
 :root {
+  --menu-accent: #ffc857;
   --bg: #151a33; --panel: #1f2650; --panel-hi: #29326a; --line: #343d75; --text: #eef0ff; --muted: #9aa3d4;
   --x: #ff7a6b; --o: #5cd6e8; --accent: #ffc857; --ink: #1b1e38;
   --u: 1.5px;
@@ -43,13 +44,6 @@ body {
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys span { display: inline-flex; align-items: center; gap: 4px; }
-.keys kbd {
-  min-width: 24px; padding: 2px 7px; font: inherit; font-size: 12px; font-weight: 600; text-align: center;
-  color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line);
-  border-bottom-width: 2px; border-radius: 6px;
-}
 
 /* Arena e palco (mesma proporção 288 × 512 dos outros jogos) */
 .arena {
@@ -144,7 +138,7 @@ body {
 .icon-btn.is-muted .icon-waves { display: none; } .icon-btn.is-muted .icon-cross { display: inline; }
 .noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } }
+@media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }
 @media (prefers-reduced-motion: reduce) {
   .draw { animation: none; stroke-dashoffset: 0; } .cell.win svg { animation: none; }

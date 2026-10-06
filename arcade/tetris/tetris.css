@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Tetris/Tetris.css - estilos
+   arcade/tetris/tetris.css - estilos
    Mesma identidade do Flappy Bird: cabeçalho da Arcádia, contorno escuro
    (--ink), textos com contorno, botões laranja com borda branca e painel
    de papel no fim da partida.
@@ -13,7 +13,7 @@
   --ink: #543847;
   --paper: #ded895;
   --paper-light: #f6efb4;
-  --orange: #f08a24;
+  --menu-accent: #f08a24; --orange: #f08a24;
   --orange-dark: #c9600d;
   --red: #e5432b;
   --white: #ffffff;
@@ -120,29 +120,6 @@ body {
 }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
 
-.keys {
-  display: flex;
-  gap: 16px;
-  margin: 0 0 0 auto;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--shell-muted);
-  white-space: nowrap;
-}
-.keys span { display: inline-flex; align-items: center; gap: 6px; }
-.keys kbd {
-  min-width: 24px;
-  padding: 2px 7px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
-  color: var(--shell-text);
-  background: var(--shell-surface);
-  border: 1px solid var(--shell-line);
-  border-bottom-width: 2px;
-  border-radius: 6px;
-}
 
 .icon-button {
   display: grid;
@@ -571,9 +548,6 @@ body[data-state="paused"] #pause-button { visibility: visible; }
 }
 
 /* ---------- Telas pequenas ---------- */
-@media (max-width: 1000px) {
-  .keys { display: none; }
-}
 @media (max-width: 640px) {
   .topbar { height: 52px; }
 }

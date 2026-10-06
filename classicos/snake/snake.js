@@ -1,5 +1,5 @@
 /* ==========================================================================
-snake/snake.js - Jogo da cobrinha em HTML5 Canvas + JavaScript puro.
+classicos/snake/snake.js - Jogo da cobrinha em HTML5 Canvas + JavaScript puro.
 Índice: 1 Configuração · 2 Áudio · 3 Estado · 4 Lógica · 5 Efeitos
 · 6 Renderização · 7 Interface · 8 Entrada · 9 Redimensionamento · 10 Loop
 ========================================================================== */
@@ -12,7 +12,7 @@ const CONFIG = {
   tickStart: 150, tickMin: 80, tickStep: 3,   // ms por passo: acelera 3 ms por comida, até 80 ms
   queueMax: 2, swipeDistance: 16, maxCell: 44, margin: 14,
   bodyWidth: 0.78, bulgeSpeed: 14,
-  bestKey: 'snake:best', mutedKey: 'snake:muted', volume: 0.3,
+  volume: 0.3,
 };
 const COLORS = {
   head: '#d4ff7e', headEdge: '#4fae5a', bodyHead: '#b8f56a', bodyTail: '#2c9f72', outline: 'rgba(5,20,14,.55)',
@@ -33,12 +33,13 @@ function mix(a, b, t) {
   const c = (s) => Math.round(lerp((pa >> s) & 255, (pb >> s) & 255, t));
   return `rgb(${c(16)},${c(8)},${c(0)})`;
 }
-function load(key) { try { return window.localStorage.getItem(key); } catch (e) { return null; } }
-function save(key, value) { try { window.localStorage.setItem(key, value); } catch (e) { /* sem armazenamento */ } }
+// Persistência: game_storage (registro "snake"). Chaves antigas migradas uma vez, sem sobrescrever dados novos.
+const store = GameStorage.game('snake');
+store.migrate([{ from: 'snake:best', to: 'best', type: 'int' }, { from: 'snake:muted', to: 'muted', type: 'bool01' }]);
 
 /* ===== 2. ÁUDIO (Web Audio API, sem arquivos externos) ===== */
 const Sound = (() => {
-  let ctx = null, master = null, unavailable = false, muted = load(CONFIG.mutedKey) === '1';
+  let ctx = null, master = null, unavailable = false, muted = store.get('muted', false) === true;
   function ensure() {
     if (unavailable) return null;
     if (!ctx) {
@@ -69,7 +70,7 @@ const Sound = (() => {
   return {
     get muted() { return muted; },
     unlock() { if (!muted) play(ensure); },
-    setMuted(v) { muted = Boolean(v); save(CONFIG.mutedKey, muted ? '1' : '0'); if (!muted) play(ensure); },
+    setMuted(v) { muted = Boolean(v); store.set('muted', muted); if (!muted) play(ensure); },
     eat() { play(() => { tone({ type: 'square', from: 440, to: 660, duration: 0.07, volume: 0.25 }); tone({ type: 'triangle', from: 660, to: 990, duration: 0.1, volume: 0.35, delay: 0.06 }); }); },
     record() { play(() => [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.12, volume: 0.35, delay: 0.1 * i }))); },
     hit() { play(() => { tone({ type: 'sawtooth', from: 300, to: 50, duration: 0.5, volume: 0.4 }); tone({ type: 'square', from: 120, to: 40, duration: 0.3, volume: 0.25 }); }); },
@@ -81,7 +82,7 @@ const Sound = (() => {
 const game = {
   state: STATES.READY, time: 0, acc: 0, alpha: 1,
   snake: [], prev: [], dir: DIRS.right, queue: [],
-  food: null, foodBorn: 0, score: 0, best: parseInt(load(CONFIG.bestKey), 10) || 0, newRecord: false,
+  food: null, foodBorn: 0, score: 0, best: Number(store.get('best', 0)) || 0, newRecord: false,
   bulges: [], particles: [], floats: [], won: false,
 };
 
@@ -89,7 +90,7 @@ const ui = {
   play: document.getElementById('play'), arena: document.getElementById('arena'), board: document.getElementById('board'),
   score: document.getElementById('score'), best: document.getElementById('best'), bestCard: document.getElementById('best-card'),
   pause: document.getElementById('pause-button'), mute: document.getElementById('mute-button'),
-  resume: document.getElementById('resume-button'), restart: document.getElementById('restart-button'),
+  resume: document.getElementById('resume-button'), start: document.getElementById('start-button'), restart: document.getElementById('restart-button'),
   overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'),
   badge: document.getElementById('record-badge'), toast: document.getElementById('toast'),
 };
@@ -167,7 +168,7 @@ function eat() {
   updateScore(true);
   if (game.score > game.best) {
     const first = !game.newRecord && game.best > 0;
-    game.best = game.score; save(CONFIG.bestKey, String(game.best));
+    game.best = game.score; store.set('best', game.best);
     updateBest(true);
     if (first) { game.newRecord = true; showToast('Novo recorde!'); Sound.record(); }
     else if (game.best > 0) game.newRecord = true;
@@ -439,6 +440,7 @@ function init() {
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
   ui.pause.addEventListener('click', () => { setPaused(true); ui.pause.blur(); });
   ui.resume.addEventListener('click', () => setPaused(false));
+  ui.start.addEventListener('click', () => { Sound.unlock(); if (game.state === STATES.READY) startGame(); ui.start.blur(); });
   ui.restart.addEventListener('click', restart);
   window.addEventListener('blur', () => setPaused(true));
   document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) setPaused(true); });

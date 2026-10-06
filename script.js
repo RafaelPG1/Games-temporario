@@ -1,27 +1,18 @@
-/* ===== CONFIGURAÇÃO DO CATÁLOGO =====
-  script.js - raiz do projeto
+/* script.js - catálogo (raiz do projeto)
 
-   Para adicionar um jogo: coloque a pasta dele em "jogo_faltando/"
-   (ex.: "jogo_faltando/novo-jogo/index.html") e inclua uma linha em GAMES.
-
-   GAMES_DIR:  pasta padrão apenas para jogos sem o atributo 'path'.
-               
-   GAME_ENTRY: arquivo de entrada PADRÃO de todo jogo (dentro da pasta dele).
+   Para adicionar um jogo: crie a pasta  <categoria>/<id>/  com  <id>.html, <id>.css e <id>.js
+   (ex.: puzzle/novo_jogo/novo_jogo.html) e inclua uma linha em GAMES.
 
    GAMES: { id, title, category, path?, available?, art? }
-     - id:        nome da pasta do jogo
-     - category:  um id de CATEGORIES
-     - path:      (opcional) caminho exato a partir da raiz.
-                  Se definido, ignora GAMES_DIR.
-                  Ex.: path: 'flappy_bird/flappy_bird.html'
-     - available: (opcional) false mostra "Em breve" e mantém o card sem link
-     - art:       (opcional) HTML de um <svg> próprio; sem ele usa GAME_ART[id]
-                  e, na falta, a arte da categoria
+     - id:        identificador técnico e ESTÁVEL. É o nome da pasta/arquivo e o id usado no game_storage.
+                  Nunca muda quando o nome exibido muda.
+     - title:     nome exibido ao usuário (em português).
+     - category:  um id de CATEGORIES (também é a pasta pai do jogo).
+     - path:      (opcional) caminho exato a partir da raiz. Sem ele vale <category>/<id>/<id>.html.
+     - available: (opcional) false mostra "Em breve" e mantém o card sem link.
+     - art:       (opcional) HTML de um <svg> próprio; sem ele usa GAME_ART[id] e, na falta, a arte da categoria.
 
-   CATEGORIES: { id, nome, hue }  (hue 0–360 define a cor dos cards) */
-const GAMES_DIR = 'jogo_faltando/';
-const GAME_ENTRY = 'index.html';
-
+   CATEGORIES: { id, nome, hue }  (hue 0-360 define a cor dos cards) */
 const CATEGORIES = [
   { id: 'arcade',      nome: 'Arcade',         hue: 320 },
   { id: 'puzzle',      nome: 'Quebra-cabeças', hue: 190 },
@@ -31,22 +22,22 @@ const CATEGORIES = [
 ];
 
 const GAMES = [
-  { id: 'flappy_bird',  title: 'Flappy Bird',  category: 'arcade', path: 'arcade/flappy_bird/flappy_bird.html' },
-  { id: 'jumpy',        title: 'Jumpy',        category: 'arcade', path: 'arcade/jumpy/jumpy.html' },
-  { id: 'tetris',       title: 'Tetris',       category: 'arcade', path: 'arcade/tetris/tetris.html' },
-  { id: 'breakout',     title: 'Breakout',     category: 'arcade', path: 'arcade/breakout/breakout.html'},
-  { id: 'stack_tower',  title: 'Stack Tower',  category: 'arcade', path: 'arcade/stack_tower/stack_tower.html'},
-  { id: 'snake',        title: 'Snake',        category: 'classicos', path: 'classicos/snake/snake.html' },
-  { id: 'memory_match', title: 'Memory Match', category: 'puzzle', path: 'puzzle/memory_match/memory_match.html' },
-  { id: 'slide-puzzle', title: 'Slide Puzzle', category: 'puzzle', path: 'puzzle/slide_puzzle/slide_puzzle.html'},
-  { id: 'water_sort',   title: 'Water Sort',   category: 'puzzle', path: 'puzzle/water_sort/water_sort.html'},
-  { id: 'piano_tap',    title: 'Piano Tap',    category: 'arcade', path: 'arcade/piano_tap/piano_tap.html'},
-  { id: 'campo_minado',  title: 'Campo Minado', category: 'puzzle', path: 'puzzle/campo_minado/campo_minado.html'},
-  { id: 'sokoban',      title: 'Sokoban',      category: 'puzzle', path: 'puzzle/sokoban/sokoban.html'},
-  { id: 'jogo_velha',  title: 'Jogo da Velha', category: 'classicos', path: 'classicos/jogo_velha/jogo_velha.html'},
-  { id: 'batalha_naval',   title: 'Batalha Naval', category: 'estrategia', path: 'estrategia/batalha_naval/batalha_naval.html'},
-  { id: 'solitario',    title: 'Solitário',    category: 'casual', path: 'casual/solitario/solitario.html'},
-  { id: 'pac_man', title: 'Pac Man', category: 'arcade', path: 'arcade/pac_man/pac_man.html'}
+  { id: 'flappy_bird',   title: 'Flappy Bird',              category: 'arcade' },
+  { id: 'jumpy',         title: 'Pula-Pula',                category: 'arcade' },
+  { id: 'tetris',        title: 'Tetris',                   category: 'arcade' },
+  { id: 'breakout',      title: 'Quebra-Blocos',            category: 'arcade' },
+  { id: 'stack_tower',   title: 'Torre de Blocos',          category: 'arcade' },
+  { id: 'snake',         title: 'Cobrinha',                 category: 'classicos' },
+  { id: 'memory_match',  title: 'Jogo da Memória',          category: 'puzzle' },
+  { id: 'slide_puzzle',  title: 'Quebra-Cabeça Deslizante', category: 'puzzle' },
+  { id: 'water_sort',    title: 'Tubos de Cores',           category: 'puzzle' },
+  { id: 'piano_tap',     title: 'Piano Tap',                category: 'arcade' },
+  { id: 'campo_minado',  title: 'Campo Minado',             category: 'puzzle' },
+  { id: 'sokoban',       title: 'Sokoban',                  category: 'puzzle' },
+  { id: 'jogo_velha',    title: 'Jogo da Velha',            category: 'classicos' },
+  { id: 'batalha_naval', title: 'Batalha Naval',            category: 'estrategia' },
+  { id: 'solitario',     title: 'Paciência',                category: 'casual' },
+  { id: 'pac_man',       title: 'Pac-Man',                  category: 'arcade' }
 ];
 
 /* ===== ARTE DAS MINIATURAS (SVG) ===== */
@@ -69,9 +60,11 @@ const ART = {
 
 // Arte própria de cada jogo. Chave = id do jogo.
 const GAME_ART = {
-  'flappy_bird': () => svg(100, 64, '<rect x="82" y="0" width="10" height="22" rx="3" opacity=".4"/><rect x="82" y="46" width="10" height="18" rx="3" opacity=".4"/><ellipse cx="44" cy="20" rx="14" ry="7" opacity=".5" transform="rotate(-25 44 20)"/><circle cx="24" cy="40" r="7"/><circle cx="40" cy="40" r="8"/><circle cx="58" cy="38" r="10"/><path d="M63 30l5-9M67 33l8-5" ' + LINE + ' stroke-width="2"/>'),
+  'flappy_bird': () => svg(100, 64, '<rect x="84" y="0" width="12" height="20" rx="3" opacity=".4"/><rect x="82" y="16" width="16" height="6" rx="2" opacity=".4"/><rect x="84" y="44" width="12" height="20" rx="3" opacity=".4"/><rect x="82" y="42" width="16" height="6" rx="2" opacity=".4"/>' +
+    '<ellipse cx="40" cy="34" rx="21" ry="17"/><ellipse cx="32" cy="39" rx="11" ry="7" fill="var(--bg)" opacity=".45" transform="rotate(-20 32 39)"/>' +
+    '<path d="M58 29l15 5-15 6z" opacity=".7"/><circle cx="49" cy="27" r="5" fill="var(--bg)"/><circle cx="50.6" cy="27" r="2"/>'),
   'jumpy': () => svg(100, 64, '<rect x="14" y="52" width="40" height="8" rx="4" opacity=".5"/><rect x="50" y="36" width="36" height="8" rx="4" opacity=".75"/><rect x="18" y="20" width="30" height="8" rx="4" opacity=".5"/><circle cx="66" cy="29" r="6"/><circle cx="66" cy="19" r="4"/>'),
-  'block-drop': () => svg(63, 54, px(['0011100','0001000','0000000','1100000','1101110','1111110'], 9)),
+  'tetris': () => svg(63, 54, px(['0011100','0001000','0000000','1100000','1101110','1111110'], 9)),
   'breakout': () => svg(100, 66, [0,1,2].flatMap(r => [0,1,2,3,4].map(c =>
     `<rect x="${c * 19 + 2}" y="${r * 10 + 2}" width="17" height="8" rx="2" opacity="${1 - r * .25}"/>`)).join('') + '<circle cx="54" cy="46" r="4"/><rect x="36" y="58" width="30" height="5" rx="2.5"/>'),
   'stack_tower': () => svg(100, 64, [[30,50],[24,38],[34,26],[28,14],[32,2]].map(([x, y], i) =>
@@ -86,7 +79,7 @@ const GAME_ART = {
       layers.map((o, j) => `<rect x="${x + 4}" y="${46 - j * 12}" width="16" height="11" rx="${j ? 2 : 6}" opacity="${o}"/>`).join('');
   }).join('')),
   'campo_minado': () => svg(64, 64, [...Array(9).keys()].map(i => `<rect x="${(i % 3) * 22}" y="${Math.floor(i / 3) * 22}" width="20" height="20" rx="3" opacity="${i === 4 || i === 6 ? .9 : .28}"/>`).join('') +
-    '<g fill="var(--bg)"><circle cx="32" cy="32" r="5"/></g><path d="M32 23v18M23 32h18M26 26l12 12M38 26L26 38" stroke="var(--bg)" stroke-width="2" stroke-linecap="round"/><path d="M12 54V44M12 44l8 3-8 3" stroke="var(--bg)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="var(--bg)"/>'),
+    '<g fill="var(--bg)"><circle cx="32" cy="32" r="5"/></g><path d="M32 23v18M23 32h18M26 26l12 12M38 26L26 38" stroke="var(--bg)" stroke-width="2" stroke-linecap="round"/><path d="M8 59V46M8 46l8 3.5-8 3.5" stroke="var(--bg)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="var(--bg)"/>'),
   'sokoban': () => svg(66, 66, '<rect x="0" y="0" width="66" height="14" rx="3" opacity=".35"/><rect x="0" y="52" width="66" height="14" rx="3" opacity=".35"/><rect x="0" y="14" width="14" height="38" opacity=".35"/>' +
     '<rect x="26" y="22" width="22" height="22" rx="3"/><path d="M30 26l14 14M44 26L30 40" stroke="var(--bg)" stroke-width="2.4" stroke-linecap="round"/><circle cx="56" cy="33" r="5" fill="none" stroke="currentColor" stroke-width="2.4"/><circle cx="19" cy="33" r="5" opacity=".7"/>'),
   'jogo_velha': () => svg(66, 66, `<path d="M22 4v58M44 4v58M4 22h58M4 44h58" ${LINE} stroke-width="3" opacity=".45"/><path d="M8 8l10 10M18 8L8 18" ${LINE} stroke-width="4"/><circle cx="33" cy="33" r="7" ${LINE.replace('none', 'none')} stroke-width="4"/><path d="M48 48l10 10M58 48L48 58" ${LINE} stroke-width="4"/>`),
@@ -105,10 +98,8 @@ const norm = (t) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCa
 const esc = (t) => String(t).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const catOf = (id) => CATEGORIES.find((c) => c.id === id) || CATEGORIES[0];
 
-// Resolve o link do jogo:
-// Se tem path explícito -> usa o path da raiz.
-// Se não tem path -> usa GAMES_DIR + id + '/' + GAME_ENTRY.
-const gameUrl = (g) => g.path || `jogo_faltando/${g.id}/index.html`;
+// Link do jogo: path explícito, ou <categoria>/<id>/<id>.html (a estrutura real de pastas).
+const gameUrl = (g) => g.path || `${g.category}/${g.id}/${g.id}.html`;
 const PLAY = '<svg viewBox="0 0 12 12" fill="currentColor" aria-hidden="true"><path d="M2 1l9 5-9 5z"/></svg>';
 
 // Vagas reservadas: aparecem só em categorias sem jogos (ou com o catálogo vazio).

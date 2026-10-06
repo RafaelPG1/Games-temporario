@@ -1,5 +1,6 @@
-/* memory_match/memory_match.css - --cw = largura da carta, --cols = colunas (definidos pelo JS) */
+/* puzzle/memory_match/memory_match.css - --cw = largura da carta, --cols = colunas (definidos pelo JS) */
 :root {
+  --menu-accent: #ffcf5c;
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633; --shell-text: #eceef5; --shell-muted: #8d93a8;
   --indigo: #2b2d5b; --indigo-dark: #1b1c3d; --cream: #fff4dc; --coral: #ff7a59; --gold: #ffcf5c; --teal: #3fd0c9; --ink: #1b1c3d;
   --cw: 70px; --cols: 4; --gap: 10px;
@@ -21,8 +22,6 @@ button { font: inherit; color: inherit; }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys kbd { min-width: 22px; padding: 1px 6px; margin-right: 4px; font: inherit; font-size: 12px; font-weight: 600; text-align: center; color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line); border-bottom-width: 2px; border-radius: 6px; }
 
 .arena { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 8px; background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg); }
 
@@ -107,6 +106,6 @@ button { font: inherit; color: inherit; }
 .btn:hover { background: #ff8c6e; } .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #c24d30; }
 .noscript { position: fixed; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } .hud { gap: 6px; } .stat-score .value { font-size: 26px; } }
-@media (max-height: 500px) and (orientation: landscape) { .topbar { height: 46px; } .game-text span, .keys { display: none; } .arena { flex-direction: row; justify-content: center; padding: 8px 12px; } .hud { width: 190px; grid-template-columns: 1fr; } .hud-actions { justify-content: flex-start; } .play { width: auto; flex: 1 1 0; height: 100%; } }
+@media (max-width: 640px) { .topbar { height: 52px; } .hud { gap: 6px; } .stat-score .value { font-size: 26px; } }
+@media (max-height: 500px) and (orientation: landscape) { .topbar { height: 46px; } .game-text span { display: none; } .arena { flex-direction: row; justify-content: center; padding: 8px 12px; } .hud { width: 190px; grid-template-columns: 1fr; } .hud-actions { justify-content: flex-start; } .play { width: auto; flex: 1 1 0; height: 100%; } }
 @media (prefers-reduced-motion: reduce) { .card.matched, .card.matched::after, .bump, .glow, .win.is-open .win-card, .badge { animation: none; } .win { transition: none; } }

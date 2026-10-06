@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07080c">
   <title>Jogo da Velha · Arcádia</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="jogo_velha.css">
+  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+    <a class="back" href="../../index.html" aria-label="Voltar ao catálogo da Arcádia">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
         <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -22,13 +24,8 @@
         <path d="M7.5 7.5l3 3M10.5 7.5l-3 3" stroke="#ff7a6b" stroke-width="2" stroke-linecap="round"/>
         <circle cx="16" cy="16" r="2.6" fill="none" stroke="#5cd6e8" stroke-width="2"/>
       </svg>
-      <div class="game-text"><strong>Jogo da Velha</strong><span>Clássico</span></div>
+      <div class="game-text"><strong>Jogo da Velha</strong></div>
     </div>
-    <p class="keys" aria-label="Controles">
-      <span>clique numa casa para jogar</span>
-      <span><kbd>R</kbd> nova rodada</span>
-      <span><kbd>M</kbd> som</span>
-    </p>
   </header>
 
   <div id="arena" class="arena">
@@ -71,6 +68,25 @@
       <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
     </main>
   </div>
+  <div id="game-menu" class="gmenu" hidden role="dialog" aria-labelledby="gmenu-title">
+  <div class="gmenu-card">
+    <h2 id="gmenu-title" class="gmenu-title">Jogo da Velha</h2>
+    <p class="menu-desc">Alinhe três símbolos iguais na horizontal, na vertical ou na diagonal.</p>
+    <p class="gmenu-sub">Modo</p>
+    <div class="gmenu-opts" role="radiogroup" aria-label="Modo" data-mirror="#modes button"></div>
+    <p class="gmenu-sub">Dificuldade da IA</p>
+    <div class="gmenu-opts" role="radiogroup" aria-label="Dificuldade da IA" data-mirror="#levels button"></div>
+    <ul class="menu-keys" aria-label="Comandos">
+      <li><span class="keycaps"><kbd>R</kbd></span><span>nova rodada</span></li>
+      <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
+    </ul>
+    <p class="menu-touch">Toque numa casa para jogar</p>
+    <button type="button" class="gmenu-play" data-menu-play>Jogar</button>
+  </div>
+</div>
+
+  <script src="../../shared/game_storage.js"></script>
+  <script src="../../shared/game_ui.js"></script>
   <script src="jogo_velha.js"></script>
 </body>
 </html>

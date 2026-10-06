@@ -1,5 +1,5 @@
 /* ==========================================================================
-stack_tower/stack_tower.js - Jogo de empilhamento em HTML/CSS/JS puro.
+arcade/stack_tower/stack_tower.js - Jogo de empilhamento em HTML/CSS/JS puro.
 Os blocos são elementos DOM; toda a aparência fica no CSS.
 Índice: 1 Configuração · 2 Áudio · 3 Estado · 4 Blocos e efeitos · 5 Regras
 · 6 Atualização · 7 Interface · 8 Entrada · 9 Redimensionamento · 10 Loop
@@ -20,7 +20,6 @@ const CONFIG = {
   camera: { followLine: 300, smooth: 5, nightAltitude: 1400 },
   debris: { gravity: 1300 },
   timing: { maxFrameTime: 1 / 30 },
-  storage: { best: 'stacktower:best', muted: 'stacktower:muted' },
   view: { margin: 6, maxCssHeight: 1000 },
 };
 const { width: W, height: H } = CONFIG.world;
@@ -36,10 +35,14 @@ const ui = {
   overScore: $('over-score'), overBest: $('over-best'), badge: $('record-badge'),
 };
 
+// Persistência: game_storage (registro "stack_tower"); chaves antigas migradas uma vez.
+const store = GameStorage.game('stack_tower');
+store.migrate([{ from: 'stacktower:best', to: 'best', type: 'int' }, { from: 'stacktower:muted', to: 'muted', type: 'bool01' }]);
+
 /* ===== 2. ÁUDIO (Web Audio, sem arquivos externos) ===== */
 const Sound = (() => {
   let ctx = null, master = null, noiseBuf = null, unavailable = false, muted = false;
-  try { muted = window.localStorage.getItem(CONFIG.storage.muted) === '1'; } catch (e) { /* sem armazenamento */ }
+  muted = store.get('muted', false) === true;
 
   function ensure() {
     if (unavailable) return null;
@@ -76,7 +79,7 @@ const Sound = (() => {
   return {
     get muted() { return muted; },
     unlock() { if (!muted) ensure(); },
-    toggle() { muted = !muted; try { window.localStorage.setItem(CONFIG.storage.muted, muted ? '1' : '0'); } catch (e) {} if (!muted) tone('triangle', 520, 780, 0.08, 0.3); return muted; },
+    toggle() { muted = !muted; store.set('muted', muted); if (!muted) tone('triangle', 520, 780, 0.08, 0.3); return muted; },
     drop() { tone('sine', 420, 260, 0.1, 0.18); },
     place(level) { const f = 200 + Math.min(level, 30) * 9; tone('triangle', f, f * 0.8, 0.14, 0.5); noise(0.07, 0.25, 900); },
     perfect(combo) { const f = 520 + Math.min(combo, 8) * 60; tone('triangle', f, f, 0.12, 0.4); tone('triangle', f * 1.5, f * 1.5, 0.2, 0.4, 0.08); },
@@ -92,7 +95,7 @@ const game = {
   state: STATES.READY, score: 0, level: 0, combo: 0, best: 0, bestAtStart: 0, newRecord: false, toasted: false,
   top: null, active: null, blocks: [], debris: [], cam: 0, camTarget: 0, camShown: null, altShown: null, time: 0,
 };
-try { game.best = parseInt(window.localStorage.getItem(CONFIG.storage.best), 10) || 0; } catch (e) { /* sem armazenamento */ }
+game.best = Number(store.get('best', 0)) || 0;
 
 /* ===== 4. BLOCOS E EFEITOS ===== */
 const hueOf = (i) => (205 + i * 9) % 360;
@@ -221,7 +224,7 @@ function missBlock(a, t) {
   endGame();
 }
 
-function saveBest() { try { window.localStorage.setItem(CONFIG.storage.best, String(game.best)); } catch (e) { /* ignora */ } }
+function saveBest() { store.set('best', game.best); }
 
 function endGame() {
   game.state = STATES.OVER; game.combo = 0;
@@ -370,6 +373,7 @@ function init() {
   window.addEventListener('blur', () => setPaused(true));
   document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) setPaused(true); });
   ui.mute.addEventListener('click', (e) => { e.stopPropagation(); Sound.toggle(); syncMute(); ui.mute.blur(); });
+  document.getElementById('start-button').addEventListener('click', (e) => { e.stopPropagation(); Sound.unlock(); if (game.state === STATES.READY) startGame(); e.currentTarget.blur(); });
   ui.pause.addEventListener('click', (e) => { e.stopPropagation(); setPaused(true); ui.pause.blur(); });
   ui.resume.addEventListener('click', (e) => { e.stopPropagation(); setPaused(false); });
   ui.restart.addEventListener('click', (e) => { e.stopPropagation(); tryRestart(); });

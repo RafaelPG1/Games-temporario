@@ -2,15 +2,16 @@
 /* Batalha Naval · Arcádia. Fonte única de verdade: o objeto S. O DOM só reflete S (função render). */
 const N = 10, COLS = 'ABCDEFGHIJ';
 const FLEET = [['Porta-aviões', 5], ['Encouraçado', 4], ['Cruzador', 3], ['Submarino', 3], ['Destróier', 2]];
-const AI_DELAY = 800, KEY = 'batalha_naval:level';
+const AI_DELAY = 800;
 const $ = (id) => document.getElementById(id);
 const rand = (n) => Math.floor(Math.random() * n);
 const pick = (a) => a[rand(a.length)];
 const coord = (i) => COLS[i % N] + (Math.floor(i / N) + 1);
-const store = {
-  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } },
-};
+// Persistência: game_storage (registro "batalha_naval"): level, muted, vol. Chaves antigas migradas uma vez.
+const store = GameStorage.game('batalha_naval');
+store.migrate([
+  { from: 'batalha_naval:level', to: 'level' }, { from: 'batalha_naval:muted', to: 'muted', type: 'bool01' }, { from: 'batalha_naval:vol', to: 'vol', type: 'int' },
+]);
 
 /* Tabuleiro: shot[i] = 0 intacta | 1 água | 2 acerto | 3 casa de navio afundado */
 const newBoard = () => ({ ships: FLEET.map(([n, l], id) => ({ id, n, l, cells: null })), shot: Array(N * N).fill(0) });
@@ -22,7 +23,7 @@ const S = {
 
 /* ===== Áudio (Web Audio, sem arquivos externos). Só toca por eventos reais da partida ===== */
 const Sound = (() => {
-  const st = { muted: store.get('batalha_naval:muted') === '1', vol: Number(store.get('batalha_naval:vol') ?? 60) }, log = [];
+  const st = { muted: store.get('muted', false) === true, vol: Number(store.get('vol', 60)) }, log = [];
   let ctx = null, master = null, noise = null, off = false;
   const gain = () => (st.vol / 100) ** 2 * 0.8;
   function ensure() {
@@ -68,8 +69,8 @@ const Sound = (() => {
     log, play, get muted() { return st.muted; }, get vol() { return st.vol; },
     // Um disparo = lançamento + UM resultado; o afundamento substitui o som de acerto
     shot(t) { play('fire'); play(t, 0.3); },
-    setMuted(m) { st.muted = m; store.set('batalha_naval:muted', m ? '1' : '0'); if (!m) ensure(); },
-    setVol(v) { st.vol = Math.max(0, Math.min(100, Number(v) || 0)); store.set('batalha_naval:vol', st.vol); if (master) master.gain.value = gain(); },
+    setMuted(m) { st.muted = m; store.set('muted', m); if (!m) ensure(); },
+    setVol(v) { st.vol = Math.max(0, Math.min(100, Number(v) || 0)); store.set('vol', st.vol); if (master) master.gain.value = gain(); },
     unlock() { if (!st.muted) ensure(); },
   };
 })();
@@ -259,7 +260,7 @@ function render() {
 
 /* ===== Entradas ===== */
 function init() {
-  const saved = store.get(KEY); if (['easy', 'medium', 'hard'].includes(saved)) S.level = saved;
+  const saved = store.get('level'); if (['easy', 'medium', 'hard'].includes(saved)) S.level = saved;
   build('me'); build('foe');
   S.me.ships.forEach((s, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `${s.n}<small>${s.l} casas</small>`;
@@ -280,7 +281,7 @@ function init() {
     e.preventDefault();
   }));
   document.querySelectorAll('.levels button').forEach((el) => el.addEventListener('click', () => {
-    if (S.phase !== 'setup') return; S.level = el.dataset.level; store.set(KEY, S.level); render();
+    if (S.phase !== 'setup') return; S.level = el.dataset.level; store.set('level', S.level); render();
   }));
   const rotate = () => { if (S.phase === 'setup') { S.horiz = !S.horiz; render(); } };
   $('rotate').addEventListener('click', rotate);

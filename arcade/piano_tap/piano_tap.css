@@ -1,9 +1,9 @@
-/* piano_tap/piano_tap.css - --col = largura de uma coluna em px (atualizada pelo JS); o tabuleiro tem 4 colunas x 6 de altura */
+/* arcade/piano_tap/piano_tap.css - --col = largura de uma coluna em px (atualizada pelo JS); o tabuleiro tem 4 colunas x 6 de altura */
 :root {
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
   --shell-text: #eceef5; --shell-muted: #8d93a8;
   --lacquer: #1a1733; --lacquer-edge: #2f2a5c; --seam: #c4c8da;
-  --violet: #9d8cff; --violet-soft: #e9e6ff; --violet-deep: #2a2360; --berry: #ff4f7b; --gold: #ffc857; --ink: #0d0a22;
+  --menu-accent: #9d8cff; --violet: #9d8cff; --violet-soft: #e9e6ff; --violet-deep: #2a2360; --berry: #ff4f7b; --gold: #ffc857; --ink: #0d0a22;
   --col: 80px; --bw: 320px;
 }
 * { box-sizing: border-box; }
@@ -40,12 +40,6 @@ button { font: inherit; color: inherit; }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys span { display: inline-flex; align-items: center; gap: 4px; }
-.keys kbd {
-  min-width: 22px; padding: 1px 6px; font: inherit; font-size: 12px; font-weight: 600; text-align: center; color: var(--shell-text);
-  background: var(--shell-surface); border: 1px solid var(--shell-line); border-bottom-width: 2px; border-radius: 6px;
-}
 
 /* Arena: fundo escuro com pauta musical bem tênue (5 linhas a cada 150px) e um brilho suave no topo */
 .arena {
@@ -138,10 +132,10 @@ button { font: inherit; color: inherit; }
 
 .noscript { position: fixed; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } }
+@media (max-width: 640px) { .topbar { height: 52px; } }
 /* Celular deitado: placar à esquerda, tabuleiro à direita */
 @media (max-height: 500px) and (orientation: landscape) {
-  .topbar { height: 46px; } .game-text span { display: none; } .keys { display: none; }
+  .topbar { height: 46px; } .game-text span { display: none; } 
   .arena { flex-direction: row; justify-content: center; padding: 8px 12px; }
   .hud { flex-direction: column; width: 150px; }
   .play { width: auto; flex: 1 1 0; height: 100%; }

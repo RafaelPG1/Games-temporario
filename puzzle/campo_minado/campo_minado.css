@@ -1,5 +1,6 @@
-/* campo_minado/campo_minado.css - casca externa no padrão da Arcádia; tabuleiro com identidade própria */
+/* puzzle/campo_minado/campo_minado.css - casca externa no padrão da Arcádia; tabuleiro com identidade própria */
 :root {
+  --menu-accent: #ffc857;
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
   --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
   --closed: #5b7a8c; --closed-hi: #86a2b2; --closed-lo: #3a5160;
@@ -37,12 +38,6 @@ body {
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text h1 { margin: 0; font-size: 15px; font-weight: 700; white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys span { display: inline-flex; align-items: center; gap: 4px; }
-.keys kbd {
-  min-width: 24px; padding: 2px 7px; font: inherit; font-size: 12px; font-weight: 600; text-align: center; color: var(--shell-text);
-  background: var(--shell-surface); border: 1px solid var(--shell-line); border-bottom-width: 2px; border-radius: 6px;
-}
 
 /* Arena: rola na vertical se a tela for baixa; nunca na horizontal */
 .arena {
@@ -130,5 +125,5 @@ body {
 .end-text { margin: 0 0 6px; font-size: 15px; font-variant-numeric: tabular-nums; }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } }
+@media (max-width: 640px) { .topbar { height: 52px; } }
 @media (prefers-reduced-motion: reduce) { .cell.open, .cell.boom, .end { animation: none; } .back, .back svg, .btn { transition: none; } }

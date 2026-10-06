@@ -1,5 +1,6 @@
-/* batalha_naval/batalha_naval.css — casca externa igual à da Arcádia; interior: centro de comando naval */
+/* estrategia/batalha_naval/batalha_naval.css — casca externa igual à da Arcádia; interior: centro de comando naval */
 :root {
+  --menu-accent: #52d6e8;
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633; --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
   --deep: #04182b; --sea: #0a3556; --grid: rgba(130,210,235,.22); --sig: #52d6e8; --hit: #ff5a4d; --wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' preserveAspectRatio='none'%3E%3Cpath d='M0 10Q5 5 10 10T20 10' fill='none' stroke='%2352d6e8' stroke-width='1.8'/%3E%3C/svg%3E"); --txt: #d6eef6; --dim: #7fa9ba;
 }
@@ -24,8 +25,6 @@ button { font: inherit; color: inherit; touch-action: manipulation; }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys kbd { min-width: 24px; padding: 2px 7px; font: inherit; font-size: 12px; font-weight: 600; color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line); border-bottom-width: 2px; border-radius: 6px; }
 
 .arena { flex: 1 1 0; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 10px;
   background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg); }
@@ -118,5 +117,5 @@ button:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 2
 .screen .row { justify-content: center; }
 [data-phase="over"] #result h2 { color: var(--shell-accent); }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } .arena { padding: 6px; } .stage { padding: 8px; } }
+@media (max-width: 640px) { .topbar { height: 52px; } .arena { padding: 6px; } .stage { padding: 8px; } }
 @media (prefers-reduced-motion: reduce) { .foe .board::after { animation: none; } .c.pop::after, .c.pop.sunk { animation: none; } .back, .back svg { transition: none; } }

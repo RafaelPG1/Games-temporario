@@ -62,7 +62,6 @@ const GROUPS = [
 ];
 const GROUP_SIZE = 10;
 const groupOf = (i) => Math.min(GROUPS.length - 1, Math.floor(i / GROUP_SIZE));
-const STORE_KEY = 'sokoban:progress:v2', MUTE_KEY = 'sokoban:muted';   // v2: a ordem das fases mudou, então os recordes antigos não valem mais
 const STEP_MS = 95;        // intervalo mínimo entre passos (mantém a animação legível ao segurar uma tecla)
 const REPEAT_MS = 140;     // repetição ao segurar um botão direcional
 const W = 288, H = 512, MARGIN = 6, MAX_CSS_HEIGHT = 1000;
@@ -121,24 +120,26 @@ const S = {
 };
 
 /* ===== Armazenamento (nunca pode quebrar o jogo) ===== */
-const store = {
-  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } },
-};
+// Persistência: game_storage (registro "sokoban"): progress = { unlocked, best: { <índice>: movimentos } }, last, muted.
+// "sokoban:progress:v2" é a versão atual do progresso (as versões anteriores usavam outra ordem de fases e não valem mais).
+const store = GameStorage.game('sokoban');
+store.migrate([
+  { from: 'sokoban:progress:v2', to: 'progress', type: 'json' }, { from: 'sokoban:last', to: 'last', type: 'int' }, { from: 'sokoban:muted', to: 'muted', type: 'bool01' },
+]);
 function loadProgress() {
   try {
-    const p = JSON.parse(store.get(STORE_KEY)), best = {};
+    const p = store.get('progress', null), best = {};
     const unlocked = Number.isInteger(p && p.unlocked) ? Math.min(Math.max(p.unlocked, 1), LEVELS.length) : 1;
     Object.keys((p && p.best) || {}).forEach((k) => { const v = p.best[k], i = Number(k); if (Number.isInteger(i) && i >= 0 && i < LEVELS.length && Number.isInteger(v) && v > 0) best[i] = v; });
     return { unlocked, best };
   } catch (e) { return { unlocked: 1, best: {} }; }
 }
-const saveProgress = () => store.set(STORE_KEY, JSON.stringify(S.progress));
+const saveProgress = () => store.set('progress', S.progress);
 
 /* ===== Áudio (Web Audio, sem arquivos externos; mesmo padrão dos outros jogos da Arcádia) ===== */
 const Sound = (() => {
   let ctx = null, master = null, off = false;
-  S.muted = store.get(MUTE_KEY) === '1';
+  S.muted = store.get('muted', false) === true;
   function ensure() {
     if (off) return null;
     if (!ctx) {
@@ -240,7 +241,7 @@ function loadLevel(i) {
   if (!Number.isInteger(i) || i < 0 || i >= LEVELS.length || i >= S.progress.unlocked) return false;   // fase bloqueada: recusa
   Object.assign(S, parseLevel(i), { index: i, status: 'playing', menu: false, history: [], face: 'down', anim: 'idle' });
   S.player = { ...S.start.player }; S.boxes = S.start.boxes.map((b) => ({ ...b })); S.tab = groupOf(i);
-  buildBoard(); resizeStage(); render(); store.set('sokoban:last', String(i));
+  buildBoard(); resizeStage(); render(); store.set('last', i);
   return true;
 }
 const restart = () => { if (S.status === 'playing' && !S.menu && S.history.length) { Sound.restart(); loadLevel(S.index); } };
@@ -301,7 +302,7 @@ function openMenu(on) {
   if (on) { const cur = ui.grid.querySelector('.is-current') || ui.grid.querySelector('button:not(:disabled)'); if (cur) cur.focus({ preventScroll: true }); }
 }
 function toggleMute() {
-  S.muted = !S.muted; store.set(MUTE_KEY, S.muted ? '1' : '0'); if (!S.muted) Sound.unlock(); renderMute();
+  S.muted = !S.muted; store.set('muted', S.muted); if (!S.muted) Sound.unlock(); renderMute();
 }
 function renderMute() {
   ui.mute.classList.toggle('is-muted', S.muted); ui.mute.setAttribute('aria-pressed', S.muted);
@@ -323,7 +324,7 @@ function input(dir) {
 }
 function init() {
   S.progress = loadProgress(); renderMute();
-  const savedLevel = Number(store.get('sokoban:last'));
+  const savedLevel = Number(store.get('last', NaN));
   if (!loadLevel(Number.isInteger(savedLevel) && savedLevel < S.progress.unlocked ? savedLevel : 0)) loadLevel(0);
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -374,4 +375,27 @@ function init() {
   if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeStage);
 }
 init();
+
+/* ===== Menu inicial: continuar de onde parou, progresso e atalho para o seletor de fases ===== */
+function completedCount() { return Object.keys(S.progress.best).length; }
+// Fase sugerida: a última jogada, se ainda não foi concluída; senão, a próxima fase liberada.
+function menuTarget() {
+  const last = Number(store.get('last', 0)), unlockedIdx = S.progress.unlocked - 1;
+  if (Number.isInteger(last) && last >= 0 && last <= unlockedIdx && !S.progress.best[last]) return last;
+  return Math.min(unlockedIdx, LEVELS.length - 1);
+}
+function refreshMenu() {
+  const done = completedCount(), total = LEVELS.length, t = menuTarget(), allDone = done >= total;
+  const play = document.querySelector('#game-menu [data-menu-play]');
+  play.textContent = allDone ? `Rejogar a fase ${t + 1}` : done === 0 && t === 0 ? 'Iniciar fase 1' : `Continuar na fase ${t + 1}`;
+  document.getElementById('menu-bar').style.width = `${Math.round((done / total) * 100)}%`;
+  document.getElementById('menu-progress-text').innerHTML = allDone
+    ? `Você concluiu <b>todas as ${total} fases</b>!`
+    : `<b>${done}</b> de ${total} fases concluídas · liberadas até a fase <b>${S.progress.unlocked}</b>`;
+}
+GameUI.menu.mount({
+  el: '#game-menu', onOpen: refreshMenu,
+  onPlay() { const t = menuTarget(); if (t !== S.index) loadLevel(t); },
+});
+$('menu-levels').addEventListener('click', () => { GameUI.menu.current.close(); Sound.click(); openMenu(true); });
 window.__soko = { S, LEVELS, GROUPS, tryMove, undo, restart, loadLevel, input, solved };

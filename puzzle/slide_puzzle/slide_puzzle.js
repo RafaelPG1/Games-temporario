@@ -5,7 +5,6 @@ const LEVELS = {
   medium: { n: 4, steps: 240, minDist: 24 },
   hard:   { n: 5, steps: 400, minDist: 44 },
 };
-const STORE = { muted: 'slide_puzzle:muted', level: 'slide_puzzle:level', best: (l) => `slide_puzzle:best:${l}` };
 const START_GUARD_MS = 450;
 const W = 288, H = 512, MARGIN = 6, MAX_CSS_HEIGHT = 1000;
 const $ = (id) => document.getElementById(id);
@@ -22,22 +21,22 @@ const S = {
 };
 
 /* ===== Armazenamento (nunca pode quebrar o jogo) ===== */
-const store = {
-  get(k) { try { return window.localStorage.getItem(k); } catch (e) { return null; } },
-  set(k, v) { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } },
-};
+// Persistência: game_storage (registro "slide_puzzle"): level, muted e best_<dificuldade> = { moves, time }.
+const store = GameStorage.game('slide_puzzle');
+store.migrate([
+  { from: 'slide_puzzle:level', to: 'level' }, { from: 'slide_puzzle:muted', to: 'muted', type: 'bool01' },
+  ...['easy', 'medium', 'hard'].map((l) => ({ from: `slide_puzzle:best:${l}`, to: `best_${l}`, type: 'json' })),
+]);
 function loadBest(level) {
-  try {
-    const b = JSON.parse(store.get(STORE.best(level)));
-    return b && Number.isFinite(b.moves) && Number.isFinite(b.time) ? b : null;
-  } catch (e) { return null; }
+  const b = store.get(`best_${level}`, null);
+  return b && Number.isFinite(b.moves) && Number.isFinite(b.time) ? b : null;
 }
 const isBetter = (a, b) => !b || a.moves < b.moves || (a.moves === b.moves && a.time < b.time);
 
 /* ===== Áudio (Web Audio, sem arquivos externos) ===== */
 const Sound = (() => {
   let ctx = null, master = null, off = false;
-  S.muted = store.get(STORE.muted) === '1';
+  S.muted = store.get('muted', false) === true;
   function ensure() {
     if (off) return null;
     if (!ctx) {
@@ -128,7 +127,7 @@ function win() {
   S.elapsed = elapsedNow(); S.status = 'won';
   const result = { moves: S.moves, time: Math.round(S.elapsed) };
   S.isRecord = isBetter(result, loadBest(S.level));
-  if (S.isRecord) store.set(STORE.best(S.level), JSON.stringify(result));
+  if (S.isRecord) store.set(`best_${S.level}`, result);
   $('won-moves').textContent = S.moves; $('won-time').textContent = fmt(S.elapsed);
   $('won-record').hidden = !S.isRecord;
   Sound.win();
@@ -160,7 +159,7 @@ function startGame(level) {
   S.initial = shuffled(level, [S.board, S.initial]);
   S.board = S.initial.slice(); S.moves = 0; S.elapsed = 0; S.status = 'ready'; S.isRecord = false; S.readyAt = performance.now();
   if (resize) buildBoard();
-  store.set(STORE.level, level);
+  store.set('level', level);
   render();
 }
 /* Pede confirmação quando há progresso a perder */
@@ -202,7 +201,7 @@ function render() {
   ui.mute.classList.toggle('is-muted', S.muted); ui.mute.setAttribute('aria-pressed', S.muted);
   ui.mute.setAttribute('aria-label', S.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
 }
-function toggleMute() { S.muted = !S.muted; store.set(STORE.muted, S.muted ? '1' : '0'); if (!S.muted) Sound.unlock(); render(); }
+function toggleMute() { S.muted = !S.muted; store.set('muted', S.muted); if (!S.muted) Sound.unlock(); render(); }
 function resizeStage() {
   const w = Math.max(1, ui.arena.clientWidth - MARGIN * 2), h = Math.max(1, ui.arena.clientHeight - MARGIN * 2);
   let ch = Math.min(h, MAX_CSS_HEIGHT), cw = ch * (W / H);
@@ -220,7 +219,7 @@ function onKeyDown(e) {
   else if (e.code === 'Escape') { if (S.pending) answer(false); else togglePause(S.status === 'playing'); }
 }
 function init() {
-  const saved = store.get(STORE.level);
+  const saved = store.get('level');
   S.level = '';  // força a construção inicial do tabuleiro
   startGame(LEVELS[saved] ? saved : 'medium');
   S.readyAt = -START_GUARD_MS; // a proteção contra toque duplo vale só depois de reiniciar/novo jogo, não ao abrir a página
@@ -255,4 +254,10 @@ function init() {
   setInterval(() => { if (S.status === 'playing') ui.time.textContent = fmt(elapsedNow()); }, 250);
 }
 init();
+
+/* Menu inicial: o botão Jogar já começa a partida (sem pedir um segundo toque na tela do jogo). */
+GameUI.menu.mount({
+  el: '#game-menu',
+  onPlay() { setTimeout(beginPlay, Math.max(0, START_GUARD_MS - (performance.now() - S.readyAt))); },
+});
 window.__slide = { S, shuffled, isSolved, moveAt, startGame, neighbors, beginPlay };

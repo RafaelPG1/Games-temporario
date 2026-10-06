@@ -1,5 +1,5 @@
 /* ==========================================================================
-breakout/breakout.js - Breakout em HTML5 Canvas + JavaScript puro.
+arcade/breakout/breakout.js - Breakout em HTML5 Canvas + JavaScript puro.
 Índice: 1 Configuração · 2 Áudio · 3 Estado e fases · 4 Física · 5 Renderização
 · 6 Interface · 7 Entrada · 8 Redimensionamento · 9 Loop e inicialização
 ========================================================================== */
@@ -17,7 +17,7 @@ const CONFIG = {
   ball: { radius: 3.5, speedStart: 240, speedStep: 5, speedMax: 420, minVertical: 0.3, maxBalls: 8 },
   lives: 3, maxLives: 5,
   timing: { maxFrameTime: 1 / 30, maxStep: 1 / 120, maxMove: 2, lostDelay: 0.8, clearDelay: 0.7, lockTime: 0.4 },
-  audio: { masterVolume: 0.3, mutedKey: 'breakout:muted' },
+  audio: { masterVolume: 0.3 },
   // helpRoom = espaço lateral mínimo (px) para exibir o botão/painel de ajuda ao lado do palco
   view: { margin: 6, maxCssHeight: 1000, helpRoom: 296 },
   // EFEITOS: time = duração (s); mult = fator; specials = [mínimo, extra aleatório] por fase
@@ -172,11 +172,15 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const MAX_ANGLE = PAD.maxAngle * Math.PI / 180;
 const MIN_ANGLE = PAD.minAngle * Math.PI / 180;
 
+// Persistência: game_storage (registro "breakout"); chave antiga migrada uma vez.
+const store = GameStorage.game('breakout');
+store.migrate([{ from: 'breakout:muted', to: 'muted', type: 'bool01' }]);
+
 /* ===== 2. ÁUDIO (Web Audio API, sem arquivos externos) ===== */
 const Sound = (() => {
   let audioContext = null, master = null, noiseBuffer = null, unavailable = false;
   let muted = false;
-  try { muted = window.localStorage.getItem(CONFIG.audio.mutedKey) === '1'; } catch (e) { /* sem armazenamento */ }
+  muted = store.get('muted', false) === true;
 
   function ensureContext() {
     if (unavailable) return null;
@@ -238,7 +242,7 @@ const Sound = (() => {
     unlock() { if (!muted) safely(ensureContext); },
     setMuted(value) {
       muted = Boolean(value);
-      try { window.localStorage.setItem(CONFIG.audio.mutedKey, muted ? '1' : '0'); } catch (e) { /* ignora */ }
+      store.set('muted', muted);
       if (!muted) safely(ensureContext);
     },
     wall() { safely(() => tone({ type: 'square', from: 320, to: 270, duration: 0.04, volume: 0.16 })); },
@@ -324,6 +328,7 @@ function loadLevel(n) {
   const idx = (n - 1) % LEVEL_COUNT, lap = Math.floor((n - 1) / LEVEL_COUNT);
   const layout = buildLayout(idx);
   game.level = n;
+  if (n > store.get('bestLevel', 1)) store.set('bestLevel', n);   // estatística: fase mais alta alcançada em uma partida
   game.rows = layout.length;
   game.bricks = [];
   game.grid = new Array(BR.cols * game.rows).fill(null);
@@ -1442,6 +1447,7 @@ function frame(now) {
 
 function init() {
   loadLevel(1);             // a tela inicial já mostra o tabuleiro da fase 1
+  document.getElementById('title-level').textContent = String(store.get('bestLevel', 1));
   syncHud();
   syncMuteButton();
   buildHelp();

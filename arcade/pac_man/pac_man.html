@@ -5,11 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#07080c">
   <title>Pac-Man · Arcádia</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="pac_man.css">
+  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="back" href="../index.html" aria-label="Voltar ao catálogo da Arcádia">
+    <a class="back" href="../../index.html" aria-label="Voltar ao catálogo da Arcádia">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
         <path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
       </svg>
@@ -21,13 +23,8 @@
         <path d="M16 16 L26 10.5 A11.5 11.5 0 1 0 26 21.5 Z" fill="#ffd21f"/>
         <circle cx="16" cy="9" r="1.7" fill="#050824"/>
       </svg>
-      <div class="game-text"><strong>Pac-Man</strong><span>Arcade</span></div>
+      <div class="game-text"><strong>Pac-Man</strong></div>
     </div>
-    <p class="keys" aria-label="Controles">
-      <span><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> ou <kbd>WASD</kbd></span>
-      <span><kbd>Espaço</kbd> pausa</span>
-      <span><kbd>M</kbd> som</span>
-    </p>
   </header>
 
   <div id="arena" class="arena">
@@ -63,10 +60,16 @@
 
       <section class="screen screen-title" role="dialog" aria-labelledby="title-h">
         <h1 id="title-h" class="logo">Pac-Man</h1>
-        <p class="screen-text">Coma todas as bolinhas e fuja dos fantasmas. Power pellets deixam os fantasmas vulneráveis.</p>
-        <p class="screen-hint">Setas ou WASD · Espaço pausa · no celular, deslize ou use os botões</p>
-        <p class="screen-text">Recorde <b id="title-best">0</b></p>
-        <button id="start-button" class="btn" type="button">Começar</button>
+        <p class="menu-desc">Coma todas as bolinhas e fuja dos fantasmas. As bolas grandes deixam os fantasmas vulneráveis.</p>
+        <ul class="menu-keys" aria-label="Comandos">
+          <li><span class="keycaps"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span><span>mover</span></li>
+          <li><span class="keycaps"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>mover</span></li>
+          <li><span class="keycaps"><kbd>Espaço</kbd><kbd>P</kbd><kbd>Esc</kbd></span><span>pausar</span></li>
+          <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
+        </ul>
+        <p class="menu-touch">Deslize na tela ou use os botões</p>
+        <p class="menu-note">Recorde <b id="title-best">0</b> · Fase mais alta <b id="title-level">1</b></p>
+        <button id="start-button" class="btn" type="button">Jogar</button>
       </section>
       <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
         <h2 id="pause-title" class="screen-title">Pausado</h2>
@@ -81,6 +84,8 @@
       <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
     </main>
   </div>
+  <script src="../../shared/game_storage.js"></script>
+  <script src="../../shared/game_ui.js"></script>
   <script src="pac_man.js"></script>
 </body>
 </html>

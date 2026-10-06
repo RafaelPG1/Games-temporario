@@ -1,5 +1,5 @@
 /* ==========================================================================
-   flappy_bird/flappy_bird.css - estilos
+   arcade/flappy_bird/flappy_bird.css - estilos
    --u é a "unidade do jogo": largura do palco / 288. O JavaScript atualiza
    esse valor a cada redimensionamento, então textos e painéis escalam junto
    com o canvas e nada fica cortado em telas pequenas.
@@ -9,7 +9,7 @@
   --ink: #543847;          /* contorno escuro, o mesmo do pássaro e dos canos */
   --paper: #ded895;        /* painel de fim de jogo */
   --paper-light: #f6efb4;
-  --orange: #f08a24;
+  --menu-accent: #f08a24; --orange: #f08a24;
   --orange-dark: #c9600d;
   --red: #e5432b;
   --white: #ffffff;
@@ -113,28 +113,6 @@ body {
 }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
 
-.keys {
-  display: flex;
-  gap: 16px;
-  margin: 0 0 0 auto;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--shell-muted);
-}
-.keys span { display: inline-flex; align-items: center; gap: 6px; }
-.keys kbd {
-  min-width: 24px;
-  padding: 2px 7px;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 600;
-  text-align: center;
-  color: var(--shell-text);
-  background: var(--shell-surface);
-  border: 1px solid var(--shell-line);
-  border-bottom-width: 2px;
-  border-radius: 6px;
-}
 
 
 /* ---------- Arena (área ao redor do palco) ---------- */
@@ -174,6 +152,8 @@ body {
 
 .title,
 .over-title,
+.paused-title,
+.paused-hint,
 .hint,
 .ready-best,
 .badge,
@@ -206,6 +186,7 @@ body {
 }
 
 .is-ready .screen-ready,
+.is-paused .screen-paused,
 .is-over.show-panel .screen-over {
   opacity: 1;
   visibility: visible;
@@ -215,7 +196,7 @@ body {
 
 /* ---------- Tela inicial ---------- */
 
-.screen-ready { padding-top: calc(var(--u) * 56); }
+.screen-ready { padding-top: calc(var(--u) * 44); gap: calc(var(--u) * 10); }
 
 .title {
   margin: 0;
@@ -322,6 +303,27 @@ body {
 }
 .badge[hidden] { display: none; }
 
+/* ---------- Jogo pausado ---------- */
+
+.screen-paused {
+  justify-content: center;
+  gap: calc(var(--u) * 10);
+  padding: 0 8%;
+  background: rgba(84, 56, 71, 0.38);   /* escurece a cena congelada */
+}
+.paused-title {
+  margin: 0;
+  font-size: calc(var(--u) * 38);
+  line-height: 1;
+  text-transform: uppercase;
+  color: #ffe36a;
+}
+.paused-hint {
+  margin: 0;
+  font-size: max(12px, calc(var(--u) * 12));
+  line-height: 1.25;
+}
+
 /* ---------- Botões ---------- */
 
 .btn {
@@ -369,6 +371,33 @@ body {
 .icon-button.is-muted .icon-waves { display: none; }
 .icon-button.is-muted .icon-cross { display: inline; }
 
+/* Ao lado do botão de som: mesma altura, mesmo topo, com uma folga entre os dois. */
+.pause-button {
+  position: absolute;
+  top: calc(var(--u) * 8);
+  right: calc(var(--u) * 8 + max(40px, calc(var(--u) * 20)) + max(6px, calc(var(--u) * 6)));
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  width: max(40px, calc(var(--u) * 20));
+  height: max(40px, calc(var(--u) * 20));
+  padding: 0;
+  background: var(--paper);
+  border: calc(var(--u) * 2) solid var(--ink);
+  box-shadow: inset 0 0 0 calc(var(--u) * 1) var(--paper-light);
+  opacity: 0.85;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.pause-button:hover,
+.pause-button:focus-visible { opacity: 1; }
+.pause-button:focus-visible { outline: 2px solid #2d7be0; outline-offset: 2px; }
+.pause-button[hidden] { display: none; }
+.pause-button svg { width: 62%; height: 62%; }
+.pause-button .icon-play { display: none; }
+.pause-button.is-paused .icon-pause { display: none; }
+.pause-button.is-paused .icon-play { display: inline; }
+
 .noscript {
   position: absolute;
   inset: auto 0 40% 0;
@@ -380,7 +409,6 @@ body {
 /* ---------- Telas pequenas ---------- */
 
 @media (max-width: 640px) {
-  .keys { display: none; }
   .topbar { height: 52px; }
 }
 
@@ -399,3 +427,10 @@ body {
   .screen { transition: none; }
   .back, .back svg { transition: none; }
 }
+
+/* Menu inicial sobre o céu claro: texto branco com contorno escuro */
+.screen-ready .menu-desc, .screen-ready .menu-keys li, .screen-ready .menu-touch {
+  color: #fff; font-weight: 700;
+  text-shadow: calc(var(--o) * -1) calc(var(--o) * -1) 0 var(--ink), var(--o) calc(var(--o) * -1) 0 var(--ink), calc(var(--o) * -1) var(--o) 0 var(--ink), var(--o) var(--o) 0 var(--ink);
+}
+.screen-ready .menu-keys kbd { color: var(--ink); background: #fff; border-color: var(--ink); }

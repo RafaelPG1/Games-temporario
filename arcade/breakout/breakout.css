@@ -1,8 +1,8 @@
-/* breakout/breakout.css - --u = largura do palco / 288 (atualizado pelo JS) */
+/* arcade/breakout/breakout.css - --u = largura do palco / 288 (atualizado pelo JS) */
 :root {
   --ink: #0b0d26; --navy: #10133a; --navy-2: #1a1e52; --white: #fff;
   --steel: #c7ceef; --steel-light: #eef0ff; --steel-dark: #8f98c8;
-  --cyan: #33c7e8; --yellow: #ffd23f; --red: #ff4d5e;
+  --menu-accent: #ffd23f; --cyan: #33c7e8; --yellow: #ffd23f; --red: #ff4d5e;
   --u: 1.5px; --o: max(1px, calc(var(--u) * 1.4));
   --display: Impact, Haettenschweiler, "Arial Narrow Bold", "Arial Black", sans-serif;
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
@@ -46,13 +46,6 @@ body {
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-.keys { display: flex; gap: 16px; margin: 0 0 0 auto; font-size: 13px; font-weight: 500; color: var(--shell-muted); }
-.keys span { display: inline-flex; align-items: center; gap: 6px; }
-.keys kbd {
-  min-width: 24px; padding: 2px 7px; font: inherit; font-size: 12px; font-weight: 600; text-align: center;
-  color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line);
-  border-bottom-width: 2px; border-radius: 6px;
-}
 
 /* Arena e palco (mesmo fundo e mesmas proporções do Jumpy) */
 .arena {
@@ -127,15 +120,15 @@ body {
 .is-ready .screen-ready, .is-paused .screen-paused, .is-won .screen-won, .is-over .screen-over {
   opacity: 1; visibility: visible; transform: none; transition-delay: 0s;
 }
-.screen-ready { gap: calc(var(--u) * 34); padding-bottom: calc(var(--u) * 54); background: rgba(8, 10, 32, .84); }
+.screen-ready { gap: calc(var(--u) * 12); padding: 0 4%; background: rgba(8, 10, 32, .84); }
 
 /* Título: o logotipo é um pequeno muro de blocos */
 .title { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 4); margin: 0; }
 .title-row { display: flex; gap: calc(var(--u) * 4); }
 .tile {
   --c: #ff4d5e; --cl: #ff9aa4; --cd: #c42a45;
-  display: grid; place-items: center; width: calc(var(--u) * 44); height: calc(var(--u) * 40);
-  font-family: var(--display); font-weight: 400; font-size: calc(var(--u) * 30); line-height: 1; color: var(--ink);
+  display: grid; place-items: center; width: calc(var(--u) * 36); height: calc(var(--u) * 34);
+  font-family: var(--display); font-weight: 400; font-size: calc(var(--u) * 25); line-height: 1; color: var(--ink);
   background: var(--c); text-shadow: none;
   box-shadow: inset calc(var(--u) * 3) calc(var(--u) * 3) 0 var(--cl), inset calc(var(--u) * -3) calc(var(--u) * -3) 0 var(--cd), 0 0 0 calc(var(--u) * 2) var(--ink);
 }
@@ -251,7 +244,7 @@ body {
 .help-name b { font-size: 13px; font-weight: 700; color: var(--shell-text); }
 .help-tag { padding: 1px 7px; font-size: 11px; font-style: normal; font-weight: 600; color: var(--shell-muted); background: rgba(255,255,255,.06); border-radius: 999px; white-space: nowrap; }
 
-@media (max-width: 640px) { .keys { display: none; } .topbar { height: 52px; } }
+@media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 420px) { .controls { display: none; } .topbar { height: 46px; } .game-text span { display: none; } }
 @media (prefers-reduced-motion: reduce) { .is-serving .serve-hint { animation: none; } .screen { transition: none; } .back, .back svg { transition: none; } .is-ready .tile { animation: none; } .life { transition: none; } .help-toggle, .help-panel { transition: none; } .life.is-new { animation: none; } }
 
