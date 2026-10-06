@@ -66,7 +66,7 @@ body {
 .hud {
   position: absolute; top: 0; left: 0; right: 0; z-index: 2; height: var(--hud-h);
   display: flex; align-items: center; gap: calc(var(--u) * 16);
-  padding: 0 calc(var(--btn) * 2 + var(--u) * 20) 0 calc(var(--u) * 16);
+  padding: 0 calc(var(--btn) * 3 + var(--u) * 28) 0 calc(var(--u) * 16);
   pointer-events: none; white-space: nowrap;
 }
 .hud-cell { display: flex; flex-direction: column; justify-content: center; line-height: 1; min-width: 0; }
@@ -104,7 +104,7 @@ body {
 .is-serving .serve-hint { visibility: visible; animation: blink 1.4s ease-in-out infinite; }
 
 /* Textos com contorno */
-.over-title, .stats, .tile {
+.over-title, .stats, .tile, .hint, .ready-best {
   text-shadow:
     calc(var(--o) * -1) calc(var(--o) * -1) 0 var(--ink), var(--o) calc(var(--o) * -1) 0 var(--ink),
     calc(var(--o) * -1) var(--o) 0 var(--ink), var(--o) var(--o) 0 var(--ink),
@@ -120,7 +120,7 @@ body {
 .is-ready .screen-ready, .is-paused .screen-paused, .is-won .screen-won, .is-over .screen-over {
   opacity: 1; visibility: visible; transform: none; transition-delay: 0s;
 }
-.screen-ready { gap: calc(var(--u) * 12); padding: 0 4%; background: rgba(8, 10, 32, .84); }
+.screen-ready { gap: calc(var(--u) * 12); padding: calc(var(--u) * 100) 4% 0; justify-content: flex-start; background: rgba(8, 10, 32, .84); }
 
 /* Título: o logotipo é um pequeno muro de blocos */
 .title { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 4); margin: 0; }
@@ -174,10 +174,91 @@ body {
   background: var(--steel); border: calc(var(--u) * 2) solid var(--ink); box-shadow: inset 0 0 0 calc(var(--u) * 1) var(--steel-light);
   opacity: .88; cursor: pointer; touch-action: manipulation;
 }
-#pause-button { display: none; }
-.is-playing #pause-button { display: grid; }
+/* Pausa: sempre visível e no mesmo lugar; só o ícone troca (pausar <-> continuar). Fora da partida fica apagado. */
+.icon-button .icon-play { display: none; }
+.is-paused #pause-button .icon-pause { display: none; }
+.is-paused #pause-button .icon-play { display: block; }
+#pause-button.is-inactive, #pause-button.is-inactive:hover { opacity: .45; cursor: default; }
 /* O som fica à esquerda da pausa, em posição fixa, para não mudar de lugar entre telas */
 #mute-button { right: calc(var(--u) * 12 + var(--btn)); }
+/* Escolher fase: à esquerda do som; sempre visível em qualquer tela */
+#level-button { right: calc(var(--u) * 16 + var(--btn) * 2); }
+#level-button[aria-expanded="true"] { opacity: 1; background: var(--steel-light); }
+
+/* Painel de fases: cartão central sobre o palco (abaixo do placar, os botões do topo continuam livres) */
+.level-menu {
+  --bv: max(2px, calc(var(--u) * 2.4));
+  position: absolute; z-index: 6; left: 0; right: 0; top: var(--hud-h); bottom: 0;
+  display: flex; align-items: center; justify-content: center; padding: 0 calc(var(--u) * 14);
+  background: rgba(8, 10, 32, .72); animation: level-fade .18s ease-out;
+}
+.level-menu[hidden] { display: none; }
+.level-card {
+  width: 100%; max-width: calc(var(--u) * 268); margin-bottom: calc(var(--u) * 24);
+  padding: calc(var(--u) * 10); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: linear-gradient(180deg, #252c70, var(--navy-2)); border: calc(var(--u) * 2) solid var(--ink);
+  box-shadow: inset 0 0 0 calc(var(--u) * 1) rgba(199, 206, 239, .28), 0 calc(var(--u) * 5) 0 rgba(0, 0, 0, .35), 0 calc(var(--u) * 12) calc(var(--u) * 24) rgba(0, 0, 0, .5);
+  animation: level-pop .22s cubic-bezier(.2, .9, .3, 1.1);
+}
+.level-head { display: flex; align-items: center; justify-content: space-between; gap: calc(var(--u) * 8); }
+.level-menu-title {
+  margin: 0; font-family: var(--display); font-weight: 400; font-size: max(17px, calc(var(--u) * 19));
+  letter-spacing: .05em; line-height: 1; color: var(--white);
+}
+.level-close {
+  flex: none; display: grid; place-items: center; width: max(30px, calc(var(--u) * 22)); height: max(30px, calc(var(--u) * 22)); padding: 0;
+  color: var(--navy); background: var(--steel); border: calc(var(--u) * 2) solid var(--ink);
+  box-shadow: inset 0 0 0 calc(var(--u) * 1) var(--steel-light); cursor: pointer; touch-action: manipulation;
+}
+.level-close svg { width: 50%; height: 50%; }
+.level-close:hover { background: var(--steel-light); }
+.level-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: max(5px, calc(var(--u) * 5)); margin: calc(var(--u) * 10) 0; }
+.level-chip {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 1);
+  aspect-ratio: 1; min-width: 0; padding: 0; font-family: var(--display); font-weight: 400; line-height: 1; color: var(--ink);
+  background: var(--c); border: 0; cursor: pointer; touch-action: manipulation;
+  box-shadow: inset var(--bv) var(--bv) 0 var(--cl), inset calc(var(--bv) * -1) calc(var(--bv) * -1) 0 var(--cd), 0 0 0 max(1.5px, calc(var(--u) * 1.5)) var(--ink);
+  transition: transform .12s, filter .12s;
+}
+.lv-num { font-size: max(15px, calc(var(--u) * 18)); letter-spacing: .02em; }
+.level-chip:hover { filter: brightness(1.1); transform: translateY(-2px); }
+.level-chip:active { transform: translateY(0); }
+.level-chip.is-current {
+  outline: max(2px, calc(var(--u) * 2.5)) solid var(--white); outline-offset: max(2px, calc(var(--u) * 1.5));
+  filter: brightness(1.08); z-index: 1;
+}
+.level-chip.is-current::after {
+  content: ""; position: absolute; right: calc(var(--u) * -3); top: calc(var(--u) * -3); width: calc(var(--u) * 8); height: calc(var(--u) * 8);
+  background: var(--yellow); border: calc(var(--u) * 1.5) solid var(--ink); border-radius: 50%;
+}
+/* Bloqueada: fosca, sem brilho, com cadeado; não reage ao toque */
+.level-chip.is-locked, .level-chip.is-locked:hover {
+  color: #6f78b0; background: #232859; cursor: not-allowed; filter: none; transform: none;
+  box-shadow: inset var(--bv) var(--bv) 0 rgba(255, 255, 255, .05), inset calc(var(--bv) * -1) calc(var(--bv) * -1) 0 rgba(0, 0, 0, .35), 0 0 0 max(1.5px, calc(var(--u) * 1.5)) var(--ink);
+}
+.level-chip.is-locked .lv-num { font-size: max(11px, calc(var(--u) * 11)); opacity: .85; }
+.level-chip .lock { display: block; width: max(13px, calc(var(--u) * 14)); height: max(13px, calc(var(--u) * 14)); color: #8f98c8; }
+.level-chip.is-denied { animation: level-deny .3s ease-in-out; }
+.level-pages { display: flex; align-items: center; justify-content: center; gap: calc(var(--u) * 5); }
+.page-list { display: flex; gap: calc(var(--u) * 4); }
+.page-btn {
+  display: grid; place-items: center; min-width: max(30px, calc(var(--u) * 25)); height: max(30px, calc(var(--u) * 25)); padding: 0 calc(var(--u) * 3);
+  font-family: var(--display); font-weight: 400; font-size: max(14px, calc(var(--u) * 14)); line-height: 1; color: var(--steel);
+  background: #2f3680; border: 0; cursor: pointer; touch-action: manipulation;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, .16), inset -2px -2px 0 rgba(0, 0, 0, .3), 0 0 0 2px var(--ink);
+}
+.page-btn:hover { background: #3b43a0; }
+.page-btn.is-locked { opacity: .5; }
+.page-btn.is-current { color: var(--ink); background: var(--yellow); opacity: 1; box-shadow: inset 2px 2px 0 #ffe98f, inset -2px -2px 0 #c9a014, 0 0 0 2px var(--ink); }
+.page-arrow svg { width: 52%; height: 52%; }
+.page-btn:disabled { opacity: .3; cursor: default; background: #2f3680; }
+.level-count { margin: calc(var(--u) * 9) 0 0; text-align: center; font-size: max(10px, calc(var(--u) * 9.5)); font-weight: 600; color: var(--steel-dark); }
+.level-count b { color: var(--white); font-weight: 700; }
+.level-chip:focus-visible, .page-btn:focus-visible, .level-close:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+@keyframes level-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes level-pop { from { opacity: 0; transform: translateY(8px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes level-deny { 0%, 100% { translate: 0; } 25% { translate: -3px; } 75% { translate: 3px; } }
+@media (prefers-reduced-motion: reduce) { .level-menu, .level-card, .level-chip.is-denied { animation: none; } .level-chip { transition: none; } }
 .icon-button .icon-cross { display: none; }
 .icon-button.is-muted .icon-waves { display: none; }
 .icon-button.is-muted .icon-cross { display: inline; }
@@ -189,13 +270,13 @@ body {
 /* Ajuda dos efeitos: botão e painel ficam na arena, À DIREITA do palco (nunca sobre ele).
    O JS define --stage-w (largura do palco) e a classe help-fits (só quando há espaço lateral).
    Ambos são position:absolute, então abrir/fechar não desloca nem redimensiona o jogo. */
-.help-toggle, .help-panel {
+.help-toggle, .help-panel, .how-btn, .mouse-btn {
   --help-x: calc(50% + var(--stage-w, 0px) / 2 + 16px);
   position: absolute; z-index: 4; left: var(--help-x);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 .help-toggle {
-  display: none; top: 12px; align-items: center; gap: 8px; height: 36px; padding: 0 14px 0 11px;
+  display: none; top: 66px; align-items: center; gap: 8px; height: 36px; padding: 0 14px 0 11px;
   font: inherit; font-size: 13px; font-weight: 600; color: var(--shell-text);
   background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 999px;
   cursor: pointer; touch-action: manipulation; transition: border-color .2s, background .2s, transform .1s;
@@ -208,7 +289,7 @@ body {
 .help-toggle:active { transform: scale(.97); }
 .help-toggle:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
 .help-panel {
-  top: 58px; width: 272px; max-height: calc(100% - 70px); display: flex; flex-direction: column; overflow: hidden;
+  top: 112px; width: 272px; max-height: calc(100% - 180px); display: flex; flex-direction: column; overflow: hidden;
   font-weight: 500; color: var(--shell-text); background: var(--shell-surface);
   border: 1px solid var(--shell-line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.45);
   opacity: 0; visibility: hidden; transform: translateX(-8px);
@@ -246,7 +327,7 @@ body {
 
 @media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 420px) { .controls { display: none; } .topbar { height: 46px; } .game-text span { display: none; } }
-@media (prefers-reduced-motion: reduce) { .is-serving .serve-hint { animation: none; } .screen { transition: none; } .back, .back svg { transition: none; } .is-ready .tile { animation: none; } .life { transition: none; } .help-toggle, .help-panel { transition: none; } .life.is-new { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .is-serving .serve-hint { animation: none; } .screen { transition: none; } .back, .back svg { transition: none; } .is-ready .tile { animation: none; } .life { transition: none; } .help-toggle, .help-panel { transition: none; } .life.is-new { animation: none; } .how-popover, .level-menu { animation: none; } .how-btn, .mouse-btn { transition: none; } .hint { animation: none; } }
 
 /* Poderes da bola em linha: Fogo (horizontal) e Raio (vertical).
    O JS cria .fx-line com --x/--y/--w/--h (unidades do mundo) e --org (ponto de impacto, em %). */
@@ -314,3 +395,112 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .fx-line, .fx-line::before, .fx-line::after { animation-duration: .25s; animation-iteration-count: 1; }
 }
+
+/* ---------- Tela inicial: recorde + indicação de início (sem botão) ---------- */
+.ready-best { margin: 0; font-size: max(11px, calc(var(--u) * 11)); text-transform: uppercase; color: var(--steel); }
+.ready-best strong { color: var(--yellow); }
+.hint {
+  margin: calc(var(--u) * 14) 0 0; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 10);
+  font-size: max(13px, calc(var(--u) * 14)); text-transform: uppercase; color: var(--white); animation: blink 1.4s ease-in-out infinite;
+}
+.hint-or { font-size: max(11px, calc(var(--u) * 11)); letter-spacing: .08em; }
+
+/* Teclas (tela inicial e popover "Como jogar") */
+.cap {
+  --cap: max(26px, calc(var(--u) * 26));
+  display: inline-grid; place-items: center; height: var(--cap); min-width: var(--cap);
+  padding: 0 calc(var(--cap) * .28); font-family: "Arial Black", "Trebuchet MS", Arial, sans-serif;
+  font-size: calc(var(--cap) * .44); font-weight: 900; line-height: 1; letter-spacing: .02em;
+  text-transform: uppercase; color: var(--navy); text-shadow: none; background: var(--white);
+  border: 2px solid var(--ink); border-radius: 4px; box-shadow: 0 3px 0 var(--ink);
+}
+.cap-wide { min-width: calc(var(--cap) * 2.6); }
+.cap-icon { display: block; width: calc(var(--cap) * .58); height: calc(var(--cap) * .58); }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* ---------- Como jogar: botão só com ícone, ao lado do palco (fora do jogo), acima de "Efeitos" ----------
+   Sem espaço lateral (celular em pé) o JS troca para .how-bottom: o botão vai para uma faixa sob o palco. */
+.how-btn {
+  top: 12px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%;
+  cursor: pointer; touch-action: manipulation;
+  transition: border-color .2s, background .2s, box-shadow .25s, transform .1s;
+}
+.how-btn svg { transition: color .2s; }
+.how-btn:hover, .how-btn[aria-expanded="true"] {
+  background: #141722; border-color: rgba(255,200,87,.6); box-shadow: 0 0 0 4px rgba(255,200,87,.08);
+}
+.how-btn:hover svg, .how-btn[aria-expanded="true"] svg { color: var(--shell-accent); }
+.how-btn:active { transform: scale(.95); }
+.how-btn:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+.arena.how-bottom { padding-bottom: var(--how-strip, 56px); }
+.arena.how-bottom .how-btn { top: auto; bottom: 6px; left: auto; right: calc(50% - var(--stage-w, 0px) / 2); }
+
+/* O JS posiciona o popover (left/top, data-placement e --arrow-x/--arrow-y) ancorado ao botão */
+.how-popover {
+  --arrow-x: 22px; --arrow-y: 22px;
+  position: absolute; z-index: 40; width: 252px; display: flex; flex-direction: column; padding: 14px 16px 12px;
+  color: var(--navy); font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif; font-weight: 700; text-align: left;
+  background: var(--steel); border: 3px solid var(--ink);
+  box-shadow: inset 0 0 0 2px var(--steel-light), 0 4px 0 rgba(0,0,0,.35), 0 12px 28px rgba(0,0,0,.45);
+  animation: how-in .16s ease-out;
+}
+.how-popover[hidden] { display: none; }
+.how-popover::before {
+  content: ""; position: absolute; width: 14px; height: 14px; background: var(--steel);
+  border: 3px solid var(--ink); transform: rotate(45deg);
+}
+.how-popover[data-placement="below"]::before { left: calc(var(--arrow-x) - 7px); top: -10px; border-right: 0; border-bottom: 0; }
+.how-popover[data-placement="above"]::before { left: calc(var(--arrow-x) - 7px); bottom: -10px; border-left: 0; border-top: 0; }
+.how-popover[data-placement="side"]::before { left: -9px; top: calc(var(--arrow-y) - 7px); border-right: 0; border-top: 0; }
+/* Em telas baixas o conteúdo rola dentro do popover (a seta continua visível) */
+.how-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: thin; }
+
+.how-title {
+  margin: 0 28px 6px 0; font-family: "Arial Black", "Trebuchet MS", Arial, sans-serif; font-weight: 900;
+  font-size: 17px; line-height: 1; text-transform: uppercase; letter-spacing: .01em;
+}
+.how-text { margin: 0 0 10px; font-size: 13px; line-height: 1.35; }
+.how-sub {
+  margin: 0 0 8px; padding-top: 10px; font-size: 11px; line-height: 1; letter-spacing: .08em; text-transform: uppercase;
+  color: #3a52c4; border-top: 2px dashed rgba(16,19,58,.35);
+}
+.ctl-list { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 8px; }
+.ctl-list li { display: flex; align-items: center; gap: 12px; }
+.ctl-keys { flex: none; display: inline-flex; align-items: center; gap: 5px; min-width: 92px; }
+.ctl-or { font-size: 11px; }
+.ctl-label { font-size: 13px; }
+.how-popover .cap { --cap: 24px; }
+.how-tips { margin: 0; padding: 0 0 0 16px; font-size: 12.5px; line-height: 1.35; display: grid; gap: 5px; }
+.how-note { margin: 8px 0 0; font-size: 12px; line-height: 1.3; opacity: .8; }
+
+.how-close {
+  position: absolute; top: 3px; right: 3px; z-index: 1; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  color: var(--navy); background: transparent; border: 0; border-radius: 4px; opacity: .6; cursor: pointer; touch-action: manipulation;
+}
+.how-close svg { width: 12px; height: 12px; }
+.how-close:hover { opacity: 1; background: rgba(16,19,58,.12); }
+.how-close:focus-visible { opacity: 1; outline: 2px solid #2d7be0; outline-offset: -2px; }
+@keyframes how-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+
+/* ---------- Controle pelo mouse: botão externo, embaixo ao lado do palco (some em telas só de toque) ----------
+   Desligado: ícone apagado com risco vermelho. Ligado: ícone dourado, sem risco, ponto verde. */
+.mouse-btn {
+  top: auto; bottom: 12px; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  color: var(--shell-muted); background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%;
+  cursor: pointer; touch-action: manipulation;
+  transition: border-color .2s, background .2s, box-shadow .25s, transform .1s, color .2s;
+}
+.mouse-btn:hover { background: #141722; border-color: rgba(255,200,87,.6); }
+.mouse-btn:active { transform: scale(.95); }
+.mouse-btn:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+.mouse-btn.is-on { color: var(--shell-accent); background: #141722; border-color: rgba(255,200,87,.75); box-shadow: 0 0 0 4px rgba(255,200,87,.1); }
+.mouse-btn.is-on .mouse-slash { display: none; }
+.mouse-dot {
+  position: absolute; top: 3px; right: 3px; width: 10px; height: 10px; border-radius: 50%;
+  background: #4a5088; border: 2px solid var(--shell-surface);
+}
+.mouse-btn.is-on .mouse-dot { background: #4fd36b; box-shadow: 0 0 6px rgba(79,211,107,.8); }
+.arena.how-bottom .mouse-btn { left: calc(50% - var(--stage-w, 0px) / 2); bottom: 6px; }
+@media (hover: none) and (pointer: coarse) { .mouse-btn { display: none; } }

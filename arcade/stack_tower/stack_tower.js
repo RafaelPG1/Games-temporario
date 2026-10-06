@@ -20,7 +20,8 @@ const CONFIG = {
   camera: { followLine: 300, smooth: 5, nightAltitude: 1400 },
   debris: { gravity: 1300 },
   timing: { maxFrameTime: 1 / 30 },
-  view: { margin: 6, maxCssHeight: 1000 },
+  // howRoom = espaço lateral mínimo para o botão "Como jogar"; abaixo disso ele vai para uma faixa (howStrip, px) sob o palco
+  view: { margin: 6, maxCssHeight: 1000, howRoom: 66, howStrip: 56 },
 };
 const { width: W, height: H } = CONFIG.world;
 const BH = CONFIG.block.height;
@@ -33,11 +34,11 @@ const ui = {
   score: $('score'), best: $('best'), toast: $('toast'), bestChip: document.querySelector('.best-chip'),
   mute: $('mute-button'), pause: $('pause-button'), resume: $('resume-button'), restart: $('restart-button'),
   overScore: $('over-score'), overBest: $('over-best'), badge: $('record-badge'),
+  how: $('how-button'), howPop: $('how-popover'), howClose: $('how-close'),
 };
 
-// Persistência: game_storage (registro "stack_tower"); chaves antigas migradas uma vez.
-const store = GameStorage.game('stack_tower');
-store.migrate([{ from: 'stacktower:best', to: 'best', type: 'int' }, { from: 'stacktower:muted', to: 'muted', type: 'bool01' }]);
+// Persistência: stack_tower_storage.js (best, muted); dados antigos são recuperados uma vez, na primeira execução.
+const store = window.StackTowerStorage;
 
 /* ===== 2. ÁUDIO (Web Audio, sem arquivos externos) ===== */
 const Sound = (() => {
@@ -241,6 +242,7 @@ function endGame() {
 function startGame() {
   Sound.unlock();
   if (game.state !== STATES.READY) return;
+  setHowOpen(false);
   game.state = STATES.PLAYING; setStageState(); Sound.click();
 }
 
@@ -262,7 +264,7 @@ function update(dt) {
   if (st === STATES.PAUSED) return;
   game.time += dt;
 
-  if (a && (st === STATES.READY || st === STATES.PLAYING)) {
+  if (a && st === STATES.PLAYING) {   // antes de iniciar (READY) nada se move
     if (a.mode === 'move') {
       a.x += a.dir * speedFor(game.level) * dt;
       const min = CONFIG.bounds.min, max = CONFIG.bounds.max - a.w;
@@ -315,9 +317,48 @@ function syncMute() {
   ui.mute.setAttribute('aria-label', m ? 'Ativar sons' : 'Silenciar sons');
 }
 
+// Como jogar: popover pequeno ancorado ao botão "?", fora do palco (ao lado dele ou na faixa sob ele).
+let howOpen = false;
+function setHowOpen(open) {
+  if (open === howOpen) return;
+  howOpen = open;
+  ui.howPop.hidden = !open;
+  ui.how.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) placeHowPopover();
+}
+
+// Abaixo do botão; se não couber, acima; se não couber, ao lado. Sempre dentro da arena.
+function placeHowPopover() {
+  const pop = ui.howPop;
+  const a = ui.arena.getBoundingClientRect(), b = ui.how.getBoundingClientRect();
+  const pad = 8, gap = 12;
+  pop.style.maxHeight = `${Math.max(120, a.height - pad * 2)}px`;
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const bx = b.left - a.left, by = b.top - a.top;
+  let place = 'side', left, top, ax = 22, ay = 22;
+  if (a.height - (by + b.height + gap) >= ph + pad) place = 'below';
+  else if (by - gap >= ph + pad) place = 'above';
+  if (place === 'side') {
+    left = bx + b.width + gap;
+    top = clamp(by, pad, a.height - ph - pad);
+    if (left + pw > a.width - pad) left = Math.max(pad, a.width - pw - pad);
+    ay = clamp(by + b.height / 2 - top, 16, ph - 16);
+  } else {
+    left = clamp(bx, pad, a.width - pw - pad);
+    top = place === 'below' ? by + b.height + gap : by - gap - ph;
+    ax = clamp(bx + b.width / 2 - left, 16, pw - 16);
+  }
+  pop.dataset.placement = place;
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.top = `${Math.round(top)}px`;
+  pop.style.setProperty('--arrow-x', `${Math.round(ax)}px`);
+  pop.style.setProperty('--arrow-y', `${Math.round(ay)}px`);
+}
+
 /* ===== 8. ENTRADA ===== */
 function onPointerDown(e) {
-  if (e.target.closest && e.target.closest('button, a')) return;
+  if (howOpen && !(e.target.closest && e.target.closest('.how-popover, #how-button'))) { setHowOpen(false); return; }   // toque fora só fecha a ajuda
+  if (e.target.closest && e.target.closest('button, a, .how-popover')) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   e.preventDefault(); Sound.unlock();
   if (game.state === STATES.READY) startGame();
@@ -326,6 +367,7 @@ function onPointerDown(e) {
 
 function onKeyDown(e) {
   const k = e.key, onButton = e.target.closest && e.target.closest('button, a');
+  if (k === 'Escape' && howOpen) { e.preventDefault(); setHowOpen(false); return; }
   if (k === ' ' || k === 'ArrowDown' || k === 'Enter' || k === 's' || k === 'S') {
     if (onButton && (k === ' ' || k === 'Enter')) return;      // deixa o botão focado agir sozinho
     e.preventDefault(); if (e.repeat) return;
@@ -345,13 +387,24 @@ function onKeyDown(e) {
 
 /* ===== 9. REDIMENSIONAMENTO ===== */
 function resize() {
-  const { margin, maxCssHeight } = CONFIG.view, ratio = W / H;
-  const availW = Math.max(1, ui.arena.clientWidth - margin * 2), availH = Math.max(1, ui.arena.clientHeight - margin * 2);
-  let cssH = Math.min(availH, maxCssHeight), cssW = cssH * ratio;
-  if (cssW > availW) { cssW = availW; cssH = cssW / ratio; }
-  cssW = Math.floor(cssW); cssH = Math.floor(cssH);
+  const { margin, maxCssHeight, howRoom, howStrip } = CONFIG.view, ratio = W / H;
+  const availW = Math.max(1, ui.arena.clientWidth - margin * 2);
+  const baseH = ui.arena.clientHeight - (ui.arena.classList.contains('how-bottom') ? howStrip : 0);   // altura sem a faixa
+  const fit = (h) => {
+    let cssH = Math.min(Math.max(1, h - margin * 2), maxCssHeight), cssW = cssH * ratio;
+    if (cssW > availW) { cssW = availW; cssH = cssW / ratio; }
+    return [Math.floor(cssW), Math.floor(cssH)];
+  };
+  let [cssW, cssH] = fit(baseH);
+  // "Como jogar" fica ao lado do palco; sem espaço lateral, vai para uma faixa sob o palco
+  const bottom = (ui.arena.clientWidth - cssW) / 2 < howRoom;
+  if (bottom) [cssW, cssH] = fit(baseH - howStrip);
+  ui.arena.style.setProperty('--how-strip', `${howStrip}px`);
+  ui.arena.classList.toggle('how-bottom', bottom);
+  ui.arena.style.setProperty('--stage-w', `${cssW}px`);
   ui.stage.style.width = `${cssW}px`; ui.stage.style.height = `${cssH}px`;
   ui.stage.style.setProperty('--u', `${cssW / W}px`); ui.stage.style.setProperty('--s', String(cssW / W));
+  if (howOpen) placeHowPopover();
 }
 
 /* ===== 10. LOOP E INICIALIZAÇÃO ===== */
@@ -373,7 +426,8 @@ function init() {
   window.addEventListener('blur', () => setPaused(true));
   document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) setPaused(true); });
   ui.mute.addEventListener('click', (e) => { e.stopPropagation(); Sound.toggle(); syncMute(); ui.mute.blur(); });
-  document.getElementById('start-button').addEventListener('click', (e) => { e.stopPropagation(); Sound.unlock(); if (game.state === STATES.READY) startGame(); e.currentTarget.blur(); });
+  ui.how.addEventListener('click', (e) => { e.stopPropagation(); setHowOpen(!howOpen); ui.how.blur(); });
+  ui.howClose.addEventListener('click', (e) => { e.stopPropagation(); setHowOpen(false); ui.howClose.blur(); });
   ui.pause.addEventListener('click', (e) => { e.stopPropagation(); setPaused(true); ui.pause.blur(); });
   ui.resume.addEventListener('click', (e) => { e.stopPropagation(); setPaused(false); });
   ui.restart.addEventListener('click', (e) => { e.stopPropagation(); tryRestart(); });

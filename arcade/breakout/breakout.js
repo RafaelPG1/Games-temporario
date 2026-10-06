@@ -18,8 +18,9 @@ const CONFIG = {
   lives: 3, maxLives: 5,
   timing: { maxFrameTime: 1 / 30, maxStep: 1 / 120, maxMove: 2, lostDelay: 0.8, clearDelay: 0.7, lockTime: 0.4 },
   audio: { masterVolume: 0.3 },
-  // helpRoom = espaço lateral mínimo (px) para exibir o botão/painel de ajuda ao lado do palco
-  view: { margin: 6, maxCssHeight: 1000, helpRoom: 296 },
+  // helpRoom = espaço lateral mínimo (px) para o botão/painel de Efeitos ao lado do palco
+  // howRoom = espaço lateral mínimo para o botão "Como jogar"; abaixo disso ele vai para uma faixa (howStrip, px) sob o palco
+  view: { margin: 6, maxCssHeight: 1000, helpRoom: 296, howRoom: 66, howStrip: 56 },
   // EFEITOS: time = duração (s); mult = fator; specials = [mínimo, extra aleatório] por fase
   fx: {
     wide: { time: 12, mult: 1.5 }, narrow: { time: 8, mult: 0.65 }, sticky: { time: 12 },
@@ -172,9 +173,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const MAX_ANGLE = PAD.maxAngle * Math.PI / 180;
 const MIN_ANGLE = PAD.minAngle * Math.PI / 180;
 
-// Persistência: game_storage (registro "breakout"); chave antiga migrada uma vez.
-const store = GameStorage.game('breakout');
-store.migrate([{ from: 'breakout:muted', to: 'muted', type: 'bool01' }]);
+// Persistência: breakout_storage.js (muted, bestLevel, bestScore, mouseControl)
+const store = BreakoutStorage;
 
 /* ===== 2. ÁUDIO (Web Audio API, sem arquivos externos) ===== */
 const Sound = (() => {
@@ -389,12 +389,18 @@ function resetServe() {
   syncUi();
 }
 
+// Fases desbloqueadas = 1..bestLevel (a fase mais alta já alcançada, como sempre). A partida começa na fase
+// escolhida no seletor; sem escolha manual, na última desbloqueada.
+let pickedLevel = null;
+const unlockedLevel = () => Math.max(1, Math.floor(store.get('bestLevel', 1)));
+const startLevel = () => (pickedLevel === null ? unlockedLevel() : Math.min(pickedLevel, unlockedLevel()));
+
 function newGame() {
   game.score = 0;
   game.lives = CONFIG.lives;
   game.heartSlots = [];
   game.newLife = -1;
-  loadLevel(1);
+  loadLevel(startLevel());
   game.state = STATES.PLAYING;
   syncHud();
   syncUi();
@@ -402,6 +408,7 @@ function newGame() {
 
 function startGame() {
   if (game.state !== STATES.READY) return;
+  setHowOpen(false);
   Sound.click();
   newGame();
 }
@@ -469,6 +476,7 @@ function clearLevel() {
 function showWon() {
   game.state = STATES.WON;
   game.idleTime = 0;
+  store.recordScore(game.score);
   ui.wonScore.textContent = String(game.score);
   ui.wonLevel.textContent = String(game.level);
   syncUi();
@@ -477,6 +485,7 @@ function showWon() {
 function gameOver() {
   game.state = STATES.GAME_OVER;
   game.idleTime = 0;
+  store.recordScore(game.score);
   ui.overScore.textContent = String(game.score);
   ui.overLevel.textContent = String(game.level);
   Sound.over();
@@ -1224,7 +1233,18 @@ const ui = {
   muteButton: document.getElementById('mute-button'),
   helpButton: document.getElementById('help-toggle'),
   helpList: document.getElementById('help-list'),
-  startButton: document.getElementById('start-button'),
+  howButton: document.getElementById('how-button'),
+  howPopover: document.getElementById('how-popover'),
+  howClose: document.getElementById('how-close'),
+  levelButton: document.getElementById('level-button'),
+  levelClose: document.getElementById('level-close'),
+  levelPrev: document.getElementById('level-prev'),
+  levelNext: document.getElementById('level-next'),
+  levelPageList: document.getElementById('level-page-list'),
+  levelCount: document.getElementById('level-count'),
+  levelMenu: document.getElementById('level-menu'),
+  levelGrid: document.getElementById('level-grid'),
+  mouseButton: document.getElementById('mouse-button'),
   resumeButton: document.getElementById('resume-button'),
   nextButton: document.getElementById('next-button'),
   restartButton: document.getElementById('restart-button'),
@@ -1267,6 +1287,15 @@ function syncUi() {
   ui.stage.classList.toggle('is-won', s === STATES.WON);
   ui.stage.classList.toggle('is-over', s === STATES.GAME_OVER);
   ui.stage.classList.toggle('is-serving', s === STATES.PLAYING && game.phase === 'play' && game.balls.some((b) => b.stuck));
+  if (s === STATES.PLAYING) setLevelOpen(false);      // o painel de fases só fica aberto com o jogo parado
+  // Pausa: o botão nunca some nem muda de lugar; só troca o ícone (CSS, via .is-paused) e o rótulo
+  const canPause = s === STATES.PLAYING || s === STATES.PAUSED;
+  const pauseLabel = s === STATES.PAUSED ? 'Continuar' : 'Pausar';
+  ui.pauseButton.classList.toggle('is-inactive', !canPause);
+  ui.pauseButton.setAttribute('aria-disabled', canPause ? 'false' : 'true');
+  ui.pauseButton.setAttribute('aria-label', pauseLabel);
+  ui.pauseButton.title = `${pauseLabel} (P)`;
+  syncLevelButton();
   if (s === STATES.PAUSED) ui.resumeButton.focus({ preventScroll: true });
   if (s === STATES.WON) ui.nextButton.focus({ preventScroll: true });
   if (s === STATES.GAME_OVER) ui.restartButton.focus({ preventScroll: true });
@@ -1329,9 +1358,164 @@ function buildHelp() {
 }
 
 function setHelpOpen(open) {
+  if (open) setHowOpen(false);   // os dois painéis ocupam a mesma coluna: só um aberto por vez
   ui.arena.classList.toggle('help-open', open);
   ui.helpButton.setAttribute('aria-expanded', open ? 'true' : 'false');
   ui.helpButton.setAttribute('aria-label', open ? 'Fechar ajuda dos efeitos' : 'Mostrar ajuda dos efeitos');
+}
+
+// Seletor de fase: mostra TODAS as fases, em páginas de 10. As ainda não alcançadas (> bestLevel) aparecem com cadeado
+// e nunca são aceitas. O total acompanha o número de fases do jogo (e cresce se o jogador passar das voltas).
+const LEVELS_PER_PAGE = 10;
+let levelOpen = false;
+let levelPage = 0;
+const levelTotal = () => Math.max(LEVEL_COUNT, unlockedLevel());
+const levelPageCount = () => Math.ceil(levelTotal() / LEVELS_PER_PAGE);
+const LOCK_SVG = '<svg class="lock" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5 7V5.3a3 3 0 0 1 6 0V7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><rect x="2.8" y="7" width="10.4" height="7.4" rx="1.6" fill="currentColor"/><circle cx="8" cy="10.2" r="1.15" fill="#10133a"/><rect x="7.4" y="10.6" width="1.2" height="2" rx=".5" fill="#10133a"/></svg>';
+
+// A fase destacada no painel: a escolhida (tela inicial/fim de partida) ou a que está em andamento
+function levelShown() {
+  return game.state === STATES.READY || game.state === STATES.GAME_OVER ? startLevel() : game.level;
+}
+
+function syncLevelButton() {
+  ui.levelButton.setAttribute('aria-label', 'Escolher fase');   // o botão é só um ícone: não mostra o número da fase
+}
+
+function buildLevelPages() {
+  const total = levelTotal(), top = unlockedLevel();
+  ui.levelPageList.textContent = '';
+  for (let p = 0; p < levelPageCount(); p++) {
+    const first = p * LEVELS_PER_PAGE + 1, last = Math.min(total, first + LEVELS_PER_PAGE - 1);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'page-btn' + (first > top ? ' is-locked' : '');
+    btn.textContent = String(p + 1);
+    btn.title = `Fases ${first}–${last}`;
+    btn.setAttribute('aria-label', `Página ${p + 1}, fases ${first} a ${last}`);
+    btn.addEventListener('click', (e) => { e.stopPropagation(); levelPage = p; renderLevelPage(); });
+    ui.levelPageList.appendChild(btn);
+  }
+}
+
+function renderLevelPage() {
+  const current = levelShown(), top = unlockedLevel(), total = levelTotal(), pages = levelPageCount();
+  levelPage = clamp(levelPage, 0, pages - 1);
+  const first = levelPage * LEVELS_PER_PAGE + 1, last = Math.min(total, first + LEVELS_PER_PAGE - 1);
+  ui.levelGrid.textContent = '';
+  for (let n = first; n <= last; n++) {
+    const locked = n > top;
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = `level-chip t${Math.floor(((n - 1) % LEVEL_COUNT) / 3) % 8 + 1}${locked ? ' is-locked' : ''}${n === current ? ' is-current' : ''}`;
+    chip.innerHTML = `<span class="lv-num">${n}</span>${locked ? LOCK_SVG : ''}`;
+    chip.setAttribute('aria-label', locked ? `Fase ${n}, bloqueada` : `Fase ${n}`);
+    if (locked) chip.setAttribute('aria-disabled', 'true');
+    if (n === current) chip.setAttribute('aria-current', 'true');
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (locked) { chip.classList.remove('is-denied'); void chip.offsetWidth; chip.classList.add('is-denied'); return; }
+      pickLevel(n);
+    });
+    ui.levelGrid.appendChild(chip);
+  }
+  Array.from(ui.levelPageList.children).forEach((btn, i) => {
+    btn.classList.toggle('is-current', i === levelPage);
+    if (i === levelPage) btn.setAttribute('aria-current', 'page'); else btn.removeAttribute('aria-current');
+  });
+  ui.levelPrev.disabled = levelPage <= 0;
+  ui.levelNext.disabled = levelPage >= pages - 1;
+  ui.levelCount.innerHTML = `Desbloqueadas: <b>${Math.min(top, total)}</b> de ${total}`;
+}
+
+function setLevelOpen(open) {
+  if (open === levelOpen) return;
+  levelOpen = open;
+  if (open) {
+    levelPage = Math.floor((levelShown() - 1) / LEVELS_PER_PAGE);   // abre na página da fase destacada
+    buildLevelPages();
+    renderLevelPage();
+  }
+  ui.levelMenu.hidden = !open;
+  ui.levelButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+// O botão de fases está sempre visível. Durante a partida, abrir o painel pausa o jogo.
+function toggleLevelMenu() {
+  if (levelOpen) { setLevelOpen(false); return; }
+  if (game.state === STATES.PLAYING) setPaused(true);
+  setLevelOpen(true);
+}
+
+function pickLevel(n) {
+  if (!(n >= 1 && n <= unlockedLevel())) return;   // fase bloqueada nunca é aceita
+  const s = game.state;
+  if ((s === STATES.PLAYING || s === STATES.PAUSED) && n === game.level) { setLevelOpen(false); return; }   // já é a fase em andamento
+  pickedLevel = n;
+  Sound.click();
+  if (s === STATES.READY) { loadLevel(n); syncHud(); }   // a tela inicial mostra a fase escolhida
+  else if (s !== STATES.GAME_OVER) {                     // no meio da partida (ou após vitória): começa uma nova partida nessa fase
+    input.left = input.right = false;
+    lastTime = null;
+    newGame();
+  }
+  setLevelOpen(false);
+  syncLevelButton();
+}
+
+// Controle pelo mouse: começa desligado; a preferência fica salva
+let mouseControl = store.get('mouseControl', true) !== false;
+function syncMouseButton() {
+  const label = `Controle pelo mouse: ${mouseControl ? 'ligado' : 'desligado'}`;
+  ui.mouseButton.classList.toggle('is-on', mouseControl);
+  ui.mouseButton.setAttribute('aria-pressed', mouseControl ? 'true' : 'false');
+  ui.mouseButton.setAttribute('aria-label', label);
+  ui.mouseButton.title = label;
+}
+function setMouseControl(on) {
+  mouseControl = Boolean(on);
+  store.set('mouseControl', mouseControl);
+  if (!mouseControl) game.target = null;   // a barra para onde está, sem seguir o último ponto do mouse
+  syncMouseButton();
+}
+
+// Como jogar: popover pequeno ancorado ao botão "?", sempre fora do palco quando há espaço lateral.
+let howOpen = false;
+function setHowOpen(open) {
+  if (open === howOpen) return;
+  howOpen = open;
+  if (open) setHelpOpen(false);
+  ui.howPopover.hidden = !open;
+  ui.howButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+  if (open) placeHowPopover();
+}
+
+// Abaixo do botão; se não couber, acima; se não couber, ao lado. Sempre dentro da arena.
+function placeHowPopover() {
+  const pop = ui.howPopover;
+  const a = ui.arena.getBoundingClientRect(), b = ui.howButton.getBoundingClientRect();
+  const pad = 8, gap = 12;
+  pop.style.maxHeight = `${Math.max(120, a.height - pad * 2)}px`;
+  const pw = pop.offsetWidth, ph = pop.offsetHeight;
+  const bx = b.left - a.left, by = b.top - a.top;
+  let place = 'side', left, top, ax = 22, ay = 22;
+  if (a.height - (by + b.height + gap) >= ph + pad) place = 'below';
+  else if (by - gap >= ph + pad) place = 'above';
+  if (place === 'side') {
+    left = bx + b.width + gap;
+    top = clamp(by, pad, a.height - ph - pad);
+    if (left + pw > a.width - pad) left = Math.max(pad, a.width - pw - pad);
+    ay = clamp(by + b.height / 2 - top, 16, ph - 16);
+  } else {
+    left = clamp(bx, pad, a.width - pw - pad);
+    top = place === 'below' ? by + b.height + gap : by - gap - ph;
+    ax = clamp(bx + b.width / 2 - left, 16, pw - 16);
+  }
+  pop.dataset.placement = place;
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.top = `${Math.round(top)}px`;
+  pop.style.setProperty('--arrow-x', `${Math.round(ax)}px`);
+  pop.style.setProperty('--arrow-y', `${Math.round(ay)}px`);
 }
 
 /* ===== 7. ENTRADA ===== */
@@ -1346,7 +1530,12 @@ function onKeyDown(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   Sound.unlock();
   const isLeft = LEFT_KEYS.has(e.code), isRight = RIGHT_KEYS.has(e.code);
-  if (isLeft || isRight) {
+  if (levelOpen && (e.code === 'Space' || e.code === 'Enter') && e.target.closest && e.target.closest('.level-menu')) return;   // Enter/Espaço ativam o botão focado no painel
+  if (e.code === 'Escape' && howOpen) {
+    setHowOpen(false);
+  } else if (e.code === 'Escape' && levelOpen) {
+    setLevelOpen(false);
+  } else if (isLeft || isRight) {
     e.preventDefault();
     if (isLeft) input.left = true; else input.right = true;
   } else if (e.code === 'KeyM' && !e.repeat) {
@@ -1375,13 +1564,16 @@ function paddleToClientX(clientX) {
 }
 
 function onPointerDown(e) {
-  if (e.target.closest && e.target.closest('button, a, header, aside')) return;
+  if (howOpen && !(e.target.closest && e.target.closest('.how-popover, #how-button'))) { setHowOpen(false); return; }   // toque fora só fecha a ajuda
+  if (levelOpen && (e.target === ui.levelMenu || !(e.target.closest && e.target.closest('.level-menu, #level-button, #pause-button')))) { setLevelOpen(false); return; }   // toque fora só fecha o seletor
+  if (e.target.closest && e.target.closest('button, a, header, aside, .how-popover, .level-menu')) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
   e.preventDefault();
   Sound.unlock();
+  if (game.state === STATES.READY) { startGame(); return; }   // "Toque para iniciar"
   if (game.state !== STATES.PLAYING) return;
   if (e.pointerType === 'mouse') {
-    paddleToClientX(e.clientX);
+    if (mouseControl) paddleToClientX(e.clientX);
     launch();
   } else {
     drag.id = e.pointerId; drag.lastX = drag.startX = e.clientX; drag.startY = e.clientY; drag.moved = false;
@@ -1390,7 +1582,7 @@ function onPointerDown(e) {
 
 function onPointerMove(e) {
   if (game.state !== STATES.PLAYING) return;
-  if (e.pointerType === 'mouse') { paddleToClientX(e.clientX); return; }
+  if (e.pointerType === 'mouse') { if (mouseControl) paddleToClientX(e.clientX); return; }
   if (e.pointerId !== drag.id) return;
   const dx = e.clientX - drag.lastX;
   drag.lastX = e.clientX;
@@ -1406,15 +1598,23 @@ function onPointerEnd(e, cancelled) {
 
 /* ===== 8. REDIMENSIONAMENTO ===== */
 function resizeCanvas() {
-  const { margin, maxCssHeight, helpRoom } = CONFIG.view;
+  const { margin, maxCssHeight, helpRoom, howRoom, howStrip } = CONFIG.view;
   const availW = Math.max(1, ui.arena.clientWidth - margin * 2);
-  const availH = Math.max(1, ui.arena.clientHeight - margin * 2);
   const ratio = W / H;
-  let cssH = Math.min(availH, maxCssHeight);
-  let cssW = cssH * ratio;
+  const baseH = ui.arena.clientHeight - (ui.arena.classList.contains('how-bottom') ? howStrip : 0);   // altura sem a faixa
+  const fit = (h) => {
+    let cssH = Math.min(Math.max(1, h - margin * 2), maxCssHeight);
+    let cssW = cssH * ratio;
+    if (cssW > availW) { cssW = availW; cssH = cssW / ratio; }
+    return [Math.floor(cssW), Math.floor(cssH)];
+  };
 
-  if (cssW > availW) { cssW = availW; cssH = cssW / ratio; }
-  cssW = Math.floor(cssW); cssH = Math.floor(cssH);
+  let [cssW, cssH] = fit(baseH);
+  // "Como jogar" fica ao lado do palco; sem espaço lateral, vai para uma faixa sob o palco
+  const bottom = (ui.arena.clientWidth - cssW) / 2 < howRoom;
+  if (bottom) [cssW, cssH] = fit(baseH - howStrip);
+  ui.arena.style.setProperty('--how-strip', `${howStrip}px`);
+  ui.arena.classList.toggle('how-bottom', bottom);
 
   const dpr = Math.min(window.devicePixelRatio || 1, 3);
   ui.stage.style.width = `${cssW}px`;
@@ -1429,6 +1629,7 @@ function resizeCanvas() {
   canvas.height = Math.max(1, Math.round(canvas.width * H / W));
   S = canvas.width / W;
   buildBackground();
+  if (howOpen) placeHowPopover();
   render();
 }
 
@@ -1446,10 +1647,12 @@ function frame(now) {
 }
 
 function init() {
-  loadLevel(1);             // a tela inicial já mostra o tabuleiro da fase 1
+  loadLevel(startLevel());  // a tela inicial já mostra o tabuleiro da fase selecionada
   document.getElementById('title-level').textContent = String(store.get('bestLevel', 1));
   syncHud();
   syncMuteButton();
+  syncMouseButton();
+  syncLevelButton();
   buildHelp();
 
   document.addEventListener('keydown', onKeyDown, { passive: false });
@@ -1468,9 +1671,15 @@ function init() {
   document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) setPaused(true); });
 
   ui.muteButton.addEventListener('click', (e) => { e.stopPropagation(); toggleMute(); ui.muteButton.blur(); });
-  ui.pauseButton.addEventListener('click', (e) => { e.stopPropagation(); setPaused(true); ui.pauseButton.blur(); });
+  ui.pauseButton.addEventListener('click', (e) => { e.stopPropagation(); setPaused(game.state === STATES.PLAYING); ui.pauseButton.blur(); });   // alterna pausar/continuar; fora da partida não faz nada
   ui.helpButton.addEventListener('click', (e) => { e.stopPropagation(); setHelpOpen(!ui.arena.classList.contains('help-open')); ui.helpButton.blur(); });
-  ui.startButton.addEventListener('click', (e) => { e.stopPropagation(); startGame(); ui.startButton.blur(); });
+  ui.howButton.addEventListener('click', (e) => { e.stopPropagation(); setHowOpen(!howOpen); ui.howButton.blur(); });
+  ui.levelButton.addEventListener('click', (e) => { e.stopPropagation(); toggleLevelMenu(); ui.levelButton.blur(); });
+  ui.levelClose.addEventListener('click', (e) => { e.stopPropagation(); setLevelOpen(false); });
+  ui.levelPrev.addEventListener('click', (e) => { e.stopPropagation(); levelPage -= 1; renderLevelPage(); });
+  ui.levelNext.addEventListener('click', (e) => { e.stopPropagation(); levelPage += 1; renderLevelPage(); });
+  ui.mouseButton.addEventListener('click', (e) => { e.stopPropagation(); setMouseControl(!mouseControl); ui.mouseButton.blur(); });
+  ui.howClose.addEventListener('click', (e) => { e.stopPropagation(); setHowOpen(false); ui.howClose.blur(); });
   ui.resumeButton.addEventListener('click', (e) => { e.stopPropagation(); setPaused(false); ui.resumeButton.blur(); });
   ui.nextButton.addEventListener('click', (e) => { e.stopPropagation(); nextLevel(); ui.nextButton.blur(); });
   ui.restartButton.addEventListener('click', (e) => { e.stopPropagation(); tryRestart(); ui.restartButton.blur(); });
