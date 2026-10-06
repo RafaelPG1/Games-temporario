@@ -33,13 +33,11 @@ function mix(a, b, t) {
   const c = (s) => Math.round(lerp((pa >> s) & 255, (pb >> s) & 255, t));
   return `rgb(${c(16)},${c(8)},${c(0)})`;
 }
-// Persistência: game_storage (registro "snake"). Chaves antigas migradas uma vez, sem sobrescrever dados novos.
-const store = GameStorage.game('snake');
-store.migrate([{ from: 'snake:best', to: 'best', type: 'int' }, { from: 'snake:muted', to: 'muted', type: 'bool01' }]);
+// Persistência: tudo passa por snake_storage.js (SnakeStorage), isolado do restante do projeto.
 
 /* ===== 2. ÁUDIO (Web Audio API, sem arquivos externos) ===== */
 const Sound = (() => {
-  let ctx = null, master = null, unavailable = false, muted = store.get('muted', false) === true;
+  let ctx = null, master = null, unavailable = false, muted = SnakeStorage.isMuted();
   function ensure() {
     if (unavailable) return null;
     if (!ctx) {
@@ -70,7 +68,7 @@ const Sound = (() => {
   return {
     get muted() { return muted; },
     unlock() { if (!muted) play(ensure); },
-    setMuted(v) { muted = Boolean(v); store.set('muted', muted); if (!muted) play(ensure); },
+    setMuted(v) { muted = Boolean(v); SnakeStorage.setMuted(muted); if (!muted) play(ensure); },
     eat() { play(() => { tone({ type: 'square', from: 440, to: 660, duration: 0.07, volume: 0.25 }); tone({ type: 'triangle', from: 660, to: 990, duration: 0.1, volume: 0.35, delay: 0.06 }); }); },
     record() { play(() => [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.12, volume: 0.35, delay: 0.1 * i }))); },
     hit() { play(() => { tone({ type: 'sawtooth', from: 300, to: 50, duration: 0.5, volume: 0.4 }); tone({ type: 'square', from: 120, to: 40, duration: 0.3, volume: 0.25 }); }); },
@@ -82,15 +80,16 @@ const Sound = (() => {
 const game = {
   state: STATES.READY, time: 0, acc: 0, alpha: 1,
   snake: [], prev: [], dir: DIRS.right, queue: [],
-  food: null, foodBorn: 0, score: 0, best: Number(store.get('best', 0)) || 0, newRecord: false,
+  food: null, foodBorn: 0, score: 0, best: SnakeStorage.getBest(), newRecord: false,
   bulges: [], particles: [], floats: [], won: false,
 };
 
 const ui = {
-  play: document.getElementById('play'), arena: document.getElementById('arena'), board: document.getElementById('board'),
+  play: document.getElementById('play'), stage: document.getElementById('stage'), arena: document.getElementById('arena'), board: document.getElementById('board'),
   score: document.getElementById('score'), best: document.getElementById('best'), bestCard: document.getElementById('best-card'),
   pause: document.getElementById('pause-button'), mute: document.getElementById('mute-button'),
-  resume: document.getElementById('resume-button'), start: document.getElementById('start-button'), restart: document.getElementById('restart-button'),
+  resume: document.getElementById('resume-button'), restart: document.getElementById('restart-button'),
+  helpButton: document.getElementById('help-button'), helpPopover: document.getElementById('help-popover'), helpClose: document.getElementById('help-close'),
   overTitle: document.getElementById('over-title'), overScore: document.getElementById('over-score'),
   badge: document.getElementById('record-badge'), toast: document.getElementById('toast'),
 };
@@ -136,8 +135,7 @@ function turn(name) {
   if (game.queue.length < CONFIG.queueMax) game.queue.push(d);
 }
 
-function steer(name) {
-  if (game.state === STATES.READY) startGame();
+function steer(name) {   // antes de iniciar (toque ou Space) as direções não fazem nada
   if (game.state === STATES.PLAYING) turn(name);
 }
 
@@ -168,7 +166,7 @@ function eat() {
   updateScore(true);
   if (game.score > game.best) {
     const first = !game.newRecord && game.best > 0;
-    game.best = game.score; store.set('best', game.best);
+    game.best = game.score; SnakeStorage.setBest(game.best);
     updateBest(true);
     if (first) { game.newRecord = true; showToast('Novo recorde!'); Sound.record(); }
     else if (game.best > 0) game.newRecord = true;
@@ -277,7 +275,7 @@ function drawSnake() {
 function drawHead(p, dead) {
   const d = game.dir, r = CONFIG.bodyWidth * 0.62 * (1 + bulgeAt(0) * 0.5);
   const px = -d.y, py = d.x;                  // perpendicular
-  if (!dead && game.state !== STATES.PAUSED && (game.time * 1000) % 1800 < 260) {   // língua
+  if (!dead && game.state !== STATES.READY && game.state !== STATES.PAUSED && (game.time * 1000) % 1800 < 260) {   // língua (cobra parada antes do início)
     const bx = p.x + d.x * r * 0.9, by = p.y + d.y * r * 0.9;
     ctx.strokeStyle = COLORS.berry; ctx.lineWidth = 0.07; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + d.x * 0.35, by + d.y * 0.35);
@@ -337,7 +335,7 @@ function setState(s) {
     ui.badge.hidden = !game.newRecord;
     ui.restart.focus({ preventScroll: true });
   }
-  if (s === STATES.PAUSED) ui.resume.focus({ preventScroll: true });
+  if (s === STATES.PAUSED && !helpOpen) ui.resume.focus({ preventScroll: true });
 }
 
 function pop(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
@@ -352,9 +350,58 @@ function syncMute() {
 }
 function toggleMute() { Sound.setMuted(!Sound.muted); syncMute(); Sound.click(); }
 
+// Ajuda "Como jogar": popover pequeno ancorado ao botão "?", fora do tabuleiro. Se abrir no meio da
+// partida, o jogo pausa (o painel pode cobrir parte do campo); ao fechar, a pausa continua até "Continuar".
+let helpOpen = false;
+const HELP = { gap: 12, edge: 8, maxWidth: 260, minSide: 200, button: 40 };
+
+function openHelp() {
+  if (helpOpen) return;
+  helpOpen = true;
+  ui.helpPopover.hidden = false;
+  ui.helpButton.setAttribute('aria-expanded', 'true');
+  setPaused(true);                          // só tem efeito durante a partida
+  placeHelp();
+}
+
+function closeHelp() {
+  if (!helpOpen) return;
+  helpOpen = false;
+  ui.helpPopover.hidden = true;
+  ui.helpButton.setAttribute('aria-expanded', 'false');
+}
+
+// Preferência: abrir ABAIXO do botão. Se não couber, abre acima; se ainda assim não couber
+// (celular deitado), limita a altura e deixa o conteúdo rolar.
+function placeHelp() {
+  if (!helpOpen) return;
+  const pop = ui.helpPopover;
+  for (const v of ['max-height', 'overflow-y']) pop.style.removeProperty(v);
+  const arena = ui.arena.getBoundingClientRect();
+  const btn = ui.helpButton.getBoundingClientRect();
+  const view = { top: 0, bottom: window.innerHeight };
+  const width = Math.floor(Math.min(HELP.maxWidth, arena.width - HELP.edge * 2));
+  const left = Math.max(arena.left + HELP.edge, Math.min(btn.left, arena.right - HELP.edge - width));
+  pop.style.width = `${width}px`;
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.setProperty('--arrow-x', `${Math.round(Math.min(Math.max(btn.left + btn.width / 2 - left, 16), width - 16))}px`);
+  const height = pop.offsetHeight;
+  const roomBelow = view.bottom - btn.bottom - HELP.gap - HELP.edge;
+  const roomAbove = btn.top - view.top - HELP.gap - HELP.edge;
+  let placement = 'below';
+  // Com o botão ao lado do tabuleiro, abre sempre abaixo dele (rola se faltar altura); só inverte quando o botão está sob o tabuleiro.
+  if (ui.stage.dataset.helpPos !== 'side' && height > roomBelow && roomAbove > roomBelow) placement = 'above';
+  const room = placement === 'below' ? roomBelow : roomAbove;
+  if (height > room) { pop.style.maxHeight = `${Math.max(96, Math.floor(room))}px`; pop.style.overflowY = 'auto'; }
+  const finalHeight = pop.offsetHeight;
+  pop.style.top = `${Math.round(placement === 'below' ? btn.bottom + HELP.gap : btn.top - HELP.gap - finalHeight)}px`;
+  pop.dataset.placement = placement;
+}
+
 /* ===== 8. ENTRADA ===== */
 function onKeyDown(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (helpOpen && e.code === 'Escape') { e.preventDefault(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); return; }
   Sound.unlock();
   const dir = KEYS[e.code];
   if (dir) { e.preventDefault(); steer(dir); }
@@ -369,12 +416,17 @@ function onKeyDown(e) {
   }
 }
 
-// Deslizar no tabuleiro: cada arrasto acima do limite vira uma curva; toque simples inicia a partida.
+// Tocar/clicar no tabuleiro inicia a partida (sem botão "Jogar"); depois, cada arrasto acima do limite vira uma curva.
+// Com a ajuda aberta, o primeiro toque fora dela só a fecha.
 const swipe = new Map();
+let helpClosedBy = null;
 function onPointerDown(e) {
+  if (helpClosedBy === e) return;
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
   Sound.unlock();
   e.preventDefault();
-  swipe.set(e.pointerId, { x: e.clientX, y: e.clientY, moved: false });
+  if (game.state === STATES.READY) startGame();
+  swipe.set(e.pointerId, { x: e.clientX, y: e.clientY });
   try { ui.board.setPointerCapture(e.pointerId); } catch (err) {}
 }
 function onPointerMove(e) {
@@ -382,27 +434,39 @@ function onPointerMove(e) {
   if (!s) return;
   const dx = e.clientX - s.x, dy = e.clientY - s.y;
   if (Math.max(Math.abs(dx), Math.abs(dy)) < CONFIG.swipeDistance) return;
-  s.moved = true;
   steer(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
   s.x = e.clientX; s.y = e.clientY;
 }
 function onPointerUp(e) {
-  const s = swipe.get(e.pointerId);
   swipe.delete(e.pointerId);
-  if (s && !s.moved && game.state === STATES.READY && e.type === 'pointerup') startGame();
 }
 
 /* ===== 9. REDIMENSIONAMENTO ===== */
 function resize() {
   const m = CONFIG.margin;
   const aw = ui.play.clientWidth - m * 2, ah = ui.play.clientHeight - m * 2;
-  const cell = Math.max(8, Math.min(CONFIG.maxCell, Math.floor(Math.min(aw / COLS, ah / ROWS))));
+  // O botão "?" fica fora do tabuleiro: ao lado (reserva dos dois lados, para o jogo seguir centralizado)
+  // ou, se faltar largura, logo abaixo. Escolhe o formato que permite o maior tabuleiro.
+  const extra = (c) => HELP.button + HELP.gap + Math.ceil(c * 0.4);
+  const fitCell = (pos) => {
+    for (let c = CONFIG.maxCell; c > 8; c--) {
+      const okW = pos === 'side' ? c * COLS + 2 * extra(c) <= aw : c * COLS <= aw;
+      const okH = pos === 'side' ? c * ROWS <= ah : c * ROWS + extra(c) <= ah;
+      if (okW && okH) return c;
+    }
+    return 8;
+  };
+  const side = fitCell('side'), below = fitCell('below');
+  const helpPos = side >= below ? 'side' : 'below';
+  const cell = helpPos === 'side' ? side : below;
+  ui.stage.dataset.helpPos = helpPos;
   const dpr = window.devicePixelRatio || 1;
   ui.arena.style.setProperty('--cell', `${cell}px`);
   ui.arena.style.setProperty('--bw', `${cell * COLS}px`);
   canvas.width = Math.round(cell * COLS * dpr); canvas.height = Math.round(cell * ROWS * dpr);
   scale = canvas.width / COLS;
   render();
+  placeHelp();     // reposiciona o painel de ajuda, se estiver aberto
 }
 
 /* ===== 10. LOOP E INICIALIZAÇÃO ===== */
@@ -429,6 +493,9 @@ function init() {
   updateBest(false);
   syncMute();
   document.addEventListener('keydown', onKeyDown, { passive: false });
+  document.addEventListener('pointerdown', (e) => {
+    if (helpOpen && !(e.target.closest && e.target.closest('#help-popover, #help-button'))) { closeHelp(); helpClosedBy = e; }
+  }, true);
   ui.board.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) onPointerDown(e); });
   ui.board.addEventListener('pointermove', onPointerMove);
   ui.board.addEventListener('pointerup', onPointerUp);
@@ -437,10 +504,15 @@ function init() {
   document.querySelectorAll('.dir').forEach((btn) => btn.addEventListener('pointerdown', (e) => {
     e.preventDefault(); Sound.unlock(); steer(btn.dataset.dir);
   }));
+  ui.helpButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (helpOpen) closeHelp(); else openHelp();
+    if (e.detail > 0) ui.helpButton.blur();   // clique/toque: Espaço não deve acionar o botão depois
+  });
+  ui.helpClose.addEventListener('click', (e) => { e.stopPropagation(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); });
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
   ui.pause.addEventListener('click', () => { setPaused(true); ui.pause.blur(); });
   ui.resume.addEventListener('click', () => setPaused(false));
-  ui.start.addEventListener('click', () => { Sound.unlock(); if (game.state === STATES.READY) startGame(); ui.start.blur(); });
   ui.restart.addEventListener('click', restart);
   window.addEventListener('blur', () => setPaused(true));
   document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) setPaused(true); });

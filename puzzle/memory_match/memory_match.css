@@ -3,7 +3,7 @@
   --menu-accent: #ffcf5c;
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633; --shell-text: #eceef5; --shell-muted: #8d93a8;
   --indigo: #2b2d5b; --indigo-dark: #1b1c3d; --cream: #fff4dc; --coral: #ff7a59; --gold: #ffcf5c; --teal: #3fd0c9; --ink: #1b1c3d;
-  --cw: 70px; --cols: 4; --gap: 10px;
+  --cw: 70px; --cols: 4; --gap: 10px; --pad: 18px;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--shell-bg); touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
@@ -16,7 +16,7 @@ button { font: inherit; color: inherit; }
 .back:hover { background: #141722; border-color: rgba(255,207,92,.6); }
 .back:hover svg { transform: translateX(-3px); color: var(--gold); }
 .back:active { transform: scale(.97); }
-.back:focus-visible, .tool:focus-visible, .card:focus-visible, .btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.back:focus-visible, .tool:focus-visible, .card:focus-visible, .btn:focus-visible, .help-btn:focus-visible, .screen-ready:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 .game-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(255,122,89,.25); }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
@@ -26,7 +26,7 @@ button { font: inherit; color: inherit; }
 .arena { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 8px; background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg); }
 
 /* Placar: PONTOS = cartão cheio e grande; RECORDE = pílula dourada de contorno; o resto é uma faixa de progresso */
-.hud { flex: none; display: grid; grid-template-columns: 1fr auto auto; gap: 8px; width: min(100%, 560px); align-items: stretch; }
+.hud { flex: none; display: grid; grid-template-columns: 1fr auto auto; gap: 8px; width: 100%; align-items: stretch; }
 .label { font-size: 11px; font-weight: 700; letter-spacing: .12em; }
 .value { font-weight: 800; font-variant-numeric: tabular-nums; }
 .stat-score { display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 8px 14px; line-height: 1; background: linear-gradient(160deg, var(--indigo), var(--indigo-dark)); border: 1px solid rgba(255,207,92,.35); border-radius: 14px; }
@@ -51,6 +51,41 @@ button { font: inherit; color: inherit; }
 
 .play { position: relative; flex: 1 1 0; min-height: 0; width: 100%; display: grid; place-items: center; }
 .board { display: grid; grid-template-columns: repeat(var(--cols), var(--cw)); gap: var(--gap); }
+
+/* ===== CONTAINER DO JOGO + BOTÃO "?" =====
+   .stage = container + botão "?". Com espaço lateral: "?" ao lado do container (que fica centralizado).
+   Sem espaço (celular): "?" logo abaixo do container, à direita. O JS escolhe em data-help-pos. */
+.stage { position: relative; display: flex; flex-direction: column; }
+.game-panel {
+  position: relative; display: flex; flex-direction: column; gap: 14px; padding: var(--pad);
+  width: calc(var(--cols) * var(--cw) + (var(--cols) - 1) * var(--gap) + var(--pad) * 2);
+  background: radial-gradient(120% 80% at 50% 0%, rgba(63,208,201,.07), transparent 60%), linear-gradient(165deg, #1a1c3f, #101129 70%);
+  border: 1.5px solid rgba(255,207,92,.3); border-radius: 26px;
+  box-shadow: 0 0 0 5px rgba(43,45,91,.35), 0 22px 54px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.07), inset 0 0 40px rgba(0,0,0,.25);
+}
+.board-wrap { position: relative; flex: none; display: grid; justify-content: center; }
+.stage .help-btn { position: absolute; top: 0; left: calc(100% + 16px); }
+.stage[data-help-pos="below"] .help-btn { position: static; align-self: flex-end; margin-top: 12px; }
+
+/* Botão "Como jogar": só ícone, fora do container */
+.help-btn { flex: none; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%; cursor: pointer; touch-action: manipulation; transition: border-color .2s, background .2s, box-shadow .25s, transform .1s; }
+.help-btn svg { transition: color .2s; }
+.help-btn:hover, .help-btn[aria-expanded="true"] { background: #141722; border-color: rgba(255,207,92,.6); box-shadow: 0 0 0 4px rgba(255,207,92,.08); }
+.help-btn:hover svg, .help-btn[aria-expanded="true"] svg { color: var(--gold); }
+.help-btn:active { transform: scale(.95); }
+
+/* Tela de início: sem botão "Jogar" (toque/clique ou Space). Sem camada escura sobre o tabuleiro:
+   a área toda é clicável, mas só o card central aparece, destacado sobre as cartas. */
+.screen-ready { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: 0; cursor: pointer; touch-action: manipulation; color: inherit; background: none; border: 0; border-radius: 16px; transition: opacity .25s ease, visibility 0s linear .25s; }
+.game-panel:not(.is-ready) .screen-ready { opacity: 0; visibility: hidden; pointer-events: none; }
+.start-card { display: flex; flex-direction: column; align-items: center; gap: 16px; width: min(90%, 300px); padding: 24px 18px 22px; text-align: center; background: linear-gradient(165deg, #34376d, var(--indigo-dark)); border: 1.5px solid rgba(255,207,92,.55); border-radius: 22px; box-shadow: 0 16px 36px rgba(0,0,0,.5), 0 0 0 6px rgba(27,28,61,.55), inset 0 1px 0 rgba(255,255,255,.12); transition: transform .2s ease; }
+.screen-ready:hover .start-card { transform: translateY(-2px); }
+.screen-ready .title { font-size: clamp(20px, 6vw, 26px); font-weight: 900; line-height: 1.1; letter-spacing: .01em; white-space: nowrap; color: var(--gold); text-shadow: 0 2px 0 #7a5a12; }
+.hint { display: flex; flex-direction: column; align-items: center; gap: 8px; padding-top: 14px; width: 100%; font-size: 15px; font-weight: 800; letter-spacing: .06em; line-height: 1.2; text-transform: uppercase; color: var(--shell-text); border-top: 1.5px dashed rgba(255,207,92,.3); animation: blink 1.8s ease-in-out infinite; }
+.hint-or { font-size: 11px; letter-spacing: .1em; color: var(--shell-muted); }
+@keyframes blink { 50% { opacity: .6; } }
+.cap { display: inline-grid; place-items: center; height: 26px; min-width: 26px; padding: 0 7px; font-family: inherit; font-size: 11px; font-weight: 800; line-height: 1; letter-spacing: .02em; text-transform: uppercase; color: var(--ink); background: var(--cream); border: 1.5px solid #e8d6ae; border-radius: 7px; box-shadow: 0 3px 0 #b8933f; }
+.cap-wide { min-width: 62px; }
 
 /* ===== CARTAS =====
    Giro 3D em Y: verso e frente ficam empilhados e giram juntos (verso em 0°→180°, frente em 180°→360°),
@@ -90,7 +125,7 @@ button { font: inherit; color: inherit; }
 .toast.show { animation: toast 1.6s ease both; }
 @keyframes toast { 12%, 75% { opacity: 1; transform: translate(-50%, 0); } }
 
-.win { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(7,8,12,.7); backdrop-filter: blur(3px); opacity: 0; visibility: hidden; transition: opacity .3s, visibility 0s linear .3s; z-index: 5; }
+.win { position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; background: rgba(7,8,12,.7); backdrop-filter: blur(3px); opacity: 0; visibility: hidden; transition: opacity .3s, visibility 0s linear .3s; z-index: 5; }
 .win.is-open { opacity: 1; visibility: visible; transition-delay: 0s; }
 .win-card { display: flex; flex-direction: column; align-items: center; gap: 10px; width: min(88%, 320px); padding: 24px 20px; text-align: center; background: linear-gradient(160deg, var(--indigo), var(--indigo-dark)); border: 2px solid var(--gold); border-radius: 22px; box-shadow: 0 20px 50px rgba(0,0,0,.6); }
 .win.is-open .win-card { animation: rise .5s cubic-bezier(.2,1.4,.4,1); }
@@ -104,8 +139,31 @@ button { font: inherit; color: inherit; }
 @keyframes badge { from { transform: scale(.4); opacity: 0; } }
 .btn { min-height: 46px; padding: 8px 24px; margin-top: 4px; font-weight: 800; color: var(--ink); background: var(--coral); border: 0; border-radius: 14px; box-shadow: 0 4px 0 #c24d30; cursor: pointer; }
 .btn:hover { background: #ff8c6e; } .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #c24d30; }
+/* Ajuda: popover ancorado ao botão "?", fora do container (posição calculada pelo JS) */
+.help-popover { --arrow-x: 22px; position: fixed; z-index: 50; width: 260px; padding: 14px 16px 12px; text-align: left; touch-action: pan-y; overscroll-behavior: contain; color: var(--shell-text); background: linear-gradient(160deg, var(--indigo), var(--indigo-dark)); border: 1px solid rgba(255,207,92,.45); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.55); animation: help-in .16s ease-out; }
+.help-popover[hidden] { display: none; }
+.help-popover::before { content: ""; position: absolute; left: calc(var(--arrow-x) - 7px); width: 14px; height: 14px; border: 1px solid rgba(255,207,92,.45); transform: rotate(45deg); }
+.help-popover[data-placement="below"]::before { top: -8px; background: var(--indigo); border-right: 0; border-bottom: 0; }
+.help-popover[data-placement="above"]::before { bottom: -8px; background: var(--indigo-dark); border-left: 0; border-top: 0; }
+.help-title { margin: 0 28px 6px 0; font-size: 17px; font-weight: 800; line-height: 1; letter-spacing: .02em; text-transform: uppercase; color: var(--gold); }
+.help-text { margin: 0 0 10px; font-size: 13px; line-height: 1.4; color: rgba(236,238,245,.9); }
+.help-sub { margin: 0 0 8px; padding-top: 10px; font-size: 11px; font-weight: 700; line-height: 1; letter-spacing: .12em; text-transform: uppercase; color: var(--teal); border-top: 1.5px dashed rgba(255,207,92,.3); }
+.rule-list { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 5px; font-size: 13px; line-height: 1.25; }
+.rule-list b { display: inline-block; min-width: 38px; color: var(--gold); font-variant-numeric: tabular-nums; }
+.ctl-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
+.ctl-list li { display: flex; align-items: center; gap: 10px; }
+.ctl-keys { flex: none; display: inline-flex; align-items: center; gap: 4px; width: 72px; }
+.ctl-label { font-size: 13px; font-weight: 600; line-height: 1.2; }
+.help-popover .cap { height: 24px; min-width: 24px; padding: 0 4px; }
+.help-popover .cap-wide { min-width: 58px; }
+.help-note { margin: 10px 0 0; font-size: 12px; line-height: 1.35; color: var(--shell-muted); }
+.help-close { position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; color: var(--shell-text); background: transparent; border: 0; border-radius: 8px; opacity: .65; cursor: pointer; touch-action: manipulation; }
+.help-close svg { width: 12px; height: 12px; }
+.help-close:hover { opacity: 1; background: rgba(255,255,255,.08); }
+.help-close:focus-visible { opacity: 1; outline: 2px solid var(--gold); outline-offset: -2px; }
+@keyframes help-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
 .noscript { position: fixed; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
-@media (max-width: 640px) { .topbar { height: 52px; } .hud { gap: 6px; } .stat-score .value { font-size: 26px; } }
-@media (max-height: 500px) and (orientation: landscape) { .topbar { height: 46px; } .game-text span { display: none; } .arena { flex-direction: row; justify-content: center; padding: 8px 12px; } .hud { width: 190px; grid-template-columns: 1fr; } .hud-actions { justify-content: flex-start; } .play { width: auto; flex: 1 1 0; height: 100%; } }
-@media (prefers-reduced-motion: reduce) { .card.matched, .card.matched::after, .bump, .glow, .win.is-open .win-card, .badge { animation: none; } .win { transition: none; } }
+@media (max-width: 640px) { :root { --pad: 12px; } .topbar { height: 52px; } .hud { gap: 6px; } .stat-score .value { font-size: 26px; } .game-panel { gap: 10px; border-radius: 22px; } .hud { grid-template-columns: minmax(0, 1fr) auto auto; } .stat-score { padding: 8px 10px; } .stat-best { padding: 8px 8px 8px 28px; } .stat-best svg { left: 8px; } .tool { width: 40px; } }
+@media (max-height: 500px) and (orientation: landscape) { .topbar { height: 46px; } .game-text span { display: none; } .arena { padding: 8px 12px; } :root { --pad: 10px; } .game-panel { flex-direction: row; align-items: center; width: auto; gap: 12px; } .hud { width: 190px; flex: none; grid-template-columns: 1fr; } .hud-actions { justify-content: flex-start; } }
+@media (prefers-reduced-motion: reduce) { .hint, .help-popover { animation: none; } .screen-ready, .start-card, .help-btn, .help-btn svg { transition: none; } .card.matched, .card.matched::after, .bump, .glow, .win.is-open .win-card, .badge { animation: none; } .win { transition: none; } }

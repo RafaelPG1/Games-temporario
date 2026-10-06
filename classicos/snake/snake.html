@@ -6,8 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Cobrinha · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="snake.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
+  <link rel="stylesheet" href="snake.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -26,6 +25,14 @@
       <div class="game-text"><strong>Cobrinha</strong></div>
     </div>
   </header>
+
+  <!-- Ícones das setas, usados nas teclas do painel de ajuda -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="icon-left" viewBox="0 0 16 16"><path d="M10.5 3L5.5 8l5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-right" viewBox="0 0 16 16"><path d="M5.5 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-up" viewBox="0 0 16 16"><path d="M3 10.5l5-5 5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="icon-down" viewBox="0 0 16 16"><path d="M3 5.5l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  </svg>
 
   <main id="arena" class="arena">
     <section class="hud" aria-label="Placar">
@@ -57,21 +64,19 @@
     </section>
 
     <div id="play" class="play">
+      <!-- stage = tabuleiro + botão "?" lateral (controle externo ao jogo) -->
+      <div id="stage" class="stage" data-help-pos="side">
       <div id="board" class="board is-ready" aria-label="Arena do Snake">
         <canvas id="game-canvas" aria-label="Área do jogo"></canvas>
         <p id="toast" class="toast" role="status"></p>
 
         <section class="screen screen-ready" aria-live="polite">
           <h1 class="title">Cobrinha</h1>
-          <p class="menu-desc">Coma as frutinhas e cresça sem bater nas paredes nem em você mesma.</p>
-          <ul class="menu-keys" aria-label="Comandos">
-            <li><span class="keycaps"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span><span>mover</span></li>
-            <li><span class="keycaps"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>mover</span></li>
-            <li><span class="keycaps"><kbd>P</kbd><kbd>Esc</kbd></span><span>pausar</span></li>
-            <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
-          </ul>
-          <p class="menu-touch">Deslize no tabuleiro ou use os botões</p>
-          <button id="start-button" class="btn" type="button">Jogar</button>
+          <p class="hint">
+            <span class="hint-text">Toque para iniciar</span>
+            <span class="hint-or">ou</span>
+            <kbd class="cap cap-wide">Space</kbd>
+          </p>
         </section>
 
         <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
@@ -86,6 +91,17 @@
           <button id="restart-button" class="btn" type="button">Jogar novamente</button>
         </section>
       </div>
+
+      <button id="help-button" class="help-btn" type="button"
+              aria-haspopup="dialog" aria-expanded="false" aria-controls="help-popover"
+              aria-label="Como jogar" title="Como jogar">
+        <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
+          <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+          <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
+        </svg>
+      </button>
+      </div>
     </div>
 
     <nav class="dpad" aria-label="Controles de toque">
@@ -94,11 +110,30 @@
       <button type="button" class="dir dir-down" data-dir="down" aria-label="Baixo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       <button type="button" class="dir dir-right" data-dir="right" aria-label="Direita"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     </nav>
+
+    <!-- Como jogar: popover pequeno ancorado ao botão "?" (fora do tabuleiro) -->
+    <div id="help-popover" class="help-popover" role="dialog" aria-labelledby="help-title" data-placement="below" hidden>
+      <button id="help-close" class="help-close" type="button" aria-label="Fechar">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <h2 id="help-title" class="help-title">Como jogar</h2>
+      <p class="help-text">Guie a cobrinha até as frutinhas para crescer e somar pontos. Cada fruta deixa o jogo um pouco mais rápido. Não bata nas paredes nem em você mesma.</p>
+      <h3 class="help-sub">Controles</h3>
+      <ul class="ctl-list">
+        <li><span class="ctl-keys"><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-left"/></svg><span class="sr-only">Seta para a esquerda</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-up"/></svg><span class="sr-only">Seta para cima</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-down"/></svg><span class="sr-only">Seta para baixo</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-right"/></svg><span class="sr-only">Seta para a direita</span></kbd></span><span class="ctl-label">Mover</span></li>
+        <li><span class="ctl-keys"><kbd class="cap">W</kbd><kbd class="cap">A</kbd><kbd class="cap">S</kbd><kbd class="cap">D</kbd></span><span class="ctl-label">Mover também</span></li>
+        <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar / retomar</span></li>
+        <li><span class="ctl-keys"><kbd class="cap">P</kbd><span class="ctl-or">/</span><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar</span></li>
+        <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
+      </ul>
+      <p class="help-note">No celular, deslize no tabuleiro ou use os botões na tela. Não é possível virar 180° de uma vez.</p>
+    </div>
   </main>
 
   <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
-  <script src="snake.js"></script>
+  <script src="snake_storage.js?v=4"></script>
+  <script src="snake.js?v=4"></script>
 </body>
 </html>

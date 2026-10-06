@@ -6,8 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Quebra-Cabeça Deslizante · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="slide_puzzle.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
+  <link rel="stylesheet" href="slide_puzzle.css?v=3">
 </head>
 <body>
   <header class="topbar">
@@ -31,6 +30,8 @@
   </header>
 
   <div id="arena" class="arena">
+    <!-- frame = jogo (#stage) + botão "?" lateral (controle externo à área do jogo) -->
+    <div id="frame" class="frame" data-help-pos="side">
     <main id="stage" class="stage is-ready" aria-label="Quebra-Cabeça Deslizante">
       <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
         <svg viewBox="0 0 16 16" fill="none" stroke="#543847" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -42,6 +43,18 @@
       <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (P)">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/></svg>
       </button>
+
+      <h1 class="game-title">
+        <svg class="title-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <rect width="32" height="32" rx="8" fill="#10303a"/>
+          <g fill="#f3e8c3" stroke="#543847" stroke-width="1.5">
+            <rect x="5" y="5" width="9" height="9" rx="1.5"/><rect x="16" y="5" width="9" height="9" rx="1.5"/>
+            <rect x="5" y="16" width="9" height="9" rx="1.5"/>
+          </g>
+          <rect x="16" y="16" width="9" height="9" rx="1.5" fill="#f0a62a" stroke="#543847" stroke-width="1.5"/>
+        </svg>
+        <span class="title-text"><span class="title-top">Quebra-Cabeça</span><span class="title-main">Deslizante</span></span>
+      </h1>
 
       <section class="hud" aria-label="Partida">
         <div class="stat"><span>Movimentos</span><strong id="moves">0</strong></div>
@@ -57,7 +70,23 @@
 
       <div class="board">
         <div id="grid" class="grid" role="group" aria-label="Tabuleiro"></div>
-        <button id="start-button" class="start" type="button" aria-label="Toque para começar"><span>Toque para começar</span></button>
+        <button id="start-button" class="start" type="button" aria-label="Iniciar partida">
+          <span class="start-card">
+            <svg class="start-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+              <rect width="32" height="32" rx="8" fill="#10303a"/>
+              <g fill="#f3e8c3" stroke="#543847" stroke-width="1.5">
+                <rect x="5" y="5" width="9" height="9" rx="1.5"/><rect x="16" y="5" width="9" height="9" rx="1.5"/>
+                <rect x="5" y="16" width="9" height="9" rx="1.5"/>
+              </g>
+              <rect x="16" y="16" width="9" height="9" rx="1.5" fill="#f0a62a" stroke="#543847" stroke-width="1.5"/>
+            </svg>
+            <span class="start-title"><span class="start-title-top">Quebra-Cabeça</span><span class="start-title-main">Deslizante</span></span>
+            <span class="start-rule" aria-hidden="true"></span>
+            <span class="start-text">Toque para iniciar</span>
+            <span class="start-or">ou</span>
+            <kbd class="cap cap-wide">Space</kbd>
+          </span>
+        </button>
       </div>
       <p id="status" class="status" aria-live="polite"></p>
 
@@ -85,24 +114,38 @@
       </section>
       <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
     </main>
-  </div>
-  <div id="game-menu" class="gmenu" data-manual hidden role="dialog" aria-labelledby="gmenu-title">
-  <div class="gmenu-card">
-    <h2 id="gmenu-title" class="gmenu-title">Quebra-Cabeça Deslizante</h2>
-    <p class="menu-desc">Deslize as peças para o espaço vazio até colocar os números em ordem.</p>
-    <p class="gmenu-sub">Dificuldade</p>
-    <div class="gmenu-opts" role="radiogroup" aria-label="Dificuldade" data-mirror=".levels button"></div>
-    <ul class="menu-keys" aria-label="Comandos">
-      <li><span class="keycaps"><kbd>P</kbd><kbd>Esc</kbd></span><span>pausar</span></li>
-      <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
-    </ul>
-    <p class="menu-touch">Toque numa peça ao lado do espaço vazio</p>
-    <button type="button" class="gmenu-play" data-menu-play>Jogar</button>
-  </div>
-</div>
 
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
-  <script src="slide_puzzle.js"></script>
+    <button id="help-button" class="help-btn" type="button"
+            aria-haspopup="dialog" aria-expanded="false" aria-controls="help-popover"
+            aria-label="Como jogar" title="Como jogar">
+      <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
+      </svg>
+    </button>
+    </div>
+  </div>
+
+  <!-- Como jogar: popover ancorado abaixo do botão "?" (fora da área do jogo) -->
+  <div id="help-popover" class="help-popover" role="dialog" aria-labelledby="help-title" data-placement="below" hidden>
+    <button id="help-close" class="help-close" type="button" aria-label="Fechar">
+      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+    </button>
+    <h2 id="help-title" class="help-title">Como jogar</h2>
+    <p class="help-text">Deslize as peças para o espaço vazio até colocar os números em ordem, de 1 até a última, com o espaço vazio no canto inferior direito.</p>
+    <p class="help-text">Toque numa peça que esteja ao lado do espaço vazio para deslizá-la. Peças com um pontinho verde já estão no lugar certo.</p>
+    <h3 class="help-sub">Controles</h3>
+    <ul class="ctl-list">
+      <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Mover peça</span></li>
+      <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar partida</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">P</kbd><span class="ctl-or">/</span><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
+    </ul>
+    <p class="help-note">Dificuldade: Fácil 3×3, Médio 4×4, Difícil 5×5. O tempo começa ao iniciar. O recorde de cada nível (menos movimentos, depois menor tempo) fica salvo neste aparelho.</p>
+  </div>
+
+  <script src="slide_puzzle_storage.js?v=2"></script>
+  <script src="slide_puzzle.js?v=2"></script>
 </body>
 </html>

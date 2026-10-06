@@ -12,6 +12,7 @@ const ui = {
   arena: $('arena'), stage: $('stage'), grid: $('grid'), moves: $('moves'), time: $('time'), best: $('best'),
   status: $('status'), mute: $('mute-button'), pause: $('pause-button'), confirmText: $('confirm-text'),
   levels: [...document.querySelectorAll('.levels button')],
+  frame: $('frame'), helpButton: $('help-button'), helpPopover: $('help-popover'), helpClose: $('help-close'),
 };
 
 const S = {
@@ -21,22 +22,14 @@ const S = {
 };
 
 /* ===== Armazenamento (nunca pode quebrar o jogo) ===== */
-// Persistência: game_storage (registro "slide_puzzle"): level, muted e best_<dificuldade> = { moves, time }.
-const store = GameStorage.game('slide_puzzle');
-store.migrate([
-  { from: 'slide_puzzle:level', to: 'level' }, { from: 'slide_puzzle:muted', to: 'muted', type: 'bool01' },
-  ...['easy', 'medium', 'hard'].map((l) => ({ from: `slide_puzzle:best:${l}`, to: `best_${l}`, type: 'json' })),
-]);
-function loadBest(level) {
-  const b = store.get(`best_${level}`, null);
-  return b && Number.isFinite(b.moves) && Number.isFinite(b.time) ? b : null;
-}
+// Persistência: tudo passa por slide_puzzle_storage.js (SlidePuzzleStorage): level, muted e melhor resultado por dificuldade.
+const loadBest = (level) => SlidePuzzleStorage.getBest(level);
 const isBetter = (a, b) => !b || a.moves < b.moves || (a.moves === b.moves && a.time < b.time);
 
 /* ===== Áudio (Web Audio, sem arquivos externos) ===== */
 const Sound = (() => {
   let ctx = null, master = null, off = false;
-  S.muted = store.get('muted', false) === true;
+  S.muted = SlidePuzzleStorage.isMuted();
   function ensure() {
     if (off) return null;
     if (!ctx) {
@@ -127,7 +120,7 @@ function win() {
   S.elapsed = elapsedNow(); S.status = 'won';
   const result = { moves: S.moves, time: Math.round(S.elapsed) };
   S.isRecord = isBetter(result, loadBest(S.level));
-  if (S.isRecord) store.set(`best_${S.level}`, result);
+  if (S.isRecord) SlidePuzzleStorage.setBest(S.level, result);
   $('won-moves').textContent = S.moves; $('won-time').textContent = fmt(S.elapsed);
   $('won-record').hidden = !S.isRecord;
   Sound.win();
@@ -159,7 +152,7 @@ function startGame(level) {
   S.initial = shuffled(level, [S.board, S.initial]);
   S.board = S.initial.slice(); S.moves = 0; S.elapsed = 0; S.status = 'ready'; S.isRecord = false; S.readyAt = performance.now();
   if (resize) buildBoard();
-  store.set('level', level);
+  SlidePuzzleStorage.setLevel(level);
   render();
 }
 /* Pede confirmação quando há progresso a perder */
@@ -193,7 +186,7 @@ function render() {
   ui.moves.textContent = S.moves; ui.time.textContent = fmt(elapsedNow());
   const b = loadBest(S.level); ui.best.textContent = b ? `${b.moves} · ${fmt(b.time)}` : '—';
   ui.levels.forEach((el) => { const on = el.dataset.level === S.level; el.setAttribute('aria-checked', on); el.tabIndex = on ? 0 : -1; });
-  ui.status.textContent = S.status === 'ready' ? 'O tempo começa quando você tocar no tabuleiro' : `Ordene de 1 a ${n * n - 1}, com o espaço no canto`;
+  ui.status.textContent = S.status === 'ready' ? 'O tempo começa quando você tocar no tabuleiro ou apertar Space' : `Ordene de 1 a ${n * n - 1}, com o espaço no canto`;
   const c = ui.stage.classList;
   c.toggle('is-ready', S.status === 'ready'); c.toggle('is-playing', S.status === 'playing');
   c.toggle('is-paused', S.status === 'paused' && !S.pending); c.toggle('is-confirm', Boolean(S.pending)); c.toggle('is-won', S.status === 'won');
@@ -201,25 +194,85 @@ function render() {
   ui.mute.classList.toggle('is-muted', S.muted); ui.mute.setAttribute('aria-pressed', S.muted);
   ui.mute.setAttribute('aria-label', S.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
 }
-function toggleMute() { S.muted = !S.muted; store.set('muted', S.muted); if (!S.muted) Sound.unlock(); render(); }
+function toggleMute() { S.muted = !S.muted; SlidePuzzleStorage.setMuted(S.muted); if (!S.muted) Sound.unlock(); render(); }
+/* O botão "?" fica fora do jogo: ao lado (reserva dos dois lados, para o jogo seguir centralizado) ou, se faltar
+   largura, logo abaixo. Escolhe o formato que permite o maior jogo. */
+const HELP = { gap: 12, edge: 8, maxWidth: 270, button: 40, side: 18 };
 function resizeStage() {
-  const w = Math.max(1, ui.arena.clientWidth - MARGIN * 2), h = Math.max(1, ui.arena.clientHeight - MARGIN * 2);
-  let ch = Math.min(h, MAX_CSS_HEIGHT), cw = ch * (W / H);
-  if (cw > w) { cw = w; ch = cw / (W / H); }
-  cw = Math.floor(cw); ch = Math.floor(ch);
+  const aw = Math.max(1, ui.arena.clientWidth - MARGIN * 2), ah = Math.max(1, ui.arena.clientHeight - MARGIN * 2), help = HELP.button + HELP.side;
+  let best = { cw: 0, pos: 'side' };
+  for (const pos of ['side', 'below']) {
+    const w = Math.max(1, aw - (pos === 'side' ? help * 2 : 0)), h = Math.max(1, ah - (pos === 'below' ? help : 0));
+    let cw = Math.min(h, MAX_CSS_HEIGHT) * (W / H);
+    if (cw > w) cw = w;
+    cw = Math.floor(cw);
+    if (cw > best.cw) best = { cw, pos };
+  }
+  const cw = best.cw, ch = Math.floor(cw / (W / H));
+  ui.frame.dataset.helpPos = best.pos;
   ui.stage.style.width = `${cw}px`; ui.stage.style.height = `${ch}px`; ui.stage.style.setProperty('--u', `${cw / W}px`);
+  placeHelp();     // reposiciona o painel de ajuda, se estiver aberto
+}
+
+/* ===== Ajuda "Como jogar": popover ancorado ABAIXO do botão "?", fora da área do jogo =====
+   Se abrir no meio da partida, o jogo pausa (o tempo não corre); ao fechar, a pausa continua até "Continuar". */
+let helpOpen = false;
+function openHelp() {
+  if (helpOpen) return;
+  helpOpen = true;
+  ui.helpPopover.hidden = false;
+  ui.helpButton.setAttribute('aria-expanded', 'true');
+  togglePause(true);                        // só tem efeito durante a partida
+  placeHelp();
+}
+function closeHelp() {
+  if (!helpOpen) return;
+  helpOpen = false;
+  ui.helpPopover.hidden = true;
+  ui.helpButton.setAttribute('aria-expanded', 'false');
+}
+// Abre sempre ABAIXO do botão (com rolagem interna se faltar altura). Só inverte para cima quando o botão
+// está sob o jogo (celular), onde pode não sobrar espaço embaixo.
+function placeHelp() {
+  if (!helpOpen) return;
+  const pop = ui.helpPopover;
+  for (const v of ['max-height', 'overflow-y']) pop.style.removeProperty(v);
+  const arena = ui.arena.getBoundingClientRect();
+  const btn = ui.helpButton.getBoundingClientRect();
+  const width = Math.floor(Math.min(HELP.maxWidth, arena.width - HELP.edge * 2));
+  const left = Math.max(arena.left + HELP.edge, Math.min(btn.left, arena.right - HELP.edge - width));
+  pop.style.width = `${width}px`;
+  pop.style.left = `${Math.round(left)}px`;
+  pop.style.setProperty('--arrow-x', `${Math.round(Math.min(Math.max(btn.left + btn.width / 2 - left, 16), width - 16))}px`);
+  const height = pop.offsetHeight;
+  const roomBelow = window.innerHeight - btn.bottom - HELP.gap - HELP.edge;
+  const roomAbove = btn.top - HELP.gap - HELP.edge;
+  let placement = 'below';
+  if (ui.frame.dataset.helpPos !== 'side' && height > roomBelow && roomAbove > roomBelow) placement = 'above';
+  const room = placement === 'below' ? roomBelow : roomAbove;
+  if (height > room) { pop.style.maxHeight = `${Math.max(96, Math.floor(room))}px`; pop.style.overflowY = 'auto'; }
+  const finalHeight = pop.offsetHeight;
+  pop.style.top = `${Math.round(placement === 'below' ? btn.bottom + HELP.gap : btn.top - HELP.gap - finalHeight)}px`;
+  pop.dataset.placement = placement;
 }
 
 /* ===== Entradas ===== */
-/* Teclado: só atalhos de som e pausa. As peças se movem apenas por clique/toque. */
+/* Teclado: Space inicia a partida; M som; P/Esc pausa. As peças se movem apenas por clique/toque. */
 function onKeyDown(e) {
-  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
-  if (e.code === 'KeyM') toggleMute();
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (helpOpen && e.code === 'Escape') { e.preventDefault(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); return; }
+  if (e.repeat) return;
+  if (e.code === 'Space') {
+    if (e.target.closest && e.target.closest('#help-button, #help-close')) return;   // deixa o botão focado agir
+    e.preventDefault();
+    if (S.status === 'ready') beginPlay();
+  }
+  else if (e.code === 'KeyM') toggleMute();
   else if (e.code === 'KeyP') { togglePause(S.status === 'playing'); }
   else if (e.code === 'Escape') { if (S.pending) answer(false); else togglePause(S.status === 'playing'); }
 }
 function init() {
-  const saved = store.get('level');
+  const saved = SlidePuzzleStorage.getLevel();
   S.level = '';  // força a construção inicial do tabuleiro
   startGame(LEVELS[saved] ? saved : 'medium');
   S.readyAt = -START_GUARD_MS; // a proteção contra toque duplo vale só depois de reiniciar/novo jogo, não ao abrir a página
@@ -241,6 +294,18 @@ function init() {
   $('resume-button').addEventListener('click', () => togglePause(false));
   $('confirm-yes').addEventListener('click', () => answer(true));
   $('confirm-no').addEventListener('click', () => answer(false));
+  ui.helpButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (helpOpen) closeHelp(); else openHelp();
+    if (e.detail > 0) ui.helpButton.blur();   // clique/toque: Space não deve acionar o botão depois
+  });
+  ui.helpClose.addEventListener('click', (e) => { e.stopPropagation(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); });
+  // Um toque fora do popover só o fecha.
+  document.addEventListener('pointerdown', (e) => {
+    if (helpOpen && !(e.target.closest && e.target.closest('#help-popover, #help-button'))) closeHelp();
+  }, true);
+  // Depois de um clique/toque, o botão solta o foco: assim Space inicia a partida em vez de reacionar o botão.
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
   ui.pause.addEventListener('click', () => { togglePause(true); ui.pause.blur(); });
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
   document.addEventListener('keydown', onKeyDown);
@@ -255,9 +320,4 @@ function init() {
 }
 init();
 
-/* Menu inicial: o botão Jogar já começa a partida (sem pedir um segundo toque na tela do jogo). */
-GameUI.menu.mount({
-  el: '#game-menu',
-  onPlay() { setTimeout(beginPlay, Math.max(0, START_GUARD_MS - (performance.now() - S.readyAt))); },
-});
 window.__slide = { S, shuffled, isSolved, moveAt, startGame, neighbors, beginPlay };
