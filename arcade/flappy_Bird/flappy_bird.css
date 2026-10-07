@@ -335,7 +335,9 @@ body {
 .badge[hidden] { display: none; }
 
 /* ---------- Jogo pausado ---------- */
-
+.screen-paused .hint {
+  position: static;
+}
 .screen-paused {
   justify-content: center;
   gap: calc(var(--u) * 10);
@@ -355,6 +357,18 @@ body {
   line-height: 1.25;
 }
 
+
+/* Ajustes para alinhar os ícones de teclado na tela de retomada */
+.screen-recovery .hint {
+  position: static;
+  color: var(--white); /* Alterado para branco */
+  text-transform: none;
+  animation: blink 1.4s ease-in-out infinite !important;
+}
+
+.is-waiting .recovery-prompt.hint {
+  display: flex;
+}
 /* ---------- Partida retomada: contagem 3, 2, 1 e GO! ---------- */
 
 .screen-recovery {
@@ -370,12 +384,13 @@ body {
 
 .recovery-label {
   margin: 0;
-  font-size: max(14px, calc(var(--u) * 16));
-  line-height: 1.1;
-  letter-spacing: calc(var(--u) * 1);
+  font-size: calc(var(--u) * 30); /* Mesmo tamanho do PAUSADO */
+  line-height: 1;                 /* Ajuste de altura da linha igual ao PAUSADO */
   text-transform: uppercase;
-  color: var(--white);
+  color: #ffe36a;                 /* Cor amarela */
+  text-align: center;             /* Garante que fique centralizado caso o texto quebre em duas linhas */
 }
+
 .recovery-count {
   --o: max(2px, calc(var(--u) * 3.2));          /* contorno proporcional ao tamanho do número */
   margin: 0;
@@ -505,12 +520,10 @@ body {
 /* ---------- Movimento reduzido ---------- */
 
 @media (prefers-reduced-motion: reduce) {
-  .hint { animation: none; }
   .recovery-count.pop, .recovery-prompt { animation: none; }
   .screen { transition: none; }
   .back, .back svg { transition: none; }
 }
-
 /* ---------- Ajuda: botão (só ícone) + popover ancorado ---------- */
 
 /* Caixa com o mesmo tamanho do palco; o botão fica pendurado fora dela. */
@@ -687,7 +700,9 @@ body {
 }
 @media (max-width: 480px) {
   .topbar { gap: 8px; }
-  .topbar .back { width: 44px; padding: 0; justify-content: center; }
-  .topbar .back span { display: none; }
+  .topbar .back { padding: 0 12px 0 8px; gap: 4px; white-space: nowrap; }
   .topbar .game-text strong { font-size: 15px; }
+}
+@media (max-width: 340px) {
+  .topbar .game-mark { display: none; }   /* some só o ícone amarelo, o nome "Flappy Bird" fica */
 }

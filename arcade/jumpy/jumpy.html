@@ -54,7 +54,8 @@
 
         <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (P)">
           <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
-            <rect x="3" y="2" width="4" height="12" fill="#543847"/><rect x="9" y="2" width="4" height="12" fill="#543847"/>
+            <g class="icon-pause" fill="#543847"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></g>
+            <g class="icon-play"><path fill="#543847" d="M4 2h2v1h1v1h2v1h1v1h2v1h1v2h-1v1h-2v1h-1v1h-2v1h-1v1h-2z"/></g>
           </svg>
         </button>
 
@@ -69,9 +70,20 @@
           </p>
         </section>
 
+        <!-- Tela de pausa ÚNICA (botão, P/Esc, ajuda, troca de aba, F5): mesma estrutura e animação da tela inicial -->
         <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
-          <h2 id="pause-title" class="over-title">Pausado</h2>
-          <button id="resume-button" class="btn" type="button">Continuar</button>
+          <p id="pause-title" class="pause-label">Pausado</p>
+          <p class="hint">
+            <span class="hint-text">Toque para iniciar</span>
+            <span class="hint-or">ou</span>
+            <kbd class="cap cap-wide">Space</kbd>
+          </p>
+        </section>
+
+        <!-- Retomada depois de F5/recarregar: pausa de 3 s com contagem 3, 2, 1, GO! -->
+        <section id="recovery-screen" class="screen screen-recovery" aria-live="assertive" aria-atomic="true">
+          <p class="recovery-label">Partida retomada</p>
+          <p id="recovery-count" class="recovery-count"></p>
         </section>
 
         <section class="screen screen-over" role="dialog" aria-labelledby="over-title">
@@ -114,6 +126,7 @@
             <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
           </ul>
           <p class="help-note">No celular, toque e arraste o dedo para a esquerda ou direita para mover.</p>
+          <p class="help-note">Com esta ajuda aberta o jogo fica pausado. Toque na tela do jogo ou pressione Space para continuar (3, 2, 1, GO!).</p>
         </div>
       </div>
     </div>

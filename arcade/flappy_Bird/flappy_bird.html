@@ -102,14 +102,31 @@
       <!-- Indicação de jogo pausado -->
       <section class="screen screen-paused" aria-live="polite">
         <h2 class="paused-title">Pausado</h2>
-        <p class="paused-hint">Toque em Continuar para voltar</p>
+        <p class="hint">
+          <span class="hint-text">Toque para continuar</span>
+          <span class="hint-keys">
+            <kbd class="cap cap-wide"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-space"/></svg><span class="sr-only">Espaço</span></kbd>
+            <span class="hint-or">ou</span>
+            <kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-up"/></svg><span class="sr-only">Seta para cima</span></kbd>
+          </span>
+        </p>
       </section>
 
       <!-- Retomada depois de recarregar a página: pausa de segurança com contagem 3, 2, 1, GO! -->
+<!-- Retomada depois de recarregar a página: pausa de segurança com contagem 3, 2, 1, GO! -->
       <section id="recovery-screen" class="screen screen-recovery" aria-live="assertive" aria-atomic="true">
         <p class="recovery-label">Partida retomada</p>
         <p id="recovery-count" class="recovery-count"></p>
-        <p class="recovery-prompt">Toque na tela<br>ou aperte Espaço</p>
+        
+        <!-- Nova estrutura com os botões de teclado -->
+        <p class="recovery-prompt hint">
+          <span class="hint-text">Toque para continuar</span>
+          <span class="hint-keys">
+            <kbd class="cap cap-wide"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-space"/></svg><span class="sr-only">Espaço</span></kbd>
+            <span class="hint-or">ou</span>
+            <kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-up"/></svg><span class="sr-only">Seta para cima</span></kbd>
+          </span>
+        </p>
       </section>
 
       <!-- Fim de partida -->

@@ -1403,13 +1403,17 @@ function closeInfo() {
      Todo comando válido passa por handleAction, que gera no máximo um
      impulso por comando.
      ====================================================================== */
-  function handleAction() {
-    if (recovery.active) {            // retomada: o primeiro toque / Espaço inicia a contagem
+function handleAction() {
+    if (recovery.active) {             // retomada: o primeiro toque / Espaço inicia a contagem
       Sound.unlock();
       confirmRecovery();
       return;
     }
-    if (game.paused) return;          // pausado: voar/tocar não faz nada (só o botão continua)
+    if (game.paused) {                 // AGORA DESPAUSA COM O TECLADO
+      if (infoOpen) closeInfo();       // garante que a telinha de ajuda vai fechar
+      resumeWithCountdown();
+      return;
+    }
     Sound.unlock();
     if (game.state === STATES.READY) startGame();
     else if (game.state === STATES.PLAYING) flap();

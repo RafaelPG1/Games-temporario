@@ -67,6 +67,25 @@ const CONFIG = {
   timing: { maxFrameTime: 1 / 30, physicsStep: 1 / 120 },
   scenery: { cloudCount: 6 },
   audio: { masterVolume: 0.3 },
+
+  // CONTROLE POR ARRASTO (toque/mouse): o deslocamento do dedo em relação ao ponto de referência vira uma
+  // intensidade analógica (-1 a 1) que alimenta a física horizontal do personagem (não é posição nem botão).
+  input: {
+    dragRange: 0.13,        // arrasto (fração da largura do palco) que dá 100% de intensidade (~47 px em 360 px)
+    dragDeadZone: 0.012,    // dead zone (fração da largura) só para tremor do dedo (~4 px em 360 px)
+    dragCurve: 1.15,        // levemente > 1: mais precisão perto do centro, sem "esconder" arrastos pequenos
+    dragSmoothing: 55,      // suavização do eixo (1/s): só tira o serrilhado dos eventos; ~18 ms de atraso
+    anchorFollow: true,     // passou do limite: a referência acompanha o dedo, então inverter responde na hora
+    accel: 1700,            // aceleração horizontal em direção à velocidade-alvo do dedo (px/s²); só toque/mouse
+  },
+
+  // F5 / RECARREGAMENTO
+  persistence: { saveIntervalMs: 400 },   // intervalo mínimo entre gravações automáticas da partida
+  recovery: {
+    seconds: 3,             // contagem 3, 2, 1 sempre que o jogo volta de uma pausa (F5, Continuar, P, ajuda...)
+    goSeconds: 0.7,         // quanto tempo o "GO!" fica na tela depois da contagem
+  },
+
   view: { margin: 6, maxCssHeight: 1000 },
 };
 
@@ -83,7 +102,7 @@ const COLORS = {
 const { world: WORLD, player: PLAYER, platforms: PLAT } = CONFIG;
 const W = WORLD.width;
 const H = WORLD.height;
-const STATES = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', GAME_OVER: 'gameOver' };
+const STATES = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', RECOVERY: 'recovery', GAME_OVER: 'gameOver' };
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -202,6 +221,14 @@ const game = {
 
 const clouds = [];
 
+// Contagem de retomada (3, 2, 1, GO!). Acontece SEMPRE que o jogo sai de uma pausa (F5/recarregar, botão de
+// pausa, P/Esc, Continuar, Espaço, ajuda...). Quem conta é o loop principal (update), sem setTimeout.
+const recovery = {
+  remaining: 0,         // segundos que faltam (enquanto o estado é RECOVERY)
+  go: 0,                // segundos que o "GO!" ainda fica visível
+  shown: null,          // texto exibido agora (só mexe no DOM quando muda)
+};
+
 function createPlayer() {
   return { x: W / 2, y: PLAT.groundY, vx: 0, vy: 0, facing: 1, tilt: 0, squash: 0 };
 }
@@ -236,6 +263,9 @@ function resetRound() {
   game.segmentLeft = 0;
   game.inSegment = false;
   game.flashes = {};
+  recovery.remaining = 0;
+  recovery.go = 0;
+  recovery.shown = null;
   game.platforms.push(makePlatform('normal', W / 2, PLAT.groundY, W, PLAT.groundHeight));
   game.topY = PLAT.groundY;
   spawnPlatforms();
@@ -255,22 +285,161 @@ function endGame() {
   game.state = STATES.GAME_OVER;
   game.overTime = 0;
   JumpyStorage.setBest(game.score);   // só grava se superar o recorde salvo
-  input.pointers.clear();
+  JumpyStorage.clearRun();            // partida terminada não volta depois de um F5 (o recorde fica)
+  recovery.go = 0;
+  releaseControl();
   Sound.hit();
   syncUi();
 }
 
+// Pausa ÚNICA para o jogo todo (botão, P/Esc, "Como jogar", troca de aba, F5): congela tudo e mostra a tela
+// "PAUSADO / Toque para iniciar / ou / SPACE". Sair dela NUNCA retoma direto: passa sempre pela contagem 3, 2, 1, GO!.
+// Pausar durante a contagem (ex.: trocar de aba) volta para a tela de pausa.
 function setPaused(paused) {
-  if (paused && game.state === STATES.PLAYING) game.state = STATES.PAUSED;
-  else if (!paused && game.state === STATES.PAUSED) { game.state = STATES.PLAYING; lastTime = null; }
-  else return;
+  if (paused && (game.state === STATES.PLAYING || game.state === STATES.RECOVERY)) {
+    game.state = STATES.PAUSED;
+    recovery.remaining = 0;
+    recovery.go = 0;
+    recovery.shown = null;
+  } else if (!paused && game.state === STATES.PAUSED) {
+    closeHelp();                 // retomar sempre fecha a ajuda, se ainda estiver aberta
+    Sound.click();
+    beginRecovery();             // congelado durante 3, 2, 1; só depois do GO! o jogo anda
+    return;
+  } else return;
   Sound.click();
-  input.pointers.clear();
+  releaseControl();
+  persistRun();                  // congelada: grava o quadro exato em que parou
   syncUi();
 }
 
 function tryRestart() {
   if (game.state === STATES.GAME_OVER && game.overTime > 0.4) resetRound();
+}
+
+/* ===== PARTIDA SALVA (F5) E RETOMADA ===== */
+// A partida ativa é gravada como UM snapshot (jumpy_storage.js), tirado de uma só vez a partir do estado
+// do jogo: personagem, câmera, score, plataformas (com o tempo de quebra de cada uma), marcos, nuvens...
+// Depois de F5 o jogo é reconstruído desse snapshot e fica congelado na tela PAUSADO até o jogador retomar.
+let clockNow = 0;       // último timestamp recebido do requestAnimationFrame
+let lastSaveAt = 0;     // instante (nesse mesmo relógio) da última gravação
+
+function snapshotRun() {
+  const p = game.player;
+  return {
+    score: game.score, height: game.height, maxHeight: game.maxHeight,
+    time: game.time, camY: game.camY, lastCx: game.lastCx,
+    markIdx: game.markIdx,
+    reached: Object.keys(game.reached).map(Number),
+    flashes: Object.keys(game.flashes).map((k) => [Number(k), game.flashes[k]]),
+    rows: game.rows, lastBoostRow: game.lastBoostRow, lastBreakRow: game.lastBreakRow,
+    segmentEndRow: game.segmentEndRow, segmentLeft: game.segmentLeft, inSegment: game.inSegment,
+    last: { type: game.last.type, cx: game.last.cx, y: game.last.y, w: game.last.w },
+    player: { x: p.x, y: p.y, vx: p.vx, vy: p.vy, facing: p.facing, tilt: p.tilt, squash: p.squash },
+    platforms: game.platforms.map((q) => {
+      const out = { type: q.type, x: q.x, y: q.y, w: q.w, h: q.h, dip: q.dip, breaking: q.breaking, breakT: q.breakT, dead: q.dead };
+      if (q.type === 'moving') { out.minX = q.minX; out.maxX = q.maxX; out.dir = q.dir; out.speed = q.speed; }
+      return out;
+    }),
+    clouds: clouds.map((c) => c.x),
+  };
+}
+
+// Só existe partida "salvável" enquanto ela está ativa (jogando, pausada ou na contagem).
+function persistRun() {
+  const s = game.state;
+  if (s !== STATES.PLAYING && s !== STATES.PAUSED && s !== STATES.RECOVERY) return;
+  lastSaveAt = clockNow;
+  JumpyStorage.saveRun(snapshotRun());
+}
+
+// Chamado a cada quadro, mas só grava de tempos em tempos. Pausado ou em contagem nada muda
+// (e a pausa já gravou o quadro exato), então só grava jogando.
+function autosaveRun() {
+  if (game.state === STATES.PLAYING && clockNow - lastSaveAt >= CONFIG.persistence.saveIntervalMs) persistRun();
+}
+
+// Reconstrói a partida a partir do snapshot. Confere as regras do jogo ANTES de mexer no estado;
+// se algo não fizer sentido, devolve false e o jogo fica na tela inicial.
+function applyRun(run) {
+  if (run.player.y - run.camY > H + 30) return false;   // já teria caído da tela
+  if (!run.platforms.length) return false;
+
+  resetRound();                                          // base limpa: um único lugar zera tudo
+  game.score = run.score;
+  game.height = run.height;
+  game.maxHeight = run.maxHeight;
+  game.time = run.time;
+  game.camY = run.camY;
+  game.lastCx = run.lastCx;
+  game.rows = run.rows;
+  game.lastBoostRow = run.lastBoostRow;
+  game.lastBreakRow = run.lastBreakRow;
+  game.segmentEndRow = run.segmentEndRow;
+  game.segmentLeft = run.segmentLeft;
+  game.inSegment = run.inSegment;
+  game.last = { ...run.last };
+  game.player = { ...run.player };
+  game.platforms = run.platforms.map((q) => {
+    const plat = { type: q.type, x: q.x, y: q.y, w: q.w, h: q.h, dip: q.dip, breaking: q.breaking, breakT: q.breakT, dead: q.dead };
+    if (q.type === 'moving') { plat.minX = q.minX; plat.maxX = q.maxX; plat.dir = q.dir; plat.speed = q.speed; }
+    return plat;
+  });
+  game.reached = {};
+  for (const k of run.reached) game.reached[k] = true;
+  game.flashes = {};
+  for (const [k, t] of run.flashes) game.flashes[k] = t;
+  game.markIdx = run.markIdx;
+  game.nextMark = markerHeight(game.markIdx);
+  while (game.score >= game.nextMark) {                  // confere os marcos sem disparar animação nova
+    game.reached[game.nextMark] = true;
+    game.markIdx++;
+    game.nextMark = markerHeight(game.markIdx);
+  }
+  if (run.clouds.length === clouds.length) run.clouds.forEach((x, i) => { clouds[i].x = x; });
+  return true;
+}
+
+// Só roda uma vez, no init, e só a partir da tela inicial. F5 -> restaura -> PAUSADO -> (jogador) -> 3, 2, 1, GO!.
+function restoreSavedRun() {
+  if (game.state !== STATES.READY) return false;
+  const run = JumpyStorage.loadRun();
+  if (!run) return false;
+  if (!applyRun(run)) { JumpyStorage.clearRun(); return false; }
+  game.state = STATES.PAUSED;      // volta congelada, na tela "PAUSADO": a contagem só começa quando o jogador pedir
+  releaseControl();
+  syncUi();
+  return true;
+}
+
+// Congela a partida e inicia a contagem. Nada de gameplay anda enquanto o estado é RECOVERY.
+function beginRecovery() {
+  game.state = STATES.RECOVERY;
+  recovery.remaining = CONFIG.recovery.seconds;
+  recovery.go = 0;
+  recovery.shown = null;
+  releaseControl();
+  syncUi();
+}
+
+function tickRecovery(dt) {
+  recovery.remaining -= dt;
+  if (recovery.remaining <= 0) endRecovery();
+  else syncRecoveryUi();
+}
+
+function endRecovery() {
+  game.state = STATES.PLAYING;
+  recovery.remaining = 0;
+  recovery.go = CONFIG.recovery.goSeconds;
+  recovery.shown = null;
+  lastTime = null;          // o primeiro quadro depois da contagem tem dt = 0: sem saltos
+  syncUi();
+}
+
+function tickGo(dt) {
+  recovery.go = Math.max(0, recovery.go - dt);
+  if (recovery.go === 0) syncRecoveryUi();
 }
 
 /* ===== 3. PLATAFORMAS ===== */
@@ -423,12 +592,24 @@ function spawnPlatforms() {
 }
 
 /* ===== 4. FÍSICA ===== */
-const input = { left: false, right: false, pointers: new Map() };
+const input = { left: false, right: false, control: null };
+let stageCssWidth = W;      // largura do palco na tela (px); o JS atualiza a cada redimensionamento
 
-function direction() {
-  let dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-  for (const drag of input.pointers.values()) dir += drag.dir;
-  return clamp(dir, -1, 1);
+// Entrada horizontal: o teclado é digital (-1, 0, 1); o dedo é analógico (-1 a 1, já suavizado).
+// Só existe UM dedo de controle por vez (input.control): outros toques simultâneos são ignorados.
+function moveInput() {
+  const c = input.control;
+  return { key: (input.right ? 1 : 0) - (input.left ? 1 : 0), drag: c ? c.axis : 0, dragging: Boolean(c) };
+}
+
+// Suavização leve do eixo (uma vez por quadro, independente da taxa de quadros). Com 55/s o atraso é ~18 ms:
+// serve só para esconder o "degrau" dos eventos de movimento, não para criar inércia.
+function smoothDrags(dt) {
+  const c = input.control;
+  if (!c) return;
+  const k = 1 - Math.exp(-CONFIG.input.dragSmoothing * dt);
+  c.axis += (c.target - c.axis) * k;
+  if (Math.abs(c.target - c.axis) < 0.002) c.axis = c.target;
 }
 
 function landsOn(p, plat, prevY) {
@@ -440,12 +621,20 @@ function landsOn(p, plat, prevY) {
   return false;
 }
 
-function stepPlayer(h, dir, withLanding) {
+function stepPlayer(h, move, withLanding) {
   const p = game.player;
-  if (dir) {
+  if (move.key) {                       // teclado: igual a antes
+    const dir = move.key;
     const turning = Math.sign(p.vx) === -dir ? 1.6 : 1;
     p.vx += dir * PLAYER.accel * turning * h;
     p.facing = dir;
+  } else if (move.dragging) {           // arrasto: velocidade-alvo proporcional ao deslocamento do dedo
+    const target = move.drag * PLAYER.maxSpeed;
+    const turning = p.vx * target < 0 ? 1.6 : 1;
+    const step = CONFIG.input.accel * turning * h;
+    const diff = target - p.vx;
+    p.vx = Math.abs(diff) <= step ? target : p.vx + Math.sign(diff) * step;
+    if (Math.abs(move.drag) > 0.04) p.facing = Math.sign(move.drag);
   } else {
     const slow = PLAYER.decel * h;
     p.vx = Math.abs(p.vx) <= slow ? 0 : p.vx - Math.sign(p.vx) * slow;
@@ -526,10 +715,14 @@ function updateScenery(dt) {
 }
 
 function update(dt) {
+  // Pausado: o jogo todo fica congelado (física, plataformas e seus relógios, câmera, score, nuvens).
+  if (game.state === STATES.PAUSED) return;
+  // Contagem depois do F5: continua tudo congelado, só a contagem anda.
+  if (game.state === STATES.RECOVERY) { tickRecovery(dt); return; }
   game.time += dt;
   updateScenery(dt);
-  if (game.state === STATES.PAUSED) return;
   if (game.state === STATES.GAME_OVER) { game.overTime += dt; return; }
+  if (recovery.go > 0) tickGo(dt);
   
   const playing = game.state === STATES.PLAYING;
   for (const k of Object.keys(game.flashes)) {
@@ -540,7 +733,11 @@ function update(dt) {
   const steps = Math.max(1, Math.ceil(dt / CONFIG.timing.physicsStep));
   const h = dt / steps;
   // Antes de iniciar (READY) o personagem fica parado: sem gravidade nem pulo.
-  if (playing) for (let i = 0; i < steps; i++) stepPlayer(h, direction(), true);
+  if (playing) {
+    smoothDrags(dt);
+    const move = moveInput();
+    for (let i = 0; i < steps; i++) stepPlayer(h, move, true);
+  }
   animatePlayer(dt);
   
   if (!playing) return;
@@ -878,8 +1075,8 @@ const ui = {
   stage: document.getElementById('stage'),
   pauseButton: document.getElementById('pause-button'),
   muteButton: document.getElementById('mute-button'),
-  resumeButton: document.getElementById('resume-button'),
   restartButton: document.getElementById('restart-button'),
+  recoveryCount: document.getElementById('recovery-count'),
   overScore: document.getElementById('over-score'),
   readyBest: document.getElementById('ready-best'),
   readyBestValue: document.getElementById('ready-best-value'),
@@ -893,14 +1090,44 @@ function syncUi() {
   ui.stage.classList.toggle('is-ready', s === STATES.READY);
   ui.stage.classList.toggle('is-playing', s === STATES.PLAYING);
   ui.stage.classList.toggle('is-paused', s === STATES.PAUSED);
+  ui.stage.classList.toggle('is-recovery', s === STATES.RECOVERY);
   ui.stage.classList.toggle('is-over', s === STATES.GAME_OVER);
+  // Botão de pausa: continua no mesmo lugar em todos os estados da partida; só o ícone muda.
+  const paused = s === STATES.PAUSED;
+  const pauseText = paused ? 'Continuar' : 'Pausar';
+  ui.pauseButton.classList.toggle('is-paused', paused);
+  ui.pauseButton.disabled = s === STATES.RECOVERY;      // na contagem ele fica visível, mas não faz nada
+  ui.pauseButton.setAttribute('aria-label', pauseText);
+  ui.pauseButton.title = pauseText + ' (P)';
   if (s === STATES.GAME_OVER) ui.overScore.textContent = String(game.score);
   if (s === STATES.READY) {                     // recorde na tela inicial (só depois de existir um)
     const best = JumpyStorage.getBest();
     ui.readyBest.hidden = best <= 0;
     ui.readyBestValue.textContent = String(best);
   }
-  if (s === STATES.PAUSED) ui.resumeButton.focus({ preventScroll: true });
+  syncRecoveryUi();
+}
+
+// Contagem "Partida retomada" (3, 2, 1) e o "GO!" logo depois. Só mexe no DOM quando o texto muda.
+function syncRecoveryUi() {
+  const counting = game.state === STATES.RECOVERY;
+  const going = game.state === STATES.PLAYING && recovery.go > 0;
+  ui.stage.classList.toggle('is-go', going);
+
+  let text = null;
+  if (counting) text = String(Math.max(1, Math.ceil(recovery.remaining)));
+  else if (going) text = 'GO!';
+
+  if (text === null) { recovery.shown = null; return; }
+  if (text !== recovery.shown) {
+    recovery.shown = text;
+    const el = ui.recoveryCount;
+    el.textContent = text;
+    el.classList.toggle('is-go', going);
+    el.classList.remove('pop');
+    void el.offsetWidth;               // reinicia a animação a cada número
+    el.classList.add('pop');
+  }
 }
 
 function syncMuteButton() {
@@ -917,7 +1144,8 @@ function toggleMute() {
 }
 
 // Ajuda "Como jogar": popover pequeno ancorado ao botão "?", fora da área do jogo.
-// Abrir ou fechar não inicia, pausa nem altera a partida: é só um painel de leitura.
+// Abrir a ajuda durante uma partida PAUSA o jogo (tudo congelado atrás do painel). Fechar a ajuda (X, Esc, toque fora)
+// só fecha o painel: o jogo continua pausado até o jogador tocar na área do jogo (ou usar Continuar/P/Espaço).
 let helpOpen = false;
 const HELP = { gap: 12, edge: 8, minWidth: 176, maxWidth: 244 };
 
@@ -926,7 +1154,13 @@ function openHelp() {
   helpOpen = true;
   ui.helpPopover.hidden = false;
   ui.helpButton.setAttribute('aria-expanded', 'true');
+  pauseForHelp();
   placeHelp();
+}
+
+// Jogando (ou na contagem) -> pausa. Já pausado -> continua pausado. Em todo caso a retomada é pelo toque no jogo.
+function pauseForHelp() {
+  if (game.state === STATES.PLAYING || game.state === STATES.RECOVERY) setPaused(true);
 }
 
 function closeHelp() {
@@ -1025,20 +1259,71 @@ function onKeyUp(e) {
   if (RIGHT_KEYS.has(e.code)) input.right = false;
 }
 
-// Controle por arrastar (toque/mouse): o dedo "puxa" um ponto de referência. Arrastar além de
-// DRAG_RANGE arrasta a referência junto, então inverter o sentido é rápido; dentro da zona morta
-// o personagem não anda. A direção continua discreta (-1, 0, 1), igual à do teclado.
-function updateDrag(drag, x) {
-  const range = Math.max(10, ui.stage.getBoundingClientRect().width * 0.045);
-  if (x - drag.anchor > range) drag.anchor = x - range;
-  else if (drag.anchor - x > range) drag.anchor = x + range;
-  const dx = x - drag.anchor;
-  const dead = range * 0.35;
-  drag.dir = dx > dead ? 1 : dx < -dead ? -1 : 0;
+// Controle por arrastar (toque/mouse), ANALÓGICO e RELATIVO.
+//  - O ponto onde o dedo encostou é a referência (anchorX). O deslocamento horizontal em relação a ela vira
+//    a intensidade (-1 a 1): pouco arrasto = pouca força; muito = força máxima; voltando, a força cai junto
+//    (zero na referência). O personagem NÃO segue a posição do dedo: a intensidade só define a velocidade-alvo
+//    que a física do personagem (aceleração, inércia, wrap) persegue.
+//  - Passou da força máxima, a referência acompanha o dedo (anchorFollow): quem arrastou "demais" não precisa
+//    desfazer o excesso antes de inverter o sentido.
+//  - Um único ponteiro de controle (pointerId) com setPointerCapture: segundo dedo não interfere, e o arrasto
+//    continua válido mesmo fora do canvas ou da janela, até pointerup/pointercancel.
+//  - Enquanto o jogo não está em PLAYING (início, contagem 3-2-1), o dedo já é rastreado e a referência fica
+//    colada nele: quando o jogo anda, o dedo que está na tela já controla, sem precisar levantar e tocar de novo.
+function dragMetrics() {
+  const cfg = CONFIG.input;
+  const width = Math.max(1, stageCssWidth);
+  const dead = width * cfg.dragDeadZone;
+  const range = Math.max(dead + 1, width * cfg.dragRange);
+  return { dead, range };
+}
+
+// Converte o deslocamento (px) em intensidade analógica contínua: zero dentro da dead zone, cresce sem degrau
+// a partir da borda dela e chega a 1 em `range`.
+function axisFromOffset(dx) {
+  const { dead, range } = dragMetrics();
+  const t = clamp((Math.abs(dx) - dead) / (range - dead), 0, 1);
+  return Math.sign(dx) * Math.pow(t, CONFIG.input.dragCurve);
+}
+
+function updateControl(c, x) {
+  c.x = x;
+  if (game.state !== STATES.PLAYING) { c.anchorX = x; c.target = 0; return; }   // ainda não vale: referência cola no dedo
+  const { dead, range } = dragMetrics();
+  let dx = x - c.anchorX;
+  if (CONFIG.input.anchorFollow) {
+    const limit = dead + range;                       // deslocamento que já dá 100%
+    if (dx > limit) { c.anchorX = x - limit; dx = limit; }
+    else if (dx < -limit) { c.anchorX = x + limit; dx = -limit; }
+  }
+  c.target = axisFromOffset(dx);
+}
+
+function beginControl(e) {
+  if (input.control) return;                          // já há um dedo no comando: o outro é ignorado
+  if (game.state !== STATES.PLAYING && game.state !== STATES.RECOVERY) return;
+  input.control = { id: e.pointerId, x: e.clientX, anchorX: e.clientX, target: 0, axis: 0 };
+  try { ui.arena.setPointerCapture(e.pointerId); } catch (error) { /* sem captura: os eventos ainda chegam ao document */ }
+}
+
+function releaseControl() {
+  const c = input.control;
+  if (!c) return;
+  input.control = null;                               // soltou: a entrada volta a zero imediatamente
+  try { ui.arena.releasePointerCapture(c.id); } catch (error) { /* já liberado */ }
 }
 
 function onPointerDown(e) {
   const hit = (selector) => Boolean(e.target.closest && e.target.closest(selector));
+  // Tela PAUSADO: tocar/clicar na área do jogo (fora dos botões) fecha a ajuda, se aberta, e inicia a contagem 3, 2, 1, GO!.
+  if (game.state === STATES.PAUSED && hit('#stage') && !hit('button, a')) {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.preventDefault();
+    Sound.unlock();
+    setPaused(false);
+    beginControl(e);          // o dedo que retomou o jogo já fica rastreado durante a contagem
+    return;
+  }
   // Ajuda aberta: tocar fora só a fecha (não vira início de partida nem movimento).
   if (helpOpen && !hit('.help')) {
     closeHelp();
@@ -1049,17 +1334,20 @@ function onPointerDown(e) {
   e.preventDefault();
   Sound.unlock();
   if (game.state === STATES.READY) startGame();
-  if (game.state === STATES.PLAYING) input.pointers.set(e.pointerId, { anchor: e.clientX, dir: 0 });
+  beginControl(e);
 }
 
 function onPointerMove(e) {
-  const drag = input.pointers.get(e.pointerId);
-  if (!drag) return;
+  const c = input.control;
+  if (!c || c.id !== e.pointerId) return;
   if (e.cancelable) e.preventDefault();
-  updateDrag(drag, e.clientX);
+  updateControl(c, e.clientX);
 }
 
-function onPointerEnd(e) { input.pointers.delete(e.pointerId); }
+function onPointerEnd(e) {
+  const c = input.control;
+  if (c && c.id === e.pointerId) releaseControl();
+}
 
 /* ===== 10. REDIMENSIONAMENTO ===== */
 // O botão de ajuda fica ao lado do palco. Sem espaço lateral (celular em pé), ele vai
@@ -1088,6 +1376,7 @@ function resizeCanvas() {
   ui.stage.style.width = `${cssW}px`;
   ui.stage.style.height = `${cssH}px`;
   ui.stage.style.setProperty('--u', `${cssW / W}px`);
+  stageCssWidth = cssW;
   canvas.width = Math.max(1, Math.round(cssW * dpr));
   canvas.height = Math.max(1, Math.round(cssH * dpr));
   render();
@@ -1100,35 +1389,43 @@ let lastTime = null;
 
 function frame(now) {
   rafId = requestAnimationFrame(frame);
+  clockNow = now;
   if (lastTime === null) lastTime = now;
   const dt = Math.min(Math.max((now - lastTime) / 1000, 0), CONFIG.timing.maxFrameTime);
   lastTime = now;
   update(dt);
+  autosaveRun();
   render();
 }
 
 function init() {
   initClouds();
   resetRound();
+  restoreSavedRun();    // partida salva em andamento? volta congelada, com contagem 3, 2, 1
   syncMuteButton();
   document.addEventListener('keydown', onKeyDown, { passive: false });
   document.addEventListener('keyup', onKeyUp);
   document.addEventListener('pointerdown', onPointerDown, { passive: false });
   document.addEventListener('pointermove', onPointerMove, { passive: false });
-  // Reforço para navegadores que ignoram touch-action: arrastar no jogo nunca rola a página.
-  document.addEventListener('touchmove', (e) => {
+  // Reforço para navegadores que ignoram touch-action: arrastar na área do jogo nunca rola a página.
+  ui.arena.addEventListener('touchmove', (e) => {
     if (e.cancelable && !(e.target.closest && e.target.closest('.help-popover'))) e.preventDefault();
   }, { passive: false });
   document.addEventListener('pointerup', (e) => { onPointerEnd(e); Sound.unlock(); });
   document.addEventListener('pointercancel', onPointerEnd);
+  document.addEventListener('lostpointercapture', onPointerEnd);
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   
   window.addEventListener('blur', () => {
     input.left = input.right = false;
-    input.pointers.clear();
+    releaseControl();
     setPaused(true);
   });
-  document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) setPaused(true); });
+  document.addEventListener('visibilitychange', () => {
+    lastTime = null;
+    if (document.hidden) { setPaused(true); persistRun(); }   // saiu da aba / recarregando: grava o quadro exato
+  });
+  window.addEventListener('pagehide', persistRun);            // F5 / fechar: grava o estado exato
 
   ui.helpButton.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -1137,8 +1434,12 @@ function init() {
   });
   ui.helpClose.addEventListener('click', (e) => { e.stopPropagation(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); });
   ui.muteButton.addEventListener('click', (e) => { e.stopPropagation(); toggleMute(); ui.muteButton.blur(); });
-  ui.pauseButton.addEventListener('click', (e) => { e.stopPropagation(); setPaused(true); ui.pauseButton.blur(); });
-  ui.resumeButton.addEventListener('click', (e) => { e.stopPropagation(); setPaused(false); });
+  ui.pauseButton.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (game.state === STATES.PLAYING) setPaused(true);
+    else if (game.state === STATES.PAUSED) setPaused(false);   // continuar: retoma pela contagem 3, 2, 1, GO!
+    ui.pauseButton.blur();
+  });
   ui.restartButton.addEventListener('click', (e) => { e.stopPropagation(); tryRestart(); });
 
   window.addEventListener('resize', resizeCanvas);
