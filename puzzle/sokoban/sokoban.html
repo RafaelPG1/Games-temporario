@@ -7,7 +7,6 @@
   <title>Sokoban · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="sokoban.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
@@ -29,6 +28,7 @@
   </header>
 
   <div id="arena" class="arena">
+    <div id="stage-wrap" class="stage-wrap" data-help="side">
     <main id="stage" class="stage" aria-label="Sokoban">
       <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
         <svg viewBox="0 0 16 16" fill="none" stroke="#0f1320" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -70,11 +70,31 @@
         <button type="button" class="pad pad-right" data-dir="right" aria-label="Direita"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
       </div>
 
+      <section id="start-screen" class="start" role="button" tabindex="0" aria-label="Toque para iniciar ou pressione espaço">
+        <div class="start-card">
+          <svg class="start-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+            <rect x="4" y="8" width="18" height="18" rx="2.5" fill="#d29a4c" stroke="#6b3f1a" stroke-width="1.8"/>
+            <path d="M7 11l12 12M19 11L7 23" stroke="#6b3f1a" stroke-width="1.8" stroke-linecap="round"/>
+            <circle cx="25" cy="9" r="4" fill="#ffc857"/>
+          </svg>
+          <h2 class="start-title">Sokoban</h2>
+          <p id="start-level" class="start-level">Fase 1</p>
+          <p id="start-progress" class="start-progress"></p>
+          <p class="start-touch">Toque para iniciar</p>
+          <p class="start-or">ou</p>
+          <kbd class="spacebar">SPACE</kbd>
+        </div>
+      </section>
       <section class="screen screen-levels" role="dialog" aria-labelledby="levels-title">
         <h2 id="levels-title" class="screen-title">Fases</h2>
-        <div id="level-tabs" class="level-tabs" role="tablist" aria-label="Grupos de fases"></div>
         <p id="group-name" class="group-name"></p>
         <div id="level-grid" class="level-grid"></div>
+        <div class="pager" role="group" aria-label="Páginas de fases">
+          <button id="page-prev" class="pager-btn" type="button" aria-label="Página anterior"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <span id="page-label" class="page-label" aria-live="polite">1 / 1</span>
+          <button id="page-next" class="pager-btn" type="button" aria-label="Próxima página"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+        <p id="levels-progress" class="levels-progress"></p>
         <button id="levels-close" class="btn btn-alt" type="button">Fechar</button>
       </section>
       <section class="screen screen-won" role="dialog" aria-labelledby="won-title">
@@ -90,31 +110,25 @@
       </section>
       <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
     </main>
-  </div>
-  <div id="game-menu" class="gmenu" data-manual hidden role="dialog" aria-labelledby="gmenu-title">
-  <div class="gmenu-card">
-    <h2 id="gmenu-title" class="gmenu-title">Sokoban</h2>
-    <p class="menu-desc">Empurre todas as caixas até os destinos dourados. Você só empurra, nunca puxa.</p>
-    <div class="menu-progress">
-      <div class="menu-progress-bar" aria-hidden="true"><i id="menu-bar"></i></div>
-      <p id="menu-progress-text" class="menu-progress-text"></p>
+    <div class="help">
+      <button id="help-button" class="help-button" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="help-pop" title="Como jogar">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
+      </button>
+      <div id="help-pop" class="help-pop" role="dialog" aria-labelledby="help-title" hidden>
+        <h2 id="help-title" class="help-title">Como jogar</h2>
+        <p>Empurre todas as caixas até os destinos dourados. Só dá para empurrar, nunca puxar.</p>
+        <ul class="help-keys">
+          <li><span class="keycaps"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keycaps"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> mover</li>
+          <li><kbd>Z</kbd> desfazer · <kbd>R</kbd> reiniciar</li>
+          <li><kbd>L</kbd> fases · <kbd>M</kbd> som</li>
+        </ul>
+        <p class="help-touch">No celular, use os botões na tela.</p>
+      </div>
     </div>
-    <button type="button" id="menu-levels" class="gmenu-alt">Escolher fase</button>
-    <ul class="menu-keys" aria-label="Comandos">
-      <li><span class="keycaps"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span><span>mover</span></li>
-      <li><span class="keycaps"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>mover</span></li>
-      <li><span class="keycaps"><kbd>Z</kbd><kbd>U</kbd></span><span>desfazer</span></li>
-      <li><span class="keycaps"><kbd>R</kbd></span><span>reiniciar a fase</span></li>
-      <li><span class="keycaps"><kbd>L</kbd></span><span>escolher fase</span></li>
-      <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
-    </ul>
-    <p class="menu-touch">Use os botões direcionais na tela</p>
-    <button type="button" class="gmenu-play" data-menu-play>Jogar</button>
+    </div>
   </div>
-</div>
 
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
+  <script src="sokoban_storage.js"></script>
   <script src="sokoban.js"></script>
 </body>
 </html>

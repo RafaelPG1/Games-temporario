@@ -18,11 +18,8 @@ const CONFIG = {
   volume: .3, undoLimit: 400,
 };
 
-// Persistência: game_storage (registro "solitario"); chaves antigas (prefixo "solitaire:") migradas uma vez.
-const store = GameStorage.game('solitario');
-store.migrate([
-  { from: 'solitaire:best', to: 'best', type: 'int' }, { from: 'solitaire:muted', to: 'muted', type: 'bool01' }, { from: 'solitaire:mode', to: 'mode', type: 'int' },
-]);
+// Persistência própria em solitario_storage.js: best (recorde), mode (1 ou 3 cartas) e muted.
+const store = SolitarioStorage, SAVED = store.load();
 const reduceMotion = () => Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
 /* ===== 2. BARALHO ===== */
@@ -58,7 +55,7 @@ const freshDeck = () => Array.from({ length: 52 }, (_, i) => i);
 
 /* ===== 3. ÁUDIO ===== */
 const Sound = (() => {
-  let ctx = null, master = null, off = false, muted = store.get('muted', false) === true;
+  let ctx = null, master = null, off = false, muted = SAVED.muted === true;
   function ensure() {
     if (off) return null;
     if (!ctx) {
@@ -81,7 +78,7 @@ const Sound = (() => {
   return {
     get muted() { return muted; },
     unlock() { play(ensure); },
-    setMuted(v) { muted = Boolean(v); store.set('muted', muted); play(ensure); },
+    setMuted(v) { muted = Boolean(v); store.save('muted', muted); play(ensure); },
     draw() { play(() => tone('triangle', 380, 520, 0.05, 0.22)); },
     place() { play(() => tone('triangle', 300, 240, 0.07, 0.25)); },
     found() { play(() => { tone('triangle', 620, 620, 0.08, 0.28); tone('triangle', 930, 930, 0.12, 0.28, 0.07); }); },
@@ -96,16 +93,16 @@ const G = {
   order: [],                 // distribuição inicial (para reiniciar a mesma partida)
   tableau: [[], [], [], [], [], [], []], found: [[], [], [], []], stock: [], waste: [], fan: 0,
   mode: 1, score: 0, moves: 0, time: 0, started: false, over: false, busy: false,
-  sel: null, undo: [], best: Number(store.get('best', 0)) || 0, token: 0, autoTimer: 0,
+  sel: null, undo: [], best: SAVED.best || 0, begun: false, token: 0, autoTimer: 0,
 };
 const $ = (id) => document.getElementById(id);
 const ui = {
   arena: $('arena'), play: $('play'), field: $('field'), live: $('live'),
   time: $('time'), moves: $('moves'), score: $('score'),
-  undo: $('undo-button'), restart: $('restart-button'), newBtn: $('new-button'), mute: $('mute-button'), rules: $('rules-button'),
+  undo: $('undo-button'), restart: $('restart-button'), newBtn: $('new-button'), mute: $('mute-button'),
+  game: $('game'), gameBody: $('game-body'), start: $('start-screen'), startBest: $('start-best'), help: $('help-button'), pop: $('help-pop'),
   dlgNew: $('dlg-new'), newWarn: $('new-warn'), newStart: $('new-start'), newCancel: $('new-cancel'),
   dlgRestart: $('dlg-restart'), restartOk: $('restart-ok'), restartCancel: $('restart-cancel'),
-  dlgRules: $('dlg-rules'), rulesClose: $('rules-close'),
   dlgWin: $('dlg-win'), winScore: $('win-score'), winTime: $('win-time'), winMoves: $('win-moves'), badge: $('record-badge'), winAgain: $('win-again'), winClose: $('win-close'),
 };
 const slots = { stock: null, waste: null, found: [], tableau: [] };
@@ -298,7 +295,7 @@ function undo() {
 function win() {
   G.over = true; G.busy = false; G.sel = null; dests = []; clearTimeout(G.autoTimer);
   const record = G.score > G.best;
-  if (record) { G.best = G.score; store.set('best', G.best); }
+  if (record) { G.best = G.score; store.save('best', G.best); }
   render();
   Sound.win(); say('Vitória! Todas as cartas estão nas fundações.');
   const token = G.token;
@@ -596,6 +593,26 @@ function endDrag() {
 document.addEventListener('pointerup', endDrag);
 document.addEventListener('pointercancel', endDrag);
 
+/* tela inicial e ajuda: a mesa fica parada (inert) até o primeiro toque/SPACE */
+function setHelp(on) { ui.pop.hidden = !on; ui.help.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+function syncBegin() {
+  ui.game.classList.toggle('is-ready', !G.begun); ui.gameBody.inert = !G.begun;
+  document.querySelectorAll('[data-start-mode]').forEach((el) => el.setAttribute('aria-checked', String(Number(el.dataset.startMode) === G.mode)));
+  ui.startBest.hidden = !G.best; ui.startBest.textContent = G.best ? `Recorde: ${G.best} pontos` : '';
+}
+function begin() {
+  if (G.begun || !ui.pop.hidden) return;   // com a ajuda aberta, o toque só fecha a ajuda
+  G.begun = true; Sound.unlock(); syncBegin();
+}
+function setStartMode(m) { if (G.begun || m === G.mode || G.moves) return; G.mode = m; store.save('mode', m); syncBegin(); render(); say(`Compra de ${m === 3 ? 'três cartas' : 'uma carta'}.`); }
+ui.start.addEventListener('click', (e) => { if (!e.target.closest('.start-modes')) begin(); });
+document.querySelectorAll('[data-start-mode]').forEach((el) => el.addEventListener('click', () => setStartMode(Number(el.dataset.startMode))));
+ui.help.addEventListener('click', () => setHelp(ui.pop.hidden));
+document.addEventListener('click', (e) => {
+  if (!ui.pop.hidden && !e.target.closest('.help')) setHelp(false);
+  const b = e.target.closest && e.target.closest('.help-button, .start-modes button'); if (b && e.detail) b.blur();   // clique/toque não deixa foco preso: SPACE continua iniciando
+});
+
 /* botões e teclado */
 const dialogOpen = () => Boolean(document.querySelector('dialog[open]'));
 function syncMute() {
@@ -608,7 +625,7 @@ const hasProgress = () => G.moves > 0 && !G.over;
 
 function askNew() {
   ui.newWarn.hidden = !hasProgress();
-  const r = document.querySelector(`input[name="mode"][value="${store.get('mode', 1) === 3 ? 3 : 1}"]`);
+  const r = document.querySelector(`input[name="mode"][value="${store.load().mode === 3 ? 3 : 1}"]`);
   if (r) r.checked = true;
   openDlg(ui.dlgNew); ui.newStart.focus({ preventScroll: true });
 }
@@ -619,10 +636,12 @@ ui.undo.addEventListener('click', () => { undo(); ui.undo.blur(); });
 ui.restart.addEventListener('click', () => { askRestart(); ui.restart.blur(); });
 ui.newBtn.addEventListener('click', () => { askNew(); ui.newBtn.blur(); });
 ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
-ui.rules.addEventListener('click', () => { openDlg(ui.dlgRules); ui.rulesClose.focus({ preventScroll: true }); });
 
 document.addEventListener('keydown', (e) => {
   if (dialogOpen() || e.altKey || e.repeat) return;
+  if (e.code === 'Escape' && !ui.pop.hidden) { setHelp(false); ui.help.blur(); return; }
+  const onBtn = e.target && e.target.closest && e.target.closest('button');
+  if (!G.begun) { if ((e.code === 'Space' || e.code === 'Enter') && !onBtn) { e.preventDefault(); begin(); } return; }
   if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') { e.preventDefault(); undo(); return; }
   if (e.ctrlKey || e.metaKey) return;
   switch (e.code) {
@@ -649,15 +668,14 @@ function closeDlg(d) { if (!d.open) return; if (d.close) d.close(); else d.remov
 ui.newCancel.addEventListener('click', () => closeDlg(ui.dlgNew));
 ui.newStart.addEventListener('click', () => {
   const r = document.querySelector('input[name="mode"]:checked'), mode = r && r.value === '3' ? 3 : 1;
-  store.set('mode', mode); closeDlg(ui.dlgNew); Sound.unlock();
+  store.save('mode', mode); closeDlg(ui.dlgNew); Sound.unlock();
   startGame(shuffle(freshDeck()), mode);
 });
 ui.restartCancel.addEventListener('click', () => closeDlg(ui.dlgRestart));
 ui.restartOk.addEventListener('click', () => { closeDlg(ui.dlgRestart); restartNow(); });
-ui.rulesClose.addEventListener('click', () => closeDlg(ui.dlgRules));
 ui.winClose.addEventListener('click', () => closeDlg(ui.dlgWin));
 ui.winAgain.addEventListener('click', () => { closeDlg(ui.dlgWin); Sound.unlock(); startGame(shuffle(freshDeck()), G.mode); });
-[ui.dlgNew, ui.dlgRestart, ui.dlgRules, ui.dlgWin].forEach((d) => d.addEventListener('click', (e) => { if (e.target === d) closeDlg(d); }));
+[ui.dlgNew, ui.dlgRestart, ui.dlgWin].forEach((d) => d.addEventListener('click', (e) => { if (e.target === d) closeDlg(d); }));
 
 window.addEventListener('resize', () => render());
 window.addEventListener('orientationchange', () => render());
@@ -666,6 +684,7 @@ if (window.ResizeObserver) new ResizeObserver(() => render()).observe(ui.play);
 buildSlots();
 buildCards();
 syncMute();
-startGame(shuffle(freshDeck()), store.get('mode', 1) === 3 ? 3 : 1);
-window.__solitaire = { G, cards, CONFIG, SUITS, startGame, draw, undo, performMove, canMove, canTableau, canFoundation, isMovableSource, sourceCards, sequenceOk, integrity, shuffle, freshDeck, computeDests, autoFoundation, tapCard, render, restartNow, dropTarget: (x, y) => dropTarget(x, y) };
+startGame(shuffle(freshDeck()), SAVED.mode === 3 ? 3 : 1);
+syncBegin();
+window.__solitaire = { begin, G, cards, CONFIG, SUITS, startGame, draw, undo, performMove, canMove, canTableau, canFoundation, isMovableSource, sourceCards, sequenceOk, integrity, shuffle, freshDeck, computeDests, autoFoundation, tapCard, render, restartNow, dropTarget: (x, y) => dropTarget(x, y) };
 })();

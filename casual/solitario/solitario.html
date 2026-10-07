@@ -7,7 +7,6 @@
   <title>Paciência · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="solitario.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <!-- Naipes (usados por todas as cartas e pela interface) -->
@@ -35,34 +34,71 @@
   </header>
 
   <main id="arena" class="arena">
-    <section class="hud" aria-label="Painel da partida">
-      <div class="stats">
-        <div class="stat"><span class="label">Tempo</span><strong id="time" class="value">0:00</strong></div>
-        <div class="stat"><span class="label">Jogadas</span><strong id="moves" class="value">0</strong></div>
-        <div class="stat stat-score"><span class="label">Pontos</span><strong id="score" class="value">0</strong></div>
+    <div id="game" class="game is-ready">
+      <div id="game-body" class="game-body">
+      <section class="hud" aria-label="Painel da partida">
+        <div class="stats">
+          <div class="stat"><span class="label">Tempo</span><strong id="time" class="value">0:00</strong></div>
+          <div class="stat"><span class="label">Jogadas</span><strong id="moves" class="value">0</strong></div>
+          <div class="stat stat-score"><span class="label">Pontos</span><strong id="score" class="value">0</strong></div>
+        </div>
+        <div class="tools">
+          <button id="undo-button" class="tool" type="button" aria-label="Desfazer última jogada" title="Desfazer (U)">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3L2.5 6.5 6 10M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button id="restart-button" class="tool" type="button" aria-label="Reiniciar esta partida" title="Reiniciar (R)">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button id="new-button" class="tool" type="button" aria-label="Nova partida" title="Nova partida (N)">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3" y="2" width="10" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5.5v5M5.5 8h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          </button>
+          <button id="mute-button" class="tool" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/><path class="icon-waves" d="M10.5 6a3 3 0 0 1 0 4M12.3 4.2a5.5 5.5 0 0 1 0 7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path class="icon-cross" d="M10.5 6l4 4M14.5 6l-4 4" fill="none" stroke="#ff8a6b" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+        </div>
+      </section>
+      <div class="felt">
+        <div id="play" class="play">
+          <div id="field" class="field"></div>
+        </div>
       </div>
-      <div class="tools">
-        <button id="undo-button" class="tool" type="button" aria-label="Desfazer última jogada" title="Desfazer (U)">
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3L2.5 6.5 6 10M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <button id="restart-button" class="tool" type="button" aria-label="Reiniciar esta partida" title="Reiniciar (R)">
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <button id="new-button" class="tool" type="button" aria-label="Nova partida" title="Nova partida (N)">
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3" y="2" width="10" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5.5v5M5.5 8h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        </button>
-        <button id="mute-button" class="tool" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/><path class="icon-waves" d="M10.5 6a3 3 0 0 1 0 4M12.3 4.2a5.5 5.5 0 0 1 0 7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path class="icon-cross" d="M10.5 6l4 4M14.5 6l-4 4" fill="none" stroke="#ff8a6b" stroke-width="1.6" stroke-linecap="round"/></svg>
-        </button>
-        <button id="rules-button" class="tool" type="button" aria-label="Regras do jogo" title="Regras">
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6.2 6.3a1.9 1.9 0 1 1 2.7 1.7c-.6.3-.9.7-.9 1.3M8 11.3v.1" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-        </button>
       </div>
-    </section>
 
-    <div class="felt">
-      <div id="play" class="play">
-        <div id="field" class="field"></div>
+      <!-- Tela inicial: a mesa fica parada até o primeiro toque/clique ou SPACE -->
+      <section id="start-screen" class="start" role="dialog" aria-label="Paciência: toque para iniciar ou pressione espaço">
+        <div class="start-card">
+          <div class="start-mark" aria-hidden="true">
+            <span class="sm sm-a"></span>
+            <span class="sm sm-b"><svg viewBox="0 0 24 24"><use href="#s-h"/></svg></span>
+          </div>
+          <h2 class="start-title">Paciência</h2>
+          <p class="start-sub">Klondike clássico</p>
+          <div class="start-modes" role="radiogroup" aria-label="Cartas por compra">
+            <button type="button" role="radio" data-start-mode="1">Uma carta</button>
+            <button type="button" role="radio" data-start-mode="3">Três cartas</button>
+          </div>
+          <p id="start-best" class="start-best" hidden></p>
+          <p class="start-touch">Toque para iniciar</p>
+          <p class="start-or">ou</p>
+          <kbd class="spacebar">SPACE</kbd>
+        </div>
+      </section>
+    </div>
+
+    <!-- Botão "Como jogar": fora do jogo, ao lado do container; o popover abre para baixo -->
+    <div class="help">
+      <button id="help-button" class="help-button" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="help-pop" title="Como jogar">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
+      </button>
+      <div id="help-pop" class="help-pop" role="dialog" aria-labelledby="help-title" hidden>
+        <h2 id="help-title" class="help-title">Como jogar</h2>
+        <p>Leve as 52 cartas às quatro fundações, do Ás ao Rei, um naipe em cada.</p>
+        <p>Nas colunas, monte em ordem decrescente alternando as cores. Só o Rei ocupa coluna vazia.</p>
+        <p>Toque no monte para comprar. Toque numa carta e depois no destino (ou arraste). Dois toques mandam a carta à fundação.</p>
+        <ul class="help-keys">
+          <li><kbd>D</kbd> comprar · <kbd>F</kbd> fundação · <kbd>U</kbd> desfazer</li>
+          <li><kbd>N</kbd> novo · <kbd>R</kbd> reiniciar · <kbd>M</kbd> som</li>
+        </ul>
       </div>
     </div>
     <p id="live" class="sr-only" role="status" aria-live="polite"></p>
@@ -91,20 +127,6 @@
     </div>
   </dialog>
 
-  <dialog id="dlg-rules" class="dlg dlg-wide" aria-labelledby="rules-title">
-    <h2 id="rules-title">Como jogar</h2>
-    <ul class="rules">
-      <li>Leve todas as 52 cartas para as quatro fundações, cada uma de um naipe, do Ás ao Rei.</li>
-      <li>Nas sete colunas, monte sequências em ordem decrescente alternando vermelho e preto. Um 8 vermelho vai sobre um 9 preto.</li>
-      <li>Você pode mover uma sequência inteira de uma vez. Só o Rei (ou uma sequência iniciada por ele) ocupa uma coluna vazia.</li>
-      <li>Toque no monte para comprar. Quando ele acabar, toque no espaço vazio para reciclar o descarte, sem perder a ordem. Comprar três cartas deixa o jogo mais difícil, e só a carta de cima fica disponível.</li>
-      <li>Selecione uma carta e depois o destino destacado. No computador, também dá para arrastar. Dois toques (ou cliques) mandam a carta para a fundação.</li>
-      <li>Pontos: +10 ao subir para a fundação, +5 ao descartar para uma coluna, +5 ao virar uma carta, −15 ao tirar da fundação, −100 ao reciclar o monte (−20 comprando três).</li>
-      <li>Teclado: Tab navega, Enter ou Espaço seleciona, D compra, F envia para a fundação, U desfaz, Esc cancela a seleção.</li>
-    </ul>
-    <div class="dlg-actions"><button id="rules-close" class="btn" type="button">Entendi</button></div>
-  </dialog>
-
   <dialog id="dlg-win" class="dlg" aria-labelledby="win-title">
     <h2 id="win-title">Mesa completa!</h2>
     <p class="win-score"><span id="win-score">0</span><small>pontos</small></p>
@@ -117,25 +139,8 @@
   </dialog>
 
   <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
-  <div id="game-menu" class="gmenu" hidden role="dialog" aria-labelledby="gmenu-title">
-  <div class="gmenu-card">
-    <h2 id="gmenu-title" class="gmenu-title">Paciência</h2>
-    <p class="menu-desc">Klondike clássico: monte as quatro fundações, de Ás a Rei, uma para cada naipe.</p>
-    <p class="menu-note">Dica: a compra é de 1 ou 3 cartas, escolha em <b>Novo jogo</b></p>
-    <ul class="menu-keys" aria-label="Comandos">
-      <li><span class="keycaps"><kbd>U</kbd></span><span>desfazer</span></li>
-      <li><span class="keycaps"><kbd>N</kbd></span><span>novo jogo</span></li>
-      <li><span class="keycaps"><kbd>R</kbd></span><span>reiniciar</span></li>
-      <li><span class="keycaps"><kbd>F</kbd></span><span>enviar à fundação</span></li>
-      <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
-    </ul>
-    <p class="menu-touch">Toque numa carta e depois no destino</p>
-    <button type="button" class="gmenu-play" data-menu-play>Jogar</button>
-  </div>
-</div>
 
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
+  <script src="solitario_storage.js"></script>
   <script src="solitario.js"></script>
 </body>
 </html>

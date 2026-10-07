@@ -8,7 +8,10 @@ const SYMBOL = {
   O: '<svg class="so" viewBox="0 0 100 100" aria-hidden="true"><circle class="draw" pathLength="1" cx="50" cy="50" r="27" transform="rotate(-90 50 50)"/></svg>',
 };
 const $ = (id) => document.getElementById(id);
-const ui = { arena: $('arena'), stage: $('stage'), board: $('board'), status: $('status'), round: $('round-btn'), session: $('session-btn'), mute: $('mute-btn'), cells: [] };
+const ui = {
+  arena: $('arena'), wrap: $('stage-wrap'), stage: $('stage'), board: $('board'), status: $('status'), round: $('round-btn'), session: $('session-btn'), mute: $('mute-btn'), cells: [],
+  help: $('help-button'), pop: $('help-pop'), start: $('start-screen'), startSub: $('start-sub'),
+};
 
 const S = {
   mode: 'ai',          // 'two' (2 jogadores) | 'ai' (humano é X, IA é O)
@@ -18,14 +21,11 @@ const S = {
   score: { X: 0, O: 0, D: 0 },
   token: 0,            // muda a cada rodada nova: invalida jogada pendente da IA
   thinking: false, confirm: 0, muted: false,
+  started: false,      // false até o primeiro toque/SPACE: nada joga, nem a IA
 };
 
-/* ===== Armazenamento: game_storage (registro "jogo_velha"); chaves antigas migradas uma vez ===== */
-const store = GameStorage.game('jogo_velha');
-store.migrate([
-  { from: 'jogo_velha:mode', to: 'mode' }, { from: 'jogo_velha:level', to: 'level' }, { from: 'jogo_velha:starter', to: 'starter' },
-  { from: 'jogo_velha:muted', to: 'muted', type: 'bool01' },
-]);
+/* ===== Armazenamento: preferências (modo, dificuldade, quem começa, som) em jogo_velha_storage.js ===== */
+const store = JogoVelhaStorage;
 
 /* ===== Áudio (Web Audio, sem arquivos externos; falhas nunca interrompem o jogo) ===== */
 const Sound = (() => {
@@ -114,18 +114,18 @@ function chooseMove(b, me, level = S.level) {
   return pick(e);
 }
 function maybeAI() {
-  if (S.over || !isAITurn()) return;
+  if (!S.started || S.over || !isAITurn()) return;
   S.thinking = true; render();
   const t = S.token;
   setTimeout(() => {
-    if (t !== S.token || S.over || !isAITurn()) return; // rodada reiniciada ou encerrada: descarta
+    if (t !== S.token || !S.started || S.over || !isAITurn()) return; // rodada reiniciada ou encerrada: descarta
     S.thinking = false; place(chooseMove(S.board.slice(), 'O'));
   }, AI_DELAY_MS);
 }
 
 /* ===== Ações ===== */
 function place(i) {
-  if (S.over || S.board[i]) return false;
+  if (!S.started || S.over || S.board[i]) return false;
   const p = S.turn; S.board[i] = p; Sound.place(p);
   const w = findWinner(S.board);
   if (w) finish(w.p, w.line); else if (!empties(S.board).length) finish('D', null); else S.turn = other(S.turn);
@@ -137,7 +137,7 @@ function finish(result, line) { // único ponto que altera o placar
   Sound.result(result === 'D' ? 'draw' : S.mode === 'ai' && result === 'O' ? 'lose' : 'win'); // uma vez por resultado
 }
 function humanMove(i) {
-  if (S.over || S.thinking || isAITurn() || S.board[i]) { if (!S.over && !S.thinking) render(); return false; }
+  if (!S.started || S.over || S.thinking || isAITurn() || S.board[i]) { if (!S.over && !S.thinking) render(); return false; }
   return place(i);
 }
 function newRound() {
@@ -147,17 +147,22 @@ function newRound() {
 }
 function resetSession() { S.score = { X: 0, O: 0, D: 0 }; newRound(); } // placar + rodada (troca de modo/dificuldade)
 function resetScore() { S.score = { X: 0, O: 0, D: 0 }; clearConfirm(); render(); } // só o placar; o tabuleiro continua
-function setMode(m) { if (m !== S.mode) { Sound.click(); S.mode = m; store.set('mode', m); resetSession(); } }
-function setLevel(l) { if (l !== S.level) { Sound.click(); S.level = l; store.set('level', l); resetSession(); } }
-function setStarter(s) { if (s !== S.starter) { Sound.click(); S.starter = s; store.set('starter', s); newRound(); } }
+function setMode(m) { if (m !== S.mode) { Sound.click(); S.mode = m; store.save('mode', m); resetSession(); } }
+function setLevel(l) { if (l !== S.level) { Sound.click(); S.level = l; store.save('level', l); resetSession(); } }
+function setStarter(s) { if (s !== S.starter) { Sound.click(); S.starter = s; store.save('starter', s); newRound(); } }
 function clearConfirm() { clearTimeout(S.confirm); S.confirm = 0; }
 function onSession() { // zerar o placar pede um segundo toque (expira sozinho) e não mexe no tabuleiro
   Sound.click();
   if (!S.confirm) { S.confirm = setTimeout(() => { S.confirm = 0; render(); }, CONFIRM_MS); render(); return; }
   resetScore();
 }
-function onRound() { Sound.click(); newRound(); } // "Reiniciar rodada" e "Jogar de novo" são o mesmo comando
-function toggleMute() { S.muted = !S.muted; store.set('muted', S.muted); if (!S.muted) { Sound.unlock(); Sound.click(); } render(); }
+function onRound() { if (!S.started) return; Sound.click(); newRound(); } // "Reiniciar rodada" e "Jogar de novo" são o mesmo comando
+function begin() {
+  if (S.started || !ui.pop.hidden) return;   // com a ajuda aberta, o toque só fecha a ajuda
+  S.started = true; Sound.unlock(); render(); maybeAI();
+}
+function setHelp(on) { ui.pop.hidden = !on; ui.help.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+function toggleMute() { S.muted = !S.muted; store.save('muted', S.muted); if (!S.muted) { Sound.unlock(); Sound.click(); } render(); }
 
 /* ===== Renderização ===== */
 function render() {
@@ -166,7 +171,7 @@ function render() {
     const v = S.board[i], win = Boolean(S.line && S.line.includes(i));
     if ((c.dataset.v || '') !== v) { c.dataset.v = v; c.innerHTML = v ? SYMBOL[v] : ''; }
     c.className = `cell${v ? '' : ' empty'}${win ? ` win win-${v}` : ''}`;
-    c.setAttribute('aria-disabled', S.over || Boolean(v) || isAITurn());
+    c.setAttribute('aria-disabled', !S.started || S.over || Boolean(v) || isAITurn());
     c.setAttribute('aria-label', `Linha ${Math.floor(i / 3) + 1}, coluna ${(i % 3) + 1}: ${v || 'vazia'}`);
   });
   ui.board.classList.toggle('has-win', Boolean(S.line));
@@ -175,39 +180,51 @@ function render() {
     k = 'end';
     text = S.result === 'D' ? 'Empate!' : ai ? (S.result === 'X' ? 'Você venceu!' : 'A IA venceu!') : `O jogador ${S.result} venceu!`;
   } else if (S.thinking) { k = 'O'; text = 'A IA está jogando…'; }
+  else if (!S.started) { k = 'end'; text = 'Aguardando início'; }
   else { k = S.turn; text = ai ? (S.turn === 'X' ? 'Sua vez · X' : 'Vez da IA · O') : `Vez do jogador ${S.turn}`; }
   ui.status.textContent = text; ui.status.dataset.k = k;
   $('name-X').textContent = ai ? 'Você · X' : 'Jogador X'; $('name-O').textContent = ai ? 'IA · O' : 'Jogador O';
   ['X', 'O', 'D'].forEach((p) => {
     $(`score-${p}`).textContent = S.score[p];
-    $(`card-${p}`).classList.toggle('active', S.over ? S.result === p : p === S.turn);
+    $(`card-${p}`).classList.toggle('active', S.over ? S.result === p : S.started && p === S.turn);
   });
   const sync = (sel, key, val) => document.querySelectorAll(sel).forEach((el) => { const on = el.dataset[key] === val; el.setAttribute('aria-checked', on); el.tabIndex = on ? 0 : -1; });
   sync('[data-mode]', 'mode', S.mode); sync('[data-level]', 'level', S.level); sync('[data-starter]', 'starter', S.starter);
   $('levels').hidden = !ai;
   document.querySelector('[data-starter="X"]').setAttribute('aria-label', ai ? 'Você começa (X)' : 'X começa');
   document.querySelector('[data-starter="O"]').setAttribute('aria-label', ai ? 'A IA começa (O)' : 'O começa');
-  ui.round.textContent = S.over ? 'Jogar de novo' : 'Reiniciar rodada';
+  ui.round.textContent = S.over ? 'Jogar de novo' : 'Reiniciar rodada'; ui.round.disabled = !S.started;
+  ui.stage.classList.toggle('is-ready', !S.started);
+  ui.startSub.textContent = ai ? `Contra a IA · ${{ easy: 'Fácil', medium: 'Médio', hard: 'Difícil' }[S.level]}` : '2 jogadores';
   ui.session.textContent = S.confirm ? 'Confirmar?' : 'Zerar placar';
   ui.session.disabled = !(S.score.X + S.score.O + S.score.D); // nada a zerar
   ui.mute.classList.toggle('is-muted', S.muted); ui.mute.setAttribute('aria-pressed', S.muted);
   ui.mute.setAttribute('aria-label', S.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
 }
-function resizeStage() {
-  const w = Math.max(1, ui.arena.clientWidth - MARGIN * 2), h = Math.max(1, ui.arena.clientHeight - MARGIN * 2);
+/* O palco mantém 288 × 512. O botão ? fica fora dele: ao lado quando há espaço; senão acima (se sobrar altura); senão o palco encolhe e abre espaço ao lado. */
+const HELP_SIZE = 42, HELP_GAP = 10;
+function fitStage(w, h) {
   let ch = Math.min(h, MAX_CSS_HEIGHT), cw = ch * (W / H);
   if (cw > w) { cw = w; ch = cw / (W / H); }
-  cw = Math.floor(cw); ch = Math.floor(ch);
-  ui.stage.style.width = `${cw}px`; ui.stage.style.height = `${ch}px`; ui.stage.style.setProperty('--u', `${cw / W}px`);
+  return [Math.floor(cw), Math.floor(ch)];
+}
+function resizeStage() {
+  const aw = ui.arena.clientWidth, ah = ui.arena.clientHeight, side = HELP_SIZE + HELP_GAP + 4;
+  let [cw, ch] = fitStage(Math.max(1, aw - MARGIN * 2), Math.max(1, ah - MARGIN * 2)), mode = 'side', shift = 0;
+  if ((aw - cw) / 2 >= side + MARGIN) mode = 'side';
+  else if ((ah - ch) / 2 >= HELP_SIZE + 12) mode = 'top';
+  else { [cw, ch] = fitStage(Math.max(1, aw - MARGIN * 2 - side), Math.max(1, ah - MARGIN * 2)); shift = side / 2; }
+  ui.wrap.style.width = `${cw}px`; ui.wrap.style.height = `${ch}px`; ui.wrap.style.setProperty('--u', `${cw / W}px`);
+  ui.wrap.dataset.help = mode; ui.wrap.style.transform = shift ? `translateX(${-shift}px)` : '';
 }
 
 /* ===== Entradas ===== */
 function init() {
-  const m = store.get('mode'), l = store.get('level'), s = store.get('starter');
-  if (m === 'two' || m === 'ai') S.mode = m;
-  if (['easy', 'medium', 'hard'].includes(l)) S.level = l;
-  if (s === 'X' || s === 'O') S.starter = s;
-  S.muted = store.get('muted', false) === true;
+  const saved = store.load();
+  if (saved.mode) S.mode = saved.mode;
+  if (saved.level) S.level = saved.level;
+  if (saved.starter) S.starter = saved.starter;
+  S.muted = saved.muted === true;
   for (let i = 0; i < 9; i++) {
     const c = document.createElement('button'); c.type = 'button'; c.dataset.i = i; c.dataset.v = '';
     ui.board.appendChild(c); ui.cells.push(c);
@@ -222,7 +239,17 @@ function init() {
   ui.session.addEventListener('click', onSession);
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    if (e.code === 'Escape') { if (!ui.pop.hidden) { setHelp(false); ui.help.blur(); } return; }
+    const onBtn = e.target && e.target.closest && e.target.closest('button');
+    if (e.code === 'Space' && !onBtn) { if (!S.started) { e.preventDefault(); begin(); } return; }
+    if (e.code === 'Enter' && e.target === ui.start) { e.preventDefault(); begin(); return; }
     if (e.code === 'KeyR') onRound(); else if (e.code === 'KeyM') toggleMute();
+  });
+  ui.start.addEventListener('click', begin);
+  ui.help.addEventListener('click', () => setHelp(ui.pop.hidden));
+  document.addEventListener('click', (e) => {
+    if (!ui.pop.hidden && !e.target.closest('.help')) setHelp(false);
+    const b = e.target.closest && e.target.closest('button'); if (b && e.detail) b.blur();   // toque/clique não deixa foco preso: SPACE continua iniciando
   });
   document.addEventListener('pointerdown', () => Sound.unlock()); // libera o áudio após a primeira interação
   document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -232,4 +259,4 @@ function init() {
   newRound();
 }
 init();
-window.__velha = { S, LINES, findWinner, chooseMove, bestMoves, humanMove, newRound, resetSession, resetScore, Sound, setMode, setLevel, setStarter };
+window.__velha = { S, LINES, begin, findWinner, chooseMove, bestMoves, humanMove, newRound, resetSession, resetScore, Sound, setMode, setLevel, setStarter };

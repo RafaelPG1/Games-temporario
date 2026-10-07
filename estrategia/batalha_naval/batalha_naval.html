@@ -7,7 +7,6 @@
   <title>Batalha Naval · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="batalha_naval.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
@@ -25,85 +24,106 @@
   </header>
 
   <div id="arena" class="arena">
-    <main id="stage" class="stage" data-phase="setup" aria-label="Batalha Naval">
-      <section class="bar" aria-label="Partida">
-        <div class="mode"><b>Contra a IA</b><span id="turn" aria-live="polite"></span></div>
-        <div class="levels" role="radiogroup" aria-label="Dificuldade">
-          <button type="button" role="radio" data-level="easy">Fácil</button>
-          <button type="button" role="radio" data-level="medium">Médio</button>
-          <button type="button" role="radio" data-level="hard">Difícil</button>
-        </div>
-        <div class="tools">
-          <button id="mute" class="btn btn-alt" type="button" aria-pressed="false">Som: ligado</button>
-          <label class="vol">Volume <input id="vol" type="range" min="0" max="100" value="60"></label>
-          <button id="rules-button" class="btn btn-alt" type="button">Regras</button>
-          <button id="quit-button" class="btn btn-alt" type="button">Abandonar</button>
-        </div>
-      </section>
-
-      <div class="boards">
-        <section class="panel foe" aria-labelledby="t-foe">
-          <h2 id="t-foe">Radar inimigo <small>toque para disparar</small></h2>
-          <div id="board-foe" class="board" aria-label="Mar inimigo"></div>
-          <ul id="fleet-foe" class="fleet" aria-label="Frota inimiga"></ul>
-        </section>
-        <section class="panel mine" aria-labelledby="t-me">
-          <h2 id="t-me">Sua frota <small id="sub-me"></small></h2>
-          <div id="board-me" class="board" aria-label="Seu mar"></div>
-          <ul id="fleet-me" class="fleet" aria-label="Sua frota"></ul>
-          <div class="setup">
-            <div id="pick" class="pick" role="group" aria-label="Escolher navio"></div>
-            <div class="row">
-              <button id="rotate" class="btn btn-alt" type="button">Girar: horizontal</button>
-              <button id="random" class="btn btn-alt" type="button">Aleatório</button>
-              <button id="clear" class="btn btn-alt" type="button">Limpar</button>
+    <div id="stage-wrap" class="stage-wrap">
+      <main id="stage" class="stage is-ready" data-phase="setup" aria-label="Batalha Naval">
+        <div id="stage-body" class="stage-body">
+          <section class="bar" aria-label="Partida">
+            <div class="mode"><b>Contra a IA</b><span id="turn" class="turn" aria-live="polite"></span></div>
+            <div class="levels" role="radiogroup" aria-label="Dificuldade">
+              <button type="button" role="radio" data-level="easy">Fácil</button>
+              <button type="button" role="radio" data-level="medium">Médio</button>
+              <button type="button" role="radio" data-level="hard">Difícil</button>
             </div>
-            <button id="start" class="btn" type="button" disabled>Iniciar batalha</button>
+            <div class="tools">
+              <button id="mute" class="icon-btn" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
+                  <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
+                  <g class="icon-cross"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
+                </svg>
+              </button>
+              <label class="vol"><span>Volume</span><input id="vol" type="range" min="0" max="100" value="60"></label>
+              <button id="quit-button" class="btn btn-alt" type="button">Abandonar</button>
+            </div>
+          </section>
+
+          <p id="status" class="status" aria-live="polite"></p>
+
+          <div class="boards">
+            <section class="panel foe" aria-labelledby="t-foe">
+              <h2 id="t-foe">Radar inimigo <small>toque para disparar</small></h2>
+              <div id="board-foe" class="board" aria-label="Mar inimigo"></div>
+              <ul id="fleet-foe" class="fleet" aria-label="Frota inimiga"></ul>
+            </section>
+            <section class="panel mine" aria-labelledby="t-me">
+              <h2 id="t-me">Sua frota <small id="sub-me"></small></h2>
+              <div id="board-me" class="board" aria-label="Seu mar"></div>
+              <ul id="fleet-me" class="fleet" aria-label="Sua frota"></ul>
+              <div class="setup">
+                <div id="pick" class="pick" role="group" aria-label="Escolher navio"></div>
+                <div class="row">
+                  <button id="rotate" class="btn btn-alt" type="button">Girar: horizontal</button>
+                  <button id="random" class="btn btn-alt" type="button">Aleatório</button>
+                  <button id="clear" class="btn btn-alt" type="button">Limpar</button>
+                </div>
+                <button id="start" class="btn btn-main" type="button" disabled>Iniciar batalha</button>
+              </div>
+            </section>
+          </div>
+
+          <section class="comms" aria-label="Comunicações">
+            <ol id="log" class="log"></ol>
+            <div class="legend" aria-label="Legenda"><i class="k k-ship"></i>navio <i class="k k-hit"></i>acerto (navio ainda flutua) <i class="k k-miss"></i>água <i class="k k-sunk"></i>navio afundado <i class="k k-free"></i>não atacada</div>
+          </section>
+          <noscript><p>Ative o JavaScript para jogar.</p></noscript>
+        </div>
+
+        <!-- Tela inicial: o jogo fica parado até o primeiro toque/clique ou SPACE -->
+        <section id="start-screen" class="start" role="dialog" aria-label="Batalha Naval: toque para iniciar ou pressione espaço">
+          <div class="start-card">
+            <div class="radar" aria-hidden="true"><i></i><b></b></div>
+            <h2 class="start-title">Batalha Naval</h2>
+            <p class="start-sub">Afunde a frota inimiga antes que afundem a sua</p>
+            <div class="start-levels" role="radiogroup" aria-label="Dificuldade da IA">
+              <button type="button" role="radio" data-start-level="easy">Fácil</button>
+              <button type="button" role="radio" data-start-level="medium">Médio</button>
+              <button type="button" role="radio" data-start-level="hard">Difícil</button>
+            </div>
+            <p class="start-touch">Toque para iniciar</p>
+            <p class="start-or">ou</p>
+            <kbd class="spacebar">SPACE</kbd>
           </div>
         </section>
+
+        <section id="confirm" class="screen" role="alertdialog" aria-labelledby="confirm-t" hidden>
+          <h2 id="confirm-t">Abandonar a partida?</h2><p>O progresso atual será perdido.</p>
+          <div class="row"><button id="yes" class="btn" type="button">Abandonar</button><button id="no" class="btn btn-alt" type="button">Voltar</button></div>
+        </section>
+        <section id="result" class="screen" role="dialog" aria-labelledby="result-t" hidden>
+          <h2 id="result-t"></h2><p id="result-p"></p>
+          <button id="again" class="btn" type="button">Nova partida</button>
+        </section>
+      </main>
+    </div>
+
+    <!-- Botão "Como jogar": fora do jogo, ao lado do container; o popover abre para baixo -->
+    <div class="help">
+      <button id="help-button" class="help-button" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="help-pop" title="Como jogar">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
+      </button>
+      <div id="help-pop" class="help-pop" role="dialog" aria-labelledby="help-title" hidden>
+        <h2 id="help-title" class="help-title">Como jogar</h2>
+        <p>Posicione 5 navios (5, 4, 3, 3 e 2 casas) no seu mar, na horizontal ou vertical. Depois alternem disparos: vence quem afundar a frota inimiga primeiro.</p>
+        <p>Água = círculo · acerto = explosão · navio afundado = casco escuro.</p>
+        <ul class="help-keys">
+          <li><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> mover o foco</li>
+          <li><kbd>Enter</kbd> disparar · <kbd>R</kbd> girar o navio</li>
+        </ul>
       </div>
-
-      <section class="comms" aria-label="Comunicações">
-        <p id="status" class="status" aria-live="polite"></p>
-        <ol id="log" class="log"></ol>
-        <div class="legend" aria-label="Legenda"><i class="k k-ship"></i>navio <i class="k k-hit"></i>acerto (navio ainda flutua) <i class="k k-miss"></i>água <i class="k k-sunk"></i>navio afundado <i class="k k-free"></i>não atacada</div>
-      </section>
-
-      <section id="rules" class="screen" role="dialog" aria-labelledby="rules-t" hidden>
-        <h2 id="rules-t">Regras</h2>
-        <p>Posicione 5 navios (5, 4, 3, 3 e 2 casas) na horizontal ou vertical, sem sobreposição. Depois, alternem disparos: cada jogada ataca uma casa do mar inimigo. Vence quem afundar toda a frota adversária primeiro.</p>
-        <p>Marcadores: <b>círculo</b> = água, <b>X vermelho</b> = acerto (o navio ainda flutua), <b>casco escuro com ondas</b> = navio afundado. Setas movem o foco, Enter dispara, R gira o navio.</p>
-        <button class="btn close" type="button">Entendi</button>
-      </section>
-      <section id="confirm" class="screen" role="alertdialog" aria-labelledby="confirm-t" hidden>
-        <h2 id="confirm-t">Abandonar a partida?</h2><p>O progresso atual será perdido.</p>
-        <div class="row"><button id="yes" class="btn" type="button">Abandonar</button><button id="no" class="btn btn-alt" type="button">Voltar</button></div>
-      </section>
-      <section id="result" class="screen" role="dialog" aria-labelledby="result-t" hidden>
-        <h2 id="result-t"></h2><p id="result-p"></p>
-        <button id="again" class="btn" type="button">Nova partida</button>
-      </section>
-      <noscript><p>Ative o JavaScript para jogar.</p></noscript>
-    </main>
+    </div>
   </div>
-  <div id="game-menu" class="gmenu" hidden role="dialog" aria-labelledby="gmenu-title">
-  <div class="gmenu-card">
-    <h2 id="gmenu-title" class="gmenu-title">Batalha Naval</h2>
-    <p class="menu-desc">Posicione sua frota e afunde todos os navios inimigos antes que afundem os seus.</p>
-    <p class="gmenu-sub">Dificuldade</p>
-    <div class="gmenu-opts" role="radiogroup" aria-label="Dificuldade" data-mirror=".levels button"></div>
-    <ul class="menu-keys" aria-label="Comandos">
-      <li><span class="keycaps"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span><span>mover o foco</span></li>
-      <li><span class="keycaps"><kbd>Enter</kbd></span><span>disparar</span></li>
-      <li><span class="keycaps"><kbd>R</kbd></span><span>girar o navio</span></li>
-    </ul>
-    <p class="menu-touch">Toque na grade para posicionar e disparar</p>
-    <button type="button" class="gmenu-play" data-menu-play>Jogar</button>
-  </div>
-</div>
 
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
+  <script src="batalha_naval_storage.js"></script>
   <script src="batalha_naval.js"></script>
 </body>
 </html>

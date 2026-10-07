@@ -25,9 +25,9 @@ const MAP = [
 ];
 const COLS = 19, ROWS = 21, T = 16, CW = COLS * T, CH = ROWS * T;
 const W = 288, H = 512, MARGIN = 6, MAX_CSS_HEIGHT = 1000;
-// Persistência: game_storage (registro "pac_man"); chaves antigas migradas uma vez.
-const store = GameStorage.game('pac_man');
-store.migrate([{ from: 'pac_man:best', to: 'best', type: 'int' }, { from: 'pac_man:muted', to: 'muted', type: 'bool01' }]);
+// Persistência: pacman_storage.js (recorde, fase mais alta e som), exclusivo do Pac-Man.
+const store = PacmanStorage;
+const HOW_STRIP = 56, HOW_SIDE_MIN = 68; // faixa do botão "?" sob o palco / espaço lateral mínimo para ele ficar ao lado
 const HOME = { c: 9, r: 9 }, EXIT = { c: 9, r: 7 };
 const DIRS = { up: { x: 0, y: -1 }, left: { x: -1, y: 0 }, down: { x: 0, y: 1 }, right: { x: 1, y: 0 } };
 const DLIST = [DIRS.up, DIRS.left, DIRS.down, DIRS.right]; // ordem de desempate clássica
@@ -42,8 +42,9 @@ const READY_S = 1.8, DYING_S = 1.5, CLEAR_S = 2.2, HIT_R = 0.7;
 const $ = (id) => document.getElementById(id);
 const ui = {
   arena: $('arena'), stage: $('stage'), canvas: $('canvas'), score: $('score'), lives: $('lives'), level: $('level'), best: $('best'),
-  mute: $('mute-button'), pause: $('pause-button'),
+  mute: $('mute-button'), pause: $('pause-button'), startScreen: document.querySelector('.screen-start'),
 };
+const how = { btn: $('how-button'), pop: $('how-popover'), close: $('how-close') };
 const ctx = ui.canvas.getContext('2d');
 
 
@@ -103,9 +104,9 @@ const G = {
   dots: [], left: 0, mode: 'scatter', modeIdx: 0, modeT: 0, fright: 0, chain: 0,
   t: 0, stateT: 0, P: null, ghosts: [], fx: [], pops: [], muted: false, eatAlt: 0,
 };
-G.best = Number(store.get('best', 0)) || 0;
-G.bestLevel = Number(store.get('bestLevel', 1)) || 1;   // estatística: fase mais alta alcançada em uma partida
-G.muted = store.get('muted', false) === true;
+G.best = store.getBest();
+G.bestLevel = store.getBestLevel();   // estatística: fase mais alta alcançada em uma partida
+G.muted = store.getMuted();
 
 /* ===== Áudio (Web Audio, sem arquivos externos) ===== */
 const Sound = (() => {
@@ -245,9 +246,9 @@ function startReady() { setState('ready'); Sound.start(); }
 function newGame() {
   if (G.state !== 'title' && G.state !== 'over') return;
   G.score = 0; G.lives = 3; G.level = 1; G.bestAtStart = G.best; G.newRecord = false; G.paused = false;
-  G.fx.length = 0; G.pops.length = 0; loadLevel(); hud(); Sound.unlock(); startReady();
+  G.fx.length = 0; G.pops.length = 0; closeHelp(); loadLevel(); hud(); Sound.unlock(); startReady();
 }
-function nextLevel() { G.level++; if (G.level > G.bestLevel) { G.bestLevel = G.level; store.set('bestLevel', G.bestLevel); } loadLevel(); hud(); startReady(); }
+function nextLevel() { G.level++; if (G.level > G.bestLevel) { G.bestLevel = G.level; store.setBestLevel(G.bestLevel); } loadLevel(); hud(); startReady(); }
 function gameOver() {
   G.newRecord = G.score > G.bestAtStart && G.score > 0;
   $('over-score').textContent = G.score; $('over-level').textContent = G.level; $('over-record').hidden = !G.newRecord;
@@ -257,7 +258,7 @@ function gameOver() {
 /* ===== Regras ===== */
 function addScore(n) {
   G.score += n;
-  if (G.score > G.best) { G.best = G.score; store.set('best', G.best); }
+  if (G.score > G.best) { G.best = G.score; store.setBest(G.best); }
   hud();
 }
 function burst(c, r, color, n) {
@@ -321,7 +322,7 @@ function updatePlay(dt) {
   if (G.state === 'play' && G.left <= 0) { Sound.clear(); setState('clear'); }
 }
 function update(dt) {
-  G.t += dt;
+  if (G.state !== 'title') G.t += dt; // parado na tela inicial: pellets e fantasmas não animam
   for (const f of G.fx) { f.t += dt; f.x += f.vx * dt; f.y += f.vy * dt; }
   G.fx = G.fx.filter((f) => f.t < f.life);
   for (const p of G.pops) p.t += dt;
@@ -350,10 +351,12 @@ function renderClasses() {
   const c = ui.stage.classList, s = G.state;
   c.toggle('is-title', s === 'title'); c.toggle('is-over', s === 'over'); c.toggle('is-playing', s !== 'title' && s !== 'over');
   c.toggle('is-paused', G.paused && s !== 'title' && s !== 'over'); c.toggle('is-power', G.fright > 0 && s === 'play');
+  const paused = G.paused && s !== 'title' && s !== 'over';
+  ui.pause.setAttribute('aria-label', paused ? 'Continuar' : 'Pausar'); ui.pause.title = paused ? 'Continuar (Espaço)' : 'Pausar (Espaço)';
   ui.mute.classList.toggle('is-muted', G.muted); ui.mute.setAttribute('aria-pressed', G.muted);
   ui.mute.setAttribute('aria-label', G.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
 }
-function toggleMute() { G.muted = !G.muted; store.set('muted', G.muted); if (!G.muted) Sound.unlock(); renderClasses(); }
+function toggleMute() { G.muted = !G.muted; store.setMuted(G.muted); if (!G.muted) Sound.unlock(); renderClasses(); }
 
 /* ===== Renderização ===== */
 let K = 1, maze = null;
@@ -424,10 +427,8 @@ function draw() {
     if (v === 1) { ctx.fillStyle = '#ffe9c4'; ctx.beginPath(); ctx.arc(x, y, 1.7, 0, 6.283); ctx.fill(); }
     else { ctx.fillStyle = '#fff'; ctx.shadowColor = '#9fb4ff'; ctx.shadowBlur = 8; ctx.beginPath(); ctx.arc(x, y, 3.8 + pulse * 1.3, 0, 6.283); ctx.fill(); ctx.shadowBlur = 0; }
   }
-  if (G.state !== 'title') {
-    if (G.state !== 'dying' || G.stateT < 0.3) if (G.state !== 'clear' || G.stateT < 0.4) G.ghosts.forEach(drawGhost);
-    drawPac();
-  }
+  if (G.state !== 'dying' || G.stateT < 0.3) if (G.state !== 'clear' || G.stateT < 0.4) G.ghosts.forEach(drawGhost);
+  drawPac();
   for (const f of G.fx) { ctx.globalAlpha = 1 - f.t / f.life; ctx.fillStyle = f.color; ctx.fillRect(f.x - 1, f.y - 1, 2, 2); }
   ctx.globalAlpha = 1; ctx.textAlign = 'center'; ctx.font = "bold 8px 'Arial Black', Arial, sans-serif";
   for (const p of G.pops) { ctx.globalAlpha = 1 - p.t; ctx.fillStyle = '#4ee8ff'; ctx.fillText(p.text, p.x, p.y - p.t * 14); }
@@ -436,17 +437,47 @@ function draw() {
   if (G.state === 'clear') { ctx.fillStyle = '#ffd21f'; ctx.fillText('FASE COMPLETA', CW / 2, 11 * T + 11); }
   if (ui.stage.classList.contains('is-power') !== (G.fright > 0 && G.state === 'play')) renderClasses();
 }
-function resizeStage() {
-  const w = Math.max(1, ui.arena.clientWidth - MARGIN * 2), h = Math.max(1, ui.arena.clientHeight - MARGIN * 2);
+function fitStage(w, h) {
   let ch = Math.min(h, MAX_CSS_HEIGHT), cw = ch * (W / H);
   if (cw > w) { cw = w; ch = cw / (W / H); }
-  cw = Math.floor(cw); ch = Math.floor(ch);
+  return [Math.floor(cw), Math.floor(ch)];
+}
+function resizeStage() {
+  const aw = ui.arena.clientWidth, ah = ui.arena.clientHeight, w = Math.max(1, aw - MARGIN * 2);
+  let [cw, ch] = fitStage(w, Math.max(1, ah - MARGIN * 2));
+  const side = (aw - cw) / 2 >= HOW_SIDE_MIN; // há espaço ao lado do palco para o botão "?"? Senão ele vai para uma faixa sob o palco
+  if (!side) [cw, ch] = fitStage(w, Math.max(1, ah - HOW_STRIP - MARGIN * 2));
+  ui.arena.classList.toggle('how-bottom', !side);
+  ui.arena.style.setProperty('--stage-w', `${cw}px`); ui.arena.style.setProperty('--how-strip', `${HOW_STRIP}px`);
   ui.stage.style.width = `${cw}px`; ui.stage.style.height = `${ch}px`; ui.stage.style.setProperty('--u', `${cw / W}px`);
   const dpr = Math.min(window.devicePixelRatio || 1, 3), px = Math.max(1, Math.round(ui.canvas.clientWidth * dpr));
   if (ui.canvas.width !== px || !maze) {
     ui.canvas.width = px; ui.canvas.height = Math.round((px * CH) / CW); K = ui.canvas.width / CW; buildMazeLayer();
   }
+  positionHelp();
 }
+
+/* ===== Como jogar: popover ancorado ao botão "?" (fora do palco), abrindo para baixo ===== */
+const helpOpen = () => !how.pop.hidden;
+function positionHelp() {
+  if (!helpOpen()) return;
+  const a = ui.arena.getBoundingClientRect(), b = how.btn.getBoundingClientRect(), edge = 8, gap = 12;
+  const pw = Math.min(252, a.width - edge * 2), bx = b.left - a.left, by = b.top - a.top;
+  how.pop.style.width = `${pw}px`; how.pop.style.maxHeight = '';
+  const ph = how.pop.offsetHeight, below = a.height - (by + b.height + gap) - edge, above = by - gap - edge;
+  const place = below >= ph || below >= above ? 'below' : 'above'; // sempre para baixo; só vira para cima se não couber (botão na faixa inferior)
+  const room = Math.max(120, place === 'below' ? below : above), h = Math.min(ph, room);
+  const left = Math.min(Math.max(bx + b.width - pw, edge), a.width - pw - edge);
+  how.pop.style.maxHeight = `${room}px`; how.pop.style.left = `${left}px`;
+  how.pop.style.top = `${place === 'below' ? by + b.height + gap : by - gap - h}px`;
+  how.pop.dataset.placement = place;
+  how.pop.style.setProperty('--arrow-x', `${Math.min(Math.max(bx + b.width / 2 - left, 18), pw - 18)}px`);
+}
+function openHelp() {
+  how.pop.hidden = false; how.btn.setAttribute('aria-expanded', 'true'); positionHelp();
+  if (G.state !== 'title' && G.state !== 'over' && !G.paused) togglePause(true); // lendo a ajuda, o jogo não corre
+}
+function closeHelp() { how.pop.hidden = true; how.btn.setAttribute('aria-expanded', 'false'); }
 
 /* ===== Laço do jogo: um único requestAnimationFrame, com passo baseado no tempo real ===== */
 let raf = 0, last = 0;
@@ -464,6 +495,7 @@ function onKeyDown(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (KEYS[e.code]) { e.preventDefault(); if (!G.paused) setWant(DIRS[KEYS[e.code]]); return; }
   if (e.repeat) return;
+  if (e.code === 'Escape' && helpOpen()) { closeHelp(); return; }
   if (e.code === 'Space') { e.preventDefault(); if (G.state === 'title' || G.state === 'over') newGame(); else togglePause(); }
   else if (e.code === 'KeyP' || e.code === 'Escape') togglePause();
   else if (e.code === 'KeyM') toggleMute();
@@ -485,10 +517,19 @@ function init() {
   });
   const endSwipe = () => { swiping = false; };
   ui.canvas.addEventListener('pointerup', endSwipe); ui.canvas.addEventListener('pointercancel', endSwipe);
-  $('start-button').addEventListener('click', () => { newGame(); $('start-button').blur(); });
+  // Tela inicial: o primeiro toque/clique em qualquer ponto do palco inicia (Space já inicia pelo teclado)
+  let helpDismissTap = false; // o toque que só fecha a ajuda não deve iniciar a partida
+  document.addEventListener('pointerdown', (e) => {
+    helpDismissTap = false;
+    if (!helpOpen() || how.pop.contains(e.target) || how.btn.contains(e.target)) return;
+    closeHelp(); helpDismissTap = true;
+  });
+  ui.startScreen.addEventListener('click', () => { if (helpDismissTap) { helpDismissTap = false; return; } newGame(); });
+  how.btn.addEventListener('click', () => { if (helpOpen()) closeHelp(); else openHelp(); });
+  how.close.addEventListener('click', () => { closeHelp(); how.btn.focus({ preventScroll: true }); });
   $('again-button').addEventListener('click', () => { newGame(); $('again-button').blur(); });
   $('resume-button').addEventListener('click', () => { togglePause(false); $('resume-button').blur(); });
-  ui.pause.addEventListener('click', () => { togglePause(true); ui.pause.blur(); });
+  ui.pause.addEventListener('click', () => { togglePause(); ui.pause.blur(); }); // alterna: o mesmo botão pausa e continua
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('pointerdown', () => Sound.unlock());

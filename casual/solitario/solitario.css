@@ -1,6 +1,5 @@
 /* casual/solitario/solitario.css - --cw / --ch = tamanho da carta (definidos pelo JS) */
 :root {
-  --menu-accent: #ffc857;
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633; --shell-text: #eceef5; --shell-muted: #8d93a8;
   --felt-1: #11504b; --felt-2: #0a302e; --felt-edge: #061f1e;
   --brass: #d9b45f; --ivory: #f7f1e1; --ivory-2: #ece3cc; --red: #bf2f2a; --blk: #1c2029; --sel: #7fe3d6;
@@ -20,17 +19,63 @@ button { font: inherit; color: inherit; }
 .back:hover { background: #141722; border-color: rgba(217,180,95,.6); }
 .back:hover svg { transform: translateX(-3px); color: var(--brass); }
 .back:active { transform: scale(.97); }
-.back:focus-visible, .tool:focus-visible, .btn:focus-visible, .card:focus-visible, .slot:focus-visible, .seg input:focus-visible + span { outline: 2px solid #fff; outline-offset: 3px; }
+.back:focus-visible, .help-button:focus-visible, .start-modes button:focus-visible, .tool:focus-visible, .btn:focus-visible, .card:focus-visible, .slot:focus-visible, .seg input:focus-visible + span { outline: 2px solid #fff; outline-offset: 3px; }
 .game-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(63,208,201,.2); }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
 
-.arena { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px 8px; background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg); }
+.arena { flex: 1 1 0; min-height: 0; display: flex; flex-direction: row; justify-content: center; align-items: stretch; gap: 10px; padding: 10px 8px; background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg); }
+
+/* ===== Botão ? (fora do jogo) e popover que abre para baixo ===== */
+.help { position: relative; flex: none; align-self: flex-start; width: 42px; height: 42px; z-index: 60; }
+.help-button { display: grid; place-items: center; width: 42px; height: 42px; padding: 0; color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%; cursor: pointer; touch-action: manipulation; transition: border-color .2s, background .2s, color .2s, transform .1s; }
+.help-button svg { width: 58%; height: 58%; }
+.help-button:hover, .help-button[aria-expanded="true"] { color: var(--brass); background: #141722; border-color: rgba(217,180,95,.6); }
+.help-button:active { transform: scale(.95); }
+.help-pop { position: absolute; top: calc(100% + 8px); right: 0; width: min(290px, calc(100vw - 20px)); padding: 14px 14px 12px; text-align: left; font-size: 13px; font-weight: 600; line-height: 1.45; color: #cfe3df; background: linear-gradient(160deg, #123f3c, #0a2928); border: 1px solid rgba(217,180,95,.55); border-radius: 14px; box-shadow: 0 14px 34px rgba(0,0,0,.6); animation: pop-in .14s ease-out; }
+.help-pop[hidden] { display: none; }
+.help-pop p { margin: 0 0 8px; }
+.help-title { margin: 0 0 6px; font: 700 18px/1.15 var(--serif); color: var(--brass); }
+.help-keys { margin: 0; padding: 0; list-style: none; display: grid; gap: 5px; font-size: 12px; color: var(--shell-muted); }
+.help-pop kbd { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; margin-right: 2px; font: inherit; font-size: 11px; font-weight: 700; color: #0a2928; background: var(--ivory); border: 1px solid #0a2928; border-radius: 4px; box-shadow: 0 2px 0 #b5a67c; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* ===== Tela inicial: painel sobre a mesa, sem escurecer o jogo ===== */
+.start { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; cursor: pointer; border-radius: 20px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s; }
+.is-ready .start { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+.start-card { width: min(100%, 340px); display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 22px 20px 24px; text-align: center; cursor: default; color: var(--shell-text); background: linear-gradient(160deg, #14504c, #0a2c2b); border: 1px solid rgba(217,180,95,.6); border-radius: 20px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.05), 0 6px 0 rgba(0,0,0,.28), 0 20px 44px rgba(0,0,0,.55); }
+.start p, .start h2 { margin: 0; }
+.start-mark { position: relative; width: 74px; height: 62px; margin-bottom: 2px; }
+.sm { position: absolute; top: 2px; width: 40px; height: 56px; border-radius: 6px; }
+.sm-a { left: 6px; background: linear-gradient(160deg, #1d397e, #0d1c44); border: 3px solid var(--ivory); transform: rotate(-9deg); box-shadow: 0 3px 8px rgba(0,0,0,.45); }
+.sm-b { right: 6px; display: grid; place-items: center; color: var(--red); background: linear-gradient(160deg, #fffaf0, var(--ivory-2)); border: 1px solid #d8cba8; transform: rotate(8deg); box-shadow: 0 3px 8px rgba(0,0,0,.45); }
+.sm-b svg { width: 22px; height: 22px; }
+.start-title { font: 700 30px/1.1 var(--serif); color: var(--brass); }
+.start-sub { font-size: 13px; font-weight: 600; color: #cfe3df; }
+.start-modes { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px; width: 100%; margin-top: 6px; }
+.start-modes button { min-height: 44px; font-weight: 700; color: var(--shell-text); background: rgba(0,0,0,.22); border: 1.5px solid rgba(247,241,225,.22); border-radius: 12px; cursor: pointer; touch-action: manipulation; transition: border-color .2s, background .2s; }
+.start-modes button:hover:not([aria-checked="true"]) { border-color: rgba(247,241,225,.5); }
+.start-modes button[aria-checked="true"] { color: var(--brass); background: rgba(217,180,95,.14); border-color: var(--brass); }
+.start-best { font-size: 12px; font-weight: 700; color: var(--brass); }
+.start-touch { margin-top: 8px !important; font-size: 15px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #fff; animation: blink 1.6s ease-in-out infinite; }
+.start-or { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--shell-muted); }
+.spacebar { display: inline-grid; place-items: center; min-width: 130px; height: 36px; padding: 0 16px; margin-bottom: 4px; font: inherit; font-size: 12px; font-weight: 800; letter-spacing: .22em; color: #0a2928; background: linear-gradient(180deg, #fffaf0, var(--ivory-2)); border: 2.5px solid #0a2928; border-radius: 8px; box-shadow: inset 0 2px 0 rgba(255,255,255,.9), inset 0 -3px 0 rgba(10,41,40,.12), 0 4px 0 #b5a67c, 0 4px 0 2.5px #0a2928; animation: keypress 1.6s ease-in-out infinite; }
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@keyframes keypress { 0%, 60%, 100% { transform: none; } 75% { transform: translateY(3px); } }
+@media (max-height: 560px) { .start { padding: 8px; } .start-card { gap: 5px; padding: 12px 16px 14px; } .start-mark, .start-sub { display: none; } .start-title { font-size: 24px; } .start-modes button { min-height: 40px; } .start-touch { margin-top: 4px !important; } .spacebar { height: 32px; } }
+@media (min-width: 1180px) { .arena::before { content: ""; flex: none; width: 52px; } }
+@media (max-width: 699px) {
+  .arena { flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 8px; }
+  .help { order: -1; align-self: flex-end; }
+  .game { flex: 1 1 0; width: 100%; }
+}
 
 /* ===== Painel ===== */
-.hud { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; width: min(100%, 980px); }
+.game { position: relative; flex: 0 1 980px; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.game-body { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.hud { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
 .stats { display: flex; gap: 8px; min-width: 0; }
 .stat { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 62px; padding: 7px 12px; line-height: 1; background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 12px; }
 .label { font-size: 11px; font-weight: 600; color: var(--shell-muted); }
@@ -48,7 +93,7 @@ button { font: inherit; color: inherit; }
 @keyframes bump { 40% { transform: scale(1.18); color: var(--brass); } }
 
 /* ===== Mesa ===== */
-.felt { position: relative; flex: 1 1 0; min-height: 0; width: min(100%, 980px); overflow: hidden; border-radius: 20px; border: 1px solid var(--felt-edge);
+.felt { position: relative; flex: 1 1 0; min-height: 0; width: 100%; overflow: hidden; border-radius: 20px; border: 1px solid var(--felt-edge);
   background: repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px), radial-gradient(ellipse at 50% 20%, var(--felt-1), var(--felt-2) 72%);
   box-shadow: inset 0 0 70px rgba(0,0,0,.5), 0 14px 36px rgba(0,0,0,.45); }
 .felt::after { content: ""; position: absolute; inset: 5px; border-radius: 16px; border: 1px solid rgba(217,180,95,.22); pointer-events: none; }
@@ -159,5 +204,6 @@ button { font: inherit; color: inherit; }
 @media (max-height: 500px) and (orientation: landscape) { .topbar { height: 46px; } .game-text span { display: none; } .arena { padding: 6px 8px; gap: 6px; } }
 @media (prefers-reduced-motion: reduce) {
   .card, .face { transition: none; }
-  .field.celebrate .card, .card.nope, .slot.nope, .bump, .dlg[open] { animation: none; }
+  .field.celebrate .card, .card.nope, .slot.nope, .bump, .dlg[open], .start-touch, .spacebar, .help-pop { animation: none; }
+  .start, .help-button { transition: none; }
 }

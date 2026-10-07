@@ -7,7 +7,6 @@
   <title>Jogo da Velha · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="jogo_velha.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
@@ -29,6 +28,7 @@
   </header>
 
   <div id="arena" class="arena">
+    <div id="stage-wrap" class="stage-wrap" data-help="side">
     <main id="stage" class="stage" aria-label="Jogo da Velha">
       <div id="modes" class="seg" role="radiogroup" aria-label="Modo de jogo">
         <button type="button" role="radio" data-mode="two">2 jogadores</button>
@@ -52,7 +52,18 @@
       </section>
 
       <p id="status" class="status" aria-live="polite"></p>
-      <div class="board-wrap"><div id="board" class="board" role="group" aria-label="Tabuleiro 3 por 3"></div></div>
+      <div class="board-wrap">
+        <div id="board" class="board" role="group" aria-label="Tabuleiro 3 por 3"></div>
+        <section id="start-screen" class="start" role="button" tabindex="0" aria-label="Toque para iniciar ou pressione espaço">
+          <div class="start-card">
+            <h2 class="start-title">Jogo da Velha</h2>
+            <p id="start-sub" class="start-sub"></p>
+            <p class="start-touch">Toque para iniciar</p>
+            <p class="start-or">ou</p>
+            <kbd class="spacebar">SPACE</kbd>
+          </div>
+        </section>
+      </div>
 
       <div class="actions">
         <button id="round-btn" class="btn" type="button">Reiniciar rodada</button>
@@ -67,26 +78,23 @@
       </div>
       <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
     </main>
+    <div class="help">
+      <button id="help-button" class="help-button" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="help-pop" title="Como jogar">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
+      </button>
+      <div id="help-pop" class="help-pop" role="dialog" aria-labelledby="help-title" hidden>
+        <h2 id="help-title" class="help-title">Como jogar</h2>
+        <p>Alinhe três símbolos iguais na horizontal, vertical ou diagonal. Toque numa casa vazia para jogar.</p>
+        <p>Jogue em 2 jogadores ou contra a IA (Fácil, Médio ou Difícil).</p>
+        <ul class="help-keys">
+          <li><kbd>R</kbd> nova rodada · <kbd>M</kbd> som</li>
+        </ul>
+      </div>
+    </div>
+    </div>
   </div>
-  <div id="game-menu" class="gmenu" hidden role="dialog" aria-labelledby="gmenu-title">
-  <div class="gmenu-card">
-    <h2 id="gmenu-title" class="gmenu-title">Jogo da Velha</h2>
-    <p class="menu-desc">Alinhe três símbolos iguais na horizontal, na vertical ou na diagonal.</p>
-    <p class="gmenu-sub">Modo</p>
-    <div class="gmenu-opts" role="radiogroup" aria-label="Modo" data-mirror="#modes button"></div>
-    <p class="gmenu-sub">Dificuldade da IA</p>
-    <div class="gmenu-opts" role="radiogroup" aria-label="Dificuldade da IA" data-mirror="#levels button"></div>
-    <ul class="menu-keys" aria-label="Comandos">
-      <li><span class="keycaps"><kbd>R</kbd></span><span>nova rodada</span></li>
-      <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
-    </ul>
-    <p class="menu-touch">Toque numa casa para jogar</p>
-    <button type="button" class="gmenu-play" data-menu-play>Jogar</button>
-  </div>
-</div>
 
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
+  <script src="jogo_velha_storage.js"></script>
   <script src="jogo_velha.js"></script>
 </body>
 </html>

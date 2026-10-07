@@ -7,15 +7,13 @@ const $ = (id) => document.getElementById(id);
 const rand = (n) => Math.floor(Math.random() * n);
 const pick = (a) => a[rand(a.length)];
 const coord = (i) => COLS[i % N] + (Math.floor(i / N) + 1);
-// Persistência: game_storage (registro "batalha_naval"): level, muted, vol. Chaves antigas migradas uma vez.
-const store = GameStorage.game('batalha_naval');
-store.migrate([
-  { from: 'batalha_naval:level', to: 'level' }, { from: 'batalha_naval:muted', to: 'muted', type: 'bool01' }, { from: 'batalha_naval:vol', to: 'vol', type: 'int' },
-]);
+// Persistência própria em batalha_naval_storage.js: level, muted e vol (0–100).
+const store = BatalhaNavalStorage, SAVED = store.load();
 
 /* Tabuleiro: shot[i] = 0 intacta | 1 água | 2 acerto | 3 casa de navio afundado */
 const newBoard = () => ({ ships: FLEET.map(([n, l], id) => ({ id, n, l, cells: null })), shot: Array(N * N).fill(0) });
 const S = {
+  started: false,          // false até o primeiro toque/SPACE: nada pode ser jogado
   phase: 'setup',            // setup | battle | over
   level: 'medium', horiz: true, sel: 0, hover: -1, turn: 'me', busy: false, gen: 0, timer: 0,
   me: newBoard(), foe: newBoard(), log: [], msg: '', last: null, dlg: null, showResult: false, win: false,
@@ -23,7 +21,7 @@ const S = {
 
 /* ===== Áudio (Web Audio, sem arquivos externos). Só toca por eventos reais da partida ===== */
 const Sound = (() => {
-  const st = { muted: store.get('muted', false) === true, vol: Number(store.get('vol', 60)) }, log = [];
+  const st = { muted: SAVED.muted === true, vol: Number.isInteger(SAVED.vol) ? SAVED.vol : 60 }, log = [];
   let ctx = null, master = null, noise = null, off = false;
   const gain = () => (st.vol / 100) ** 2 * 0.8;
   function ensure() {
@@ -69,8 +67,8 @@ const Sound = (() => {
     log, play, get muted() { return st.muted; }, get vol() { return st.vol; },
     // Um disparo = lançamento + UM resultado; o afundamento substitui o som de acerto
     shot(t) { play('fire'); play(t, 0.3); },
-    setMuted(m) { st.muted = m; store.set('muted', m); if (!m) ensure(); },
-    setVol(v) { st.vol = Math.max(0, Math.min(100, Number(v) || 0)); store.set('vol', st.vol); if (master) master.gain.value = gain(); },
+    setMuted(m) { st.muted = m; store.save('muted', m); if (!m) ensure(); },
+    setVol(v) { st.vol = Math.round(Math.max(0, Math.min(100, Number(v) || 0))); store.save('vol', st.vol); if (master) master.gain.value = gain(); },
     unlock() { if (!st.muted) ensure(); },
   };
 })();
@@ -145,7 +143,7 @@ function say(who, r) {
   Sound.shot(r.t);
 }
 function playerFire(i) {
-  if (S.phase !== 'battle' || S.turn !== 'me' || S.busy) return;
+  if (!S.started || S.phase !== 'battle' || S.turn !== 'me' || S.busy) return;
   const r = fire(S.foe, i); if (!r) return;
   S.busy = true; say('me', r);
   if (allSunk(S.foe)) { finish(true); return; }
@@ -170,13 +168,13 @@ function reset() {
   render();
 }
 function startBattle() {
-  if (S.phase !== 'setup' || !allPlaced(S.me)) return;
+  if (!S.started || S.phase !== 'setup' || !allPlaced(S.me)) return;
   randomFleet(S.foe);
   Object.assign(S, { phase: 'battle', turn: 'me', busy: false, sel: null, hover: -1, log: [], last: null, msg: 'Batalha iniciada. Escolha uma casa no radar inimigo.' });
   render();
 }
 function placeAt(i) {
-  if (S.phase !== 'setup') return;
+  if (!S.started || S.phase !== 'setup') return;
   const o = owner(S.me, i);
   if (o) { o.cells = null; S.sel = o.id; S.msg = `${o.n} recolhido. Escolha onde posicioná-lo.`; }
   else if (S.sel !== null) {
@@ -187,6 +185,14 @@ function placeAt(i) {
   }
   render();
 }
+
+/* ===== Tela inicial e ajuda ===== */
+function setHelp(on) { $('help-pop').hidden = !on; $('help-button').setAttribute('aria-expanded', on ? 'true' : 'false'); }
+function begin() {
+  if (S.started || !$('help-pop').hidden) return;   // com a ajuda aberta, o toque só fecha a ajuda
+  S.started = true; Sound.unlock(); render();
+}
+function setLevel(l) { if (S.phase !== 'setup' || l === S.level) return; S.level = l; store.save('level', l); render(); }
 
 /* ===== Renderização ===== */
 const cells = { me: [], foe: [] };
@@ -237,22 +243,24 @@ function fleetList(side) {
 const pickBtns = [];
 function render() {
   const setup = S.phase === 'setup';
-  $('stage').dataset.phase = S.phase;
+  $('stage').dataset.phase = S.phase; $('stage').classList.toggle('is-ready', !S.started); $('stage-body').inert = !S.started;
+  $('turn').dataset.t = setup ? 'setup' : S.phase === 'over' ? 'over' : S.turn === 'me' ? 'me' : 'ai';
   $('turn').textContent = setup ? 'Posicionamento da frota' : S.phase === 'over' ? 'Fim de jogo' : S.turn === 'me' ? 'Sua vez de atacar' : 'Inimigo está mirando…';
   $('status').textContent = S.msg; $('log').innerHTML = S.log.map((t) => `<li>${t}</li>`).join('');
-  document.querySelectorAll('.levels button').forEach((el) => {
-    el.setAttribute('aria-checked', el.dataset.level === S.level); el.disabled = !setup;
+  document.querySelectorAll('.levels button, .start-levels button').forEach((el) => {
+    el.setAttribute('aria-checked', (el.dataset.level || el.dataset.startLevel) === S.level); el.disabled = !setup && !el.closest('.start');
   });
   paint('me'); paint('foe'); fleetList('me'); fleetList('foe');
   pickBtns.forEach((el, i) => {
     const s = S.me.ships[i]; el.setAttribute('aria-pressed', S.sel === i); el.classList.toggle('done', Boolean(s.cells));
   });
-  $('mute').setAttribute('aria-pressed', Sound.muted); $('mute').textContent = Sound.muted ? 'Som: desligado' : 'Som: ligado'; $('vol').value = Sound.vol;
+  $('mute').setAttribute('aria-pressed', Sound.muted); $('mute').classList.toggle('is-muted', Sound.muted); $('mute').setAttribute('aria-label', Sound.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros'); $('vol').value = Sound.vol;
   $('rotate').textContent = `Girar: ${S.horiz ? 'horizontal' : 'vertical'}`;
   $('start').disabled = !allPlaced(S.me);
-  $('rules').hidden = S.dlg !== 'rules'; $('confirm').hidden = S.dlg !== 'confirm';
+  $('confirm').hidden = S.dlg !== 'confirm';
   $('result').hidden = !(S.phase === 'over' && S.showResult);
   if (S.phase === 'over') {
+    $('result').dataset.win = S.win ? '1' : '0';
     $('result-t').textContent = S.win ? 'Vitória!' : 'Derrota';
     $('result-p').textContent = `${S.win ? 'Você afundou toda a frota inimiga' : 'Sua frota foi afundada'} em ${S.foe.shot.filter(Boolean).length} disparos seus e ${S.me.shot.filter(Boolean).length} do inimigo.`;
   }
@@ -260,7 +268,7 @@ function render() {
 
 /* ===== Entradas ===== */
 function init() {
-  const saved = store.get('level'); if (['easy', 'medium', 'hard'].includes(saved)) S.level = saved;
+  if (SAVED.level) S.level = SAVED.level;
   build('me'); build('foe');
   S.me.ships.forEach((s, i) => {
     const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `${s.n}<small>${s.l} casas</small>`;
@@ -280,31 +288,37 @@ function init() {
     if (j >= 0 && j < N * N && !((d === -1 && i % N === 0) || (d === 1 && i % N === N - 1))) { const t = cells[side][j]; if (!t.disabled) t.focus(); }
     e.preventDefault();
   }));
-  document.querySelectorAll('.levels button').forEach((el) => el.addEventListener('click', () => {
-    if (S.phase !== 'setup') return; S.level = el.dataset.level; store.set('level', S.level); render();
-  }));
+  document.querySelectorAll('.levels button, .start-levels button').forEach((el) => el.addEventListener('click', () => setLevel(el.dataset.level || el.dataset.startLevel)));
+  $('start-screen').addEventListener('click', (e) => { if (!e.target.closest('.start-levels')) begin(); });
+  $('help-button').addEventListener('click', () => setHelp($('help-pop').hidden));
   const rotate = () => { if (S.phase === 'setup') { S.horiz = !S.horiz; render(); } };
   $('rotate').addEventListener('click', rotate);
   $('random').addEventListener('click', () => { if (S.phase === 'setup') { randomFleet(S.me); S.sel = null; S.msg = 'Frota posicionada aleatoriamente. Inicie ou ajuste.'; render(); } });
   $('clear').addEventListener('click', () => { if (S.phase === 'setup') { S.me.ships.forEach((s) => { s.cells = null; }); S.sel = 0; S.msg = 'Frota removida. Posicione novamente.'; render(); } });
   $('start').addEventListener('click', startBattle);
-  $('rules-button').addEventListener('click', () => { S.dlg = 'rules'; render(); document.querySelector('#rules .close').focus(); });
-  document.querySelector('#rules .close').addEventListener('click', () => { S.dlg = null; render(); });
   $('quit-button').addEventListener('click', () => { if (S.phase === 'setup') { reset(); return; } S.dlg = 'confirm'; render(); $('no').focus(); });
   $('yes').addEventListener('click', reset);
   $('no').addEventListener('click', () => { S.dlg = null; render(); });
   $('again').addEventListener('click', reset);
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+    const onBtn = e.target && e.target.closest && e.target.closest('button');
+    if (e.code === 'Escape') { if (!$('help-pop').hidden) { setHelp(false); $('help-button').blur(); } else if (S.dlg) { S.dlg = null; render(); } return; }
+    if ((e.code === 'Space' || e.code === 'Enter') && !onBtn) { if (!S.started) { e.preventDefault(); begin(); } return; }
+    if (!S.started) return;
     if (e.code === 'KeyR') rotate();
-    else if (e.code === 'Escape' && S.dlg) { S.dlg = null; render(); }
   });
   $('mute').addEventListener('click', () => { Sound.setMuted(!Sound.muted); render(); });
   $('vol').addEventListener('input', (e) => Sound.setVol(e.target.value));
-  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('button'); if (b && !b.classList.contains('c') && b.id !== 'mute') Sound.play('click'); });
+  document.addEventListener('click', (e) => {
+    if (!$('help-pop').hidden && !e.target.closest('.help')) setHelp(false);
+    const b = e.target.closest && e.target.closest('button');
+    if (b && !b.classList.contains('c') && b.id !== 'mute') Sound.play('click');
+    if (b && e.detail && b.id !== 'start' && !b.closest('.pick')) b.blur();   // clique/toque não deixa foco preso: SPACE continua iniciando
+  });
   document.addEventListener('pointerdown', () => Sound.unlock());
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   reset();
 }
 init();
-window.__bn = { S, N, span, canPlace, randomFleet, newBoard, fire, aiPick, allSunk, sunk, playerFire, startBattle, aiTurn, cells, Sound };
+window.__bn = { S, begin, N, span, canPlace, randomFleet, newBoard, fire, aiPick, allSunk, sunk, playerFire, startBattle, aiTurn, cells, Sound };

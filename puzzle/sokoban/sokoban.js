@@ -71,7 +71,9 @@ const HINTS = ['Empurre a caixa até o destino dourado.', 'Você só empurra, nu
 const $ = (id) => document.getElementById(id);
 const ui = {
   arena: $('arena'), stage: $('stage'), map: $('map'), moves: $('moves'), best: $('best'), level: $('level-label'), status: $('status'),
-  undo: $('undo-button'), mute: $('mute-button'), restart: $('restart-button'), grid: $('level-grid'), next: $('next-button'), tabs: $('level-tabs'), group: $('group-name'),
+  undo: $('undo-button'), mute: $('mute-button'), restart: $('restart-button'), grid: $('level-grid'), next: $('next-button'), group: $('group-name'),
+  wrap: $('stage-wrap'), levelsScreen: document.querySelector('.screen-levels'), prev: $('page-prev'), pnext: $('page-next'), plabel: $('page-label'), lprog: $('levels-progress'),
+  help: $('help-button'), pop: $('help-pop'), start: $('start-screen'), startLevel: $('start-level'), startProg: $('start-progress'),
 };
 
 /* Personagem: operário de depósito com capacete amarelo, camisa creme e macacão azul. Três vistas desenhadas (frente, costas, perfil);
@@ -108,38 +110,27 @@ const VIEW_SIDE = `<g class="v v-side">${boot('ft1', 10.2, 6)}${boot('ft2', 15, 
   <path d="M19.2 16.6q1.2.7 2.3.1" fill="none" stroke="${INK}" stroke-width="1" stroke-linecap="round"/>
   ${hat(9.8, 10.2, 16.4)}</g>`;
 const SVG_PLAYER = `<svg viewBox="0 0 32 32" aria-hidden="true"><ellipse cx="16" cy="27.6" rx="9.6" ry="2.6" fill="rgba(0,0,0,.38)"/><g class="pl">${VIEW_DOWN}${VIEW_UP}${VIEW_SIDE}</g></svg>`;
-const SVG_LOCK = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
+const SVG_CHECK = '<svg class="chk" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="7.5" fill="currentColor"/><path d="M4.6 8.3l2.3 2.3 4.5-4.9" fill="none" stroke="#0f1320" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const SVG_LOCK = '<svg class="lock" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>';
 
 const S = {
   index: 0, rows: 0, cols: 0, wall: [], goal: [], start: null,   // estático + configuração inicial
   player: { r: 0, c: 0 }, boxes: [], history: [],                // dinâmico
   status: 'playing',                                             // playing | won
-  menu: false, muted: false, lastStep: -1e9, progress: { unlocked: 1, best: {} }, tab: 0,
+  menu: false, started: false, muted: false, lastStep: -1e9, progress: { unlocked: 1, best: {} }, page: 0, first: 0, size: 20,
   face: 'down', anim: 'idle', animN: 0,                          // só visual: direção do personagem e animação do último passo
   boxEls: [], playerEl: null,
 };
 
 /* ===== Armazenamento (nunca pode quebrar o jogo) ===== */
-// Persistência: game_storage (registro "sokoban"): progress = { unlocked, best: { <índice>: movimentos } }, last, muted.
-// "sokoban:progress:v2" é a versão atual do progresso (as versões anteriores usavam outra ordem de fases e não valem mais).
-const store = GameStorage.game('sokoban');
-store.migrate([
-  { from: 'sokoban:progress:v2', to: 'progress', type: 'json' }, { from: 'sokoban:last', to: 'last', type: 'int' }, { from: 'sokoban:muted', to: 'muted', type: 'bool01' },
-]);
-function loadProgress() {
-  try {
-    const p = store.get('progress', null), best = {};
-    const unlocked = Number.isInteger(p && p.unlocked) ? Math.min(Math.max(p.unlocked, 1), LEVELS.length) : 1;
-    Object.keys((p && p.best) || {}).forEach((k) => { const v = p.best[k], i = Number(k); if (Number.isInteger(i) && i >= 0 && i < LEVELS.length && Number.isInteger(v) && v > 0) best[i] = v; });
-    return { unlocked, best };
-  } catch (e) { return { unlocked: 1, best: {} }; }
-}
-const saveProgress = () => store.set('progress', S.progress);
+// Persistência própria em sokoban_storage.js: progress = { unlocked, best: { <índice>: movimentos } }, last, muted.
+const store = SokobanStorage, SAVED = store.load(LEVELS.length);
+const saveProgress = () => store.saveProgress(S.progress);
 
 /* ===== Áudio (Web Audio, sem arquivos externos; mesmo padrão dos outros jogos da Arcádia) ===== */
 const Sound = (() => {
   let ctx = null, master = null, off = false;
-  S.muted = store.get('muted', false) === true;
+  S.muted = SAVED.muted;
   function ensure() {
     if (off) return null;
     if (!ctx) {
@@ -196,7 +187,7 @@ const solved = () => S.boxes.every((b) => S.goal[b.r][b.c]);
 
 /* Tenta um passo. Devolve true só se o estado mudou (movimento válido). Nada aqui depende de animação. */
 function tryMove(dir) {
-  if (S.status !== 'playing' || S.menu) return false;
+  if (S.status !== 'playing' || S.menu || !S.started) return false;
   const [dr, dc] = DIRS[dir], nr = S.player.r + dr, nc = S.player.c + dc;
   S.face = dir;   // o personagem sempre olha para onde tentou ir (visual)
   let pushed = -1, landed = false;
@@ -219,7 +210,7 @@ function tryMove(dir) {
 }
 function bump() { S.anim = 'idle'; Sound.blocked(); render(); return false; }   // movimento inválido: só vira o personagem, sem mexer no estado
 function undo() {
-  if (S.status !== 'playing' || S.menu || !S.history.length) return;
+  if (S.status !== 'playing' || S.menu || !S.started || !S.history.length) return;
   const { dir, box } = S.history.pop(), [dr, dc] = DIRS[dir];
   S.player.r -= dr; S.player.c -= dc;
   if (box >= 0) { S.boxes[box].r -= dr; S.boxes[box].c -= dc; }
@@ -237,14 +228,14 @@ function win() {
   ui.next.hidden = last; $('won-end').hidden = !last;
   Sound.win();
 }
-function loadLevel(i) {
+function loadLevel(i, persist = true) {
   if (!Number.isInteger(i) || i < 0 || i >= LEVELS.length || i >= S.progress.unlocked) return false;   // fase bloqueada: recusa
   Object.assign(S, parseLevel(i), { index: i, status: 'playing', menu: false, history: [], face: 'down', anim: 'idle' });
-  S.player = { ...S.start.player }; S.boxes = S.start.boxes.map((b) => ({ ...b })); S.tab = groupOf(i);
-  buildBoard(); resizeStage(); render(); store.set('last', i);
+  S.player = { ...S.start.player }; S.boxes = S.start.boxes.map((b) => ({ ...b })); 
+  buildBoard(); resizeStage(); render(); if (persist) store.saveLast(i);
   return true;
 }
-const restart = () => { if (S.status === 'playing' && !S.menu && S.history.length) { Sound.restart(); loadLevel(S.index); } };
+const restart = () => { if (S.status === 'playing' && !S.menu && S.started && S.history.length) { Sound.restart(); loadLevel(S.index); } };
 const nextLevel = () => { if (S.status === 'won') loadLevel(S.index + 1); };
 
 /* ===== Renderização ===== */
@@ -275,45 +266,91 @@ function render() {
   ui.undo.disabled = !S.history.length || S.status !== 'playing'; ui.restart.disabled = !S.history.length || S.status !== 'playing';
   const done = S.boxes.filter((x) => S.goal[x.r][x.c]).length;
   ui.status.textContent = S.status === 'won' ? 'Fase concluída' : (HINTS[S.index] || `${GROUPS[groupOf(S.index)].name} · ${done} de ${S.boxes.length} caixas nos destinos`);
-  const c = ui.stage.classList; c.toggle('is-won', S.status === 'won'); c.toggle('is-levels', S.menu);
+  const c = ui.stage.classList; c.toggle('is-won', S.status === 'won'); c.toggle('is-levels', S.menu); c.toggle('is-ready', !S.started);
+}
+/* Catálogo: grade paginada. Colunas e linhas se adaptam ao espaço real da tela (alvo mínimo de 44 px); a página mostra de S.first até S.first + S.size. */
+const MIN_CELL = 44, MAX_COLS = 5, pad2 = (n) => String(n).padStart(2, '0');
+function levelsLayout() {
+  const sc = ui.levelsScreen, gridW = ui.grid.clientWidth;
+  if (!gridW) return { cols: MAX_COLS, size: 20 };
+  const gap = parseFloat(getComputedStyle(sc).rowGap) || 8, gg = parseFloat(getComputedStyle(ui.grid).columnGap) || 6;
+  const cols = Math.max(3, Math.min(MAX_COLS, Math.floor((gridW + gg) / (MIN_CELL + gg)))), cell = (gridW - gg * (cols - 1)) / cols;
+  const kids = [...sc.children].filter((k) => k !== ui.grid && k.offsetHeight);
+  const free = sc.clientHeight - kids.reduce((n, k) => n + k.offsetHeight, 0) - gap * kids.length - 12;
+  const rows = Math.max(2, Math.min(4, Math.floor((free + gg) / (cell + gg))));
+  return { cols, size: cols * rows };
 }
 function buildLevelGrid() {
-  const g = S.tab, from = GROUPS[g].from, to = Math.min(from + GROUP_SIZE, LEVELS.length);
-  ui.tabs.textContent = '';
-  GROUPS.forEach((grp, k) => {
-    const t = document.createElement('button'), a = grp.from + 1, z = Math.min(grp.from + GROUP_SIZE, LEVELS.length);
-    t.type = 'button'; t.className = `tab${k === g ? ' is-active' : ''}`; t.dataset.g = k; t.textContent = `${a}–${z}`;
-    t.setAttribute('role', 'tab'); t.setAttribute('aria-selected', k === g ? 'true' : 'false'); t.setAttribute('aria-label', `${grp.name}, fases ${a} a ${z}`);
-    ui.tabs.appendChild(t);
-  });
-  ui.group.textContent = `${GROUPS[g].name} · fases ${from + 1}–${to}`;
+  const { cols, size } = levelsLayout(), total = LEVELS.length, pages = Math.max(1, Math.ceil(total / size));
+  S.size = size; S.page = Math.min(Math.max(0, Math.floor(S.first / size)), pages - 1); S.first = S.page * size;
+  const from = S.first, to = Math.min(from + size, total), done = completedCount();
+  ui.grid.style.gridTemplateColumns = `repeat(${cols}, minmax(0, 1fr))`;
+  ui.group.textContent = `Fases ${from + 1}–${to}`;
+  ui.plabel.textContent = `${S.page + 1} / ${pages}`;
+  ui.prev.disabled = S.page === 0; ui.pnext.disabled = S.page >= pages - 1;
+  ui.lprog.textContent = `${done} de ${total} concluídas`;
   ui.grid.textContent = '';
   for (let i = from; i < to; i++) {
-    const locked = i >= S.progress.unlocked, b = S.progress.best[i], el = document.createElement('button');
-    el.type = 'button'; el.className = `lv${i === S.index ? ' is-current' : ''}${b ? ' is-done' : ''}`; el.disabled = locked; el.dataset.i = i;
-    el.setAttribute('aria-label', locked ? `Fase ${i + 1} bloqueada` : `Fase ${i + 1}${b ? `, recorde ${b} movimentos` : ''}`);
-    el.innerHTML = locked ? SVG_LOCK : `${i + 1}<small>${b ? b : '·'}</small>`;
+    const locked = i >= S.progress.unlocked, b = S.progress.best[i], cur = i === S.index, el = document.createElement('button');
+    el.type = 'button'; el.dataset.i = i; el.disabled = locked;
+    el.className = `lv${cur ? ' is-current' : ''}${b ? ' is-done' : ''}${locked ? ' is-locked' : ''}`;
+    el.setAttribute('aria-label', locked ? `Fase ${i + 1}, bloqueada` : `Fase ${i + 1}${cur ? ', atual' : ''}${b ? `, concluída, recorde ${b} movimentos` : ''}`);
+    if (cur) el.setAttribute('aria-current', 'true');
+    el.innerHTML = `<span class="num">${pad2(i + 1)}</span>${locked ? SVG_LOCK : b ? SVG_CHECK : ''}`;
     ui.grid.appendChild(el);
   }
 }
+function goPage(p) {
+  S.first = Math.max(0, p) * S.size; buildLevelGrid();
+  const other = ui.prev.disabled ? ui.pnext : ui.pnext.disabled ? ui.prev : null;   // não perde o foco quando um botão desativa
+  if (other && document.activeElement === document.body) other.focus({ preventScroll: true });
+}
 function openMenu(on) {
-  if (on) { S.tab = groupOf(S.index); buildLevelGrid(); }
+  if (on) { setHelp(false); S.first = S.index; buildLevelGrid(); }
   S.menu = on; render();
   if (on) { const cur = ui.grid.querySelector('.is-current') || ui.grid.querySelector('button:not(:disabled)'); if (cur) cur.focus({ preventScroll: true }); }
 }
 function toggleMute() {
-  S.muted = !S.muted; store.set('muted', S.muted); if (!S.muted) Sound.unlock(); renderMute();
+  S.muted = !S.muted; store.saveMuted(S.muted); if (!S.muted) Sound.unlock(); renderMute();
 }
 function renderMute() {
   ui.mute.classList.toggle('is-muted', S.muted); ui.mute.setAttribute('aria-pressed', S.muted);
   ui.mute.setAttribute('aria-label', S.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
 }
-function resizeStage() {
-  const w = Math.max(1, ui.arena.clientWidth - MARGIN * 2), h = Math.max(1, ui.arena.clientHeight - MARGIN * 2);
+/* O palco mantém 288 × 512. O botão ? fica fora dele: ao lado quando há espaço; senão acima (se sobrar altura); senão o palco encolhe e abre espaço ao lado. */
+const HELP_SIZE = 42, HELP_GAP = 10;
+function fitStage(w, h) {
   let ch = Math.min(h, MAX_CSS_HEIGHT), cw = ch * (W / H);
   if (cw > w) { cw = w; ch = cw / (W / H); }
-  cw = Math.floor(cw); ch = Math.floor(ch);
-  ui.stage.style.width = `${cw}px`; ui.stage.style.height = `${ch}px`; ui.stage.style.setProperty('--u', `${cw / W}px`);
+  return [Math.floor(cw), Math.floor(ch)];
+}
+function resizeStage() {
+  const aw = ui.arena.clientWidth, ah = ui.arena.clientHeight, side = HELP_SIZE + HELP_GAP + 4;
+  let [cw, ch] = fitStage(Math.max(1, aw - MARGIN * 2), Math.max(1, ah - MARGIN * 2)), mode = 'side', shift = 0;
+  if ((aw - cw) / 2 >= side + MARGIN) mode = 'side';
+  else if ((ah - ch) / 2 >= HELP_SIZE + 12) mode = 'top';
+  else { [cw, ch] = fitStage(Math.max(1, aw - MARGIN * 2 - side), Math.max(1, ah - MARGIN * 2)); shift = side / 2; }
+  ui.wrap.style.width = `${cw}px`; ui.wrap.style.height = `${ch}px`; ui.wrap.style.setProperty('--u', `${cw / W}px`);
+  ui.wrap.dataset.help = mode; ui.wrap.style.transform = shift ? `translateX(${-shift}px)` : '';
+}
+function setHelp(on) { ui.pop.hidden = !on; ui.help.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+
+/* Tela inicial: o jogo fica parado até o primeiro toque/clique ou SPACE. Só então a fase conta como iniciada. */
+function refreshStart() {
+  const done = completedCount(), total = LEVELS.length, resume = done > 0 || S.index > 0;
+  ui.startLevel.textContent = resume ? `Continuar · fase ${S.index + 1}` : 'Fase 1';
+  ui.startProg.textContent = done ? `${done} de ${total} fases concluídas` : 'Empurre as caixas até os destinos';
+}
+function begin() {
+  if (S.started || !ui.pop.hidden) return;   // com a ajuda aberta, o toque só fecha a ajuda
+  S.started = true; Sound.unlock(); store.saveLast(S.index); render();
+}
+const completedCount = () => Object.keys(S.progress.best).length;
+// Fase sugerida: a última aberta, se ainda não foi concluída; senão, a próxima fase liberada.
+function resumeTarget() {
+  const last = SAVED.last, top = S.progress.unlocked - 1;
+  if (Number.isInteger(last) && last >= 0 && last <= top && !S.progress.best[last]) return last;
+  return Math.min(top, LEVELS.length - 1);
 }
 
 /* ===== Entradas: teclado e toque passam pela mesma função (input → tryMove) ===== */
@@ -323,12 +360,15 @@ function input(dir) {
   if (tryMove(dir)) S.lastStep = now;
 }
 function init() {
-  S.progress = loadProgress(); renderMute();
-  const savedLevel = Number(store.get('last', NaN));
-  if (!loadLevel(Number.isInteger(savedLevel) && savedLevel < S.progress.unlocked ? savedLevel : 0)) loadLevel(0);
+  S.progress = SAVED.progress; renderMute();
+  if (!loadLevel(resumeTarget(), false)) loadLevel(0, false);   // abre parado e sem gravar nada: só o primeiro toque/SPACE inicia
+  refreshStart();
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.code === 'Escape') { if (S.menu) openMenu(false); return; }
+    if (e.code === 'Escape') { if (!ui.pop.hidden) { setHelp(false); ui.help.blur(); } else if (S.menu) openMenu(false); return; }
+    const onBtn = e.target && e.target.closest && e.target.closest('button');
+    if (e.code === 'Space' && !onBtn) { if (!S.started && !S.menu) { e.preventDefault(); begin(); } return; }
+    if (e.code === 'Enter' && e.target === ui.start) { e.preventDefault(); begin(); return; }
     const dir = KEYS[e.code];
     if (dir) { e.preventDefault(); input(dir); return; }            // setas não rolam a página
     if (e.repeat) return;
@@ -354,48 +394,26 @@ function init() {
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
   document.addEventListener('pointerdown', () => Sound.unlock());
   document.addEventListener('keydown', () => Sound.unlock(), true);
+  ui.start.addEventListener('click', begin);
+  ui.help.addEventListener('click', () => { setHelp(ui.pop.hidden); ui.help.blur(); });   // sem foco no botão, SPACE continua iniciando o jogo
+  document.addEventListener('click', (e) => { if (!ui.pop.hidden && !e.target.closest('.help')) setHelp(false); });
   $('levels-button').addEventListener('click', () => { Sound.click(); openMenu(true); });
   $('levels-close').addEventListener('click', () => openMenu(false));
   $('won-levels').addEventListener('click', () => openMenu(true));
   ui.next.addEventListener('click', () => { Sound.click(); nextLevel(); });
   $('again-button').addEventListener('click', () => loadLevel(S.index));
-  ui.tabs.addEventListener('click', (e) => {
-    const t = e.target.closest('.tab'); if (!t) return;
-    Sound.click(); S.tab = Number(t.dataset.g); buildLevelGrid();
-    const cur = ui.grid.querySelector('.is-current') || ui.grid.querySelector('button:not(:disabled)');
-    if (!cur) t.focus({ preventScroll: true });
-  });
+  ui.prev.addEventListener('click', () => { Sound.click(); goPage(S.page - 1); });
+  ui.pnext.addEventListener('click', () => { Sound.click(); goPage(S.page + 1); });
   ui.grid.addEventListener('click', (e) => {
     const b = e.target.closest('.lv'); if (!b || b.disabled) return;
-    Sound.click(); loadLevel(Number(b.dataset.i));
+    Sound.click(); if (loadLevel(Number(b.dataset.i))) begin();   // escolher uma fase é uma ação do jogador: já começa
   });
   document.addEventListener('contextmenu', (e) => e.preventDefault());
-  window.addEventListener('resize', resizeStage);
-  window.addEventListener('orientationchange', resizeStage);
-  if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeStage);
+  const onResize = () => { resizeStage(); if (S.menu) buildLevelGrid(); };
+  window.addEventListener('resize', onResize);
+  window.addEventListener('orientationchange', onResize);
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', onResize);
 }
 init();
 
-/* ===== Menu inicial: continuar de onde parou, progresso e atalho para o seletor de fases ===== */
-function completedCount() { return Object.keys(S.progress.best).length; }
-// Fase sugerida: a última jogada, se ainda não foi concluída; senão, a próxima fase liberada.
-function menuTarget() {
-  const last = Number(store.get('last', 0)), unlockedIdx = S.progress.unlocked - 1;
-  if (Number.isInteger(last) && last >= 0 && last <= unlockedIdx && !S.progress.best[last]) return last;
-  return Math.min(unlockedIdx, LEVELS.length - 1);
-}
-function refreshMenu() {
-  const done = completedCount(), total = LEVELS.length, t = menuTarget(), allDone = done >= total;
-  const play = document.querySelector('#game-menu [data-menu-play]');
-  play.textContent = allDone ? `Rejogar a fase ${t + 1}` : done === 0 && t === 0 ? 'Iniciar fase 1' : `Continuar na fase ${t + 1}`;
-  document.getElementById('menu-bar').style.width = `${Math.round((done / total) * 100)}%`;
-  document.getElementById('menu-progress-text').innerHTML = allDone
-    ? `Você concluiu <b>todas as ${total} fases</b>!`
-    : `<b>${done}</b> de ${total} fases concluídas · liberadas até a fase <b>${S.progress.unlocked}</b>`;
-}
-GameUI.menu.mount({
-  el: '#game-menu', onOpen: refreshMenu,
-  onPlay() { const t = menuTarget(); if (t !== S.index) loadLevel(t); },
-});
-$('menu-levels').addEventListener('click', () => { GameUI.menu.current.close(); Sound.click(); openMenu(true); });
-window.__soko = { S, LEVELS, GROUPS, tryMove, undo, restart, loadLevel, input, solved };
+window.__soko = { S, LEVELS, GROUPS, tryMove, undo, restart, loadLevel, input, solved, begin };

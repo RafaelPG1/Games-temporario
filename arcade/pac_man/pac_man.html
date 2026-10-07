@@ -7,7 +7,6 @@
   <title>Pac-Man · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="pac_man.css">
-  <link rel="stylesheet" href="../../shared/game_ui.css">
 </head>
 <body>
   <header class="topbar">
@@ -27,6 +26,14 @@
     </div>
   </header>
 
+  <!-- Ícones das setas, usados nas teclas do popover "Como jogar" -->
+  <svg class="sprite" aria-hidden="true" focusable="false">
+    <symbol id="icon-left" viewBox="0 0 16 16"><path d="M13 8H3.5M7.6 3.8L3.4 8l4.2 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+    <symbol id="icon-right" viewBox="0 0 16 16"><path d="M3 8h9.5M8.4 3.8L12.6 8l-4.2 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+    <symbol id="icon-up" viewBox="0 0 16 16"><path d="M8 13V3.5M3.8 7.6L8 3.4l4.2 4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+    <symbol id="icon-down" viewBox="0 0 16 16"><path d="M8 3v9.5M3.8 8.4L8 12.6l4.2-4.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square" stroke-linejoin="miter"/></symbol>
+  </svg>
+
   <div id="arena" class="arena">
     <main id="stage" class="stage is-title" aria-label="Pac-Man">
       <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
@@ -37,7 +44,8 @@
         </svg>
       </button>
       <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (Espaço)">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="#050824"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="#050824"/></svg>
+        <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="#050824"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="#050824"/></svg>
+        <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4.8 2.9v10.2L13 8z" fill="#050824" stroke="#050824" stroke-width="1.6" stroke-linejoin="round"/></svg>
       </button>
 
       <section class="hud" aria-label="Partida">
@@ -58,34 +66,66 @@
         <button class="pad-btn pad-down" type="button" data-dir="down" aria-label="Baixo"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 7l6 6 6-6" /></svg></button>
       </div>
 
-      <section class="screen screen-title" role="dialog" aria-labelledby="title-h">
-        <h1 id="title-h" class="logo">Pac-Man</h1>
-        <p class="menu-desc">Coma todas as bolinhas e fuja dos fantasmas. As bolas grandes deixam os fantasmas vulneráveis.</p>
-        <ul class="menu-keys" aria-label="Comandos">
-          <li><span class="keycaps"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span><span>mover</span></li>
-          <li><span class="keycaps"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>mover</span></li>
-          <li><span class="keycaps"><kbd>Espaço</kbd><kbd>P</kbd><kbd>Esc</kbd></span><span>pausar</span></li>
-          <li><span class="keycaps"><kbd>M</kbd></span><span>som</span></li>
-        </ul>
-        <p class="menu-touch">Deslize na tela ou use os botões</p>
-        <p class="menu-note">Recorde <b id="title-best">0</b> · Fase mais alta <b id="title-level">1</b></p>
-        <button id="start-button" class="btn" type="button">Jogar</button>
+      <section class="screen screen-start" role="dialog" aria-labelledby="title-h">
+        <div class="start-panel">
+          <h1 id="title-h" class="logo">Pac-Man</h1>
+          <p class="menu-note">Recorde <b id="title-best">0</b> · Fase mais alta <b id="title-level">1</b></p>
+          <p class="hint">
+            <span class="hint-text">Toque para iniciar</span>
+            <span class="hint-or">ou</span>
+            <kbd class="cap cap-wide">Space</kbd>
+          </p>
+        </div>
       </section>
       <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
-        <h2 id="pause-title" class="screen-title">Pausado</h2>
+        <h2 id="pause-title" class="screen-heading">Pausado</h2>
         <button id="resume-button" class="btn" type="button">Continuar</button>
       </section>
       <section class="screen screen-over" role="dialog" aria-labelledby="over-title">
-        <h2 id="over-title" class="screen-title">Fim de jogo</h2>
+        <h2 id="over-title" class="screen-heading">Fim de jogo</h2>
         <p class="screen-text"><span id="over-score">0</span> pontos · fase <span id="over-level">1</span></p>
         <p id="over-record" class="record" hidden>Novo recorde</p>
         <button id="again-button" class="btn" type="button">Jogar de novo</button>
       </section>
       <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
     </main>
+
+    <!-- Como jogar: botão só com ícone, ao lado do palco (fora do jogo, nunca no header) + popover ancorado a ele -->
+    <button id="how-button" class="how-btn" type="button"
+            aria-haspopup="dialog" aria-expanded="false" aria-controls="how-popover"
+            aria-label="Como jogar" title="Como jogar">
+      <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
+        <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
+      </svg>
+    </button>
+    <div id="how-popover" class="how-popover" role="dialog" aria-labelledby="how-title" data-placement="below" hidden>
+      <button id="how-close" class="how-close" type="button" aria-label="Fechar">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square"/>
+        </svg>
+      </button>
+      <div class="how-body">
+        <h2 id="how-title" class="how-title">Como jogar</h2>
+        <p class="how-text">Coma todas as bolinhas e fuja dos fantasmas. Se um fantasma te pegar, você perde uma vida.</p>
+        <h3 class="how-sub">Controles</h3>
+        <ul class="ctl-list">
+          <li><span class="ctl-keys"><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-left"/></svg><span class="sr-only">Seta para a esquerda</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-up"/></svg><span class="sr-only">Seta para cima</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-down"/></svg><span class="sr-only">Seta para baixo</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-right"/></svg><span class="sr-only">Seta para a direita</span></kbd></span><span class="ctl-label">Mover</span></li>
+          <li><span class="ctl-keys"><kbd class="cap">W</kbd><kbd class="cap">A</kbd><kbd class="cap">S</kbd><kbd class="cap">D</kbd></span><span class="ctl-label">Alternativo</span></li>
+          <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd><kbd class="cap">P</kbd><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar</span></li>
+          <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
+        </ul>
+        <h3 class="how-sub">Dicas</h3>
+        <ul class="how-tips">
+          <li>As bolas grandes deixam os fantasmas vulneráveis por alguns segundos: aí você pode comê-los.</li>
+          <li>Os túneis das laterais levam ao outro lado do labirinto.</li>
+        </ul>
+        <p class="how-note">No celular: deslize no labirinto ou use os botões de direção.</p>
+      </div>
+    </div>
   </div>
-  <script src="../../shared/game_storage.js"></script>
-  <script src="../../shared/game_ui.js"></script>
+  <script src="pacman_storage.js"></script>
   <script src="pac_man.js"></script>
 </body>
 </html>
