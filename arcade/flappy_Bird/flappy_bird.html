@@ -67,20 +67,18 @@
         </svg>
       </button>
 
-      <!-- Pausar / Continuar (só aparece durante a partida) -->
+      <!-- Pausar / Continuar (só aparece durante a partida). Mesmo botão nos dois estados:
+           só o símbolo muda (pausa <-> play). -->
       <button id="pause-button" class="pause-button" type="button" hidden
               aria-pressed="false" aria-label="Pausar" title="Pausar">
-        <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
+        <svg viewBox="0 0 20 20" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
           <g class="icon-pause" fill="#543847">
-            <rect x="3" y="2" width="4" height="12"/>
-            <rect x="9" y="2" width="4" height="12"/>
+            <rect x="4" y="3" width="4" height="14"/>
+            <rect x="12" y="3" width="4" height="14"/>
           </g>
-          <g class="icon-play" fill="#543847">
-            <rect x="4" y="2" width="2" height="12"/>
-            <rect x="6" y="3" width="2" height="10"/>
-            <rect x="8" y="4" width="2" height="8"/>
-            <rect x="10" y="5" width="2" height="6"/>
-            <rect x="12" y="6" width="1" height="4"/>
+          <g class="icon-play" transform="translate(1 0)">
+            <path fill="#543847"
+                  d="M3 2H5V3H7V4H9V5H10V6H12V7H14V8H15V9H17V11H15V12H14V13H12V14H10V15H9V16H7V17H5V18H3Z"/>
           </g>
         </svg>
       </button>
@@ -105,6 +103,13 @@
       <section class="screen screen-paused" aria-live="polite">
         <h2 class="paused-title">Pausado</h2>
         <p class="paused-hint">Toque em Continuar para voltar</p>
+      </section>
+
+      <!-- Retomada depois de recarregar a página: pausa de segurança com contagem 3, 2, 1, GO! -->
+      <section id="recovery-screen" class="screen screen-recovery" aria-live="assertive" aria-atomic="true">
+        <p class="recovery-label">Partida retomada</p>
+        <p id="recovery-count" class="recovery-count"></p>
+        <p class="recovery-prompt">Toque na tela<br>ou aperte Espaço</p>
       </section>
 
       <!-- Fim de partida -->

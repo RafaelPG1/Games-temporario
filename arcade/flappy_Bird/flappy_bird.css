@@ -154,6 +154,9 @@ body {
 .over-title,
 .paused-title,
 .paused-hint,
+.recovery-label,
+.recovery-count,
+.recovery-prompt,
 .hint,
 .ready-best,
 .badge,
@@ -187,6 +190,8 @@ body {
 
 .is-ready .screen-ready,
 .is-paused .screen-paused,
+.is-recovery .screen-recovery,
+.is-go .screen-recovery,
 .is-over.show-panel .screen-over {
   opacity: 1;
   visibility: visible;
@@ -350,6 +355,55 @@ body {
   line-height: 1.25;
 }
 
+/* ---------- Partida retomada: contagem 3, 2, 1 e GO! ---------- */
+
+.screen-recovery {
+  justify-content: center;
+  gap: calc(var(--u) * 4);
+  padding: 0 8%;
+}
+.is-recovery .screen-recovery { background: rgba(84, 56, 71, 0.38); }   /* cena congelada, como na pausa */
+.is-go .recovery-label { visibility: hidden; }
+.recovery-prompt { display: none; }
+.is-waiting .recovery-prompt { display: block; }
+.is-waiting .recovery-count { display: none; }                           /* mantém o "GO!" no mesmo lugar */
+
+.recovery-label {
+  margin: 0;
+  font-size: max(14px, calc(var(--u) * 16));
+  line-height: 1.1;
+  letter-spacing: calc(var(--u) * 1);
+  text-transform: uppercase;
+  color: var(--white);
+}
+.recovery-count {
+  --o: max(2px, calc(var(--u) * 3.2));          /* contorno proporcional ao tamanho do número */
+  margin: 0;
+  min-height: 1em;
+  font-size: calc(var(--u) * 92);
+  line-height: 1;
+  color: #ffe36a;
+  text-transform: uppercase;
+}
+.recovery-prompt {
+  margin: calc(var(--u) * 6) 0 0;
+  font-size: max(14px, calc(var(--u) * 15));
+  line-height: 1.3;
+  text-transform: uppercase;
+  color: #ffe36a;
+  animation: blink 1.4s ease-in-out infinite;
+}
+.recovery-count.is-go {
+  font-size: calc(var(--u) * 70);
+  color: #b6f26a;                                /* verde dos canos */
+}
+.recovery-count.pop { animation: count-pop 0.42s cubic-bezier(0.2, 1.3, 0.4, 1) both; }
+@keyframes count-pop {
+  from { transform: scale(1.7); opacity: 0; }
+  55% { opacity: 1; }
+  to { transform: scale(1); opacity: 1; }
+}
+
 /* ---------- Botões ---------- */
 
 .btn {
@@ -397,16 +451,19 @@ body {
 .icon-button.is-muted .icon-waves { display: none; }
 .icon-button.is-muted .icon-cross { display: inline; }
 
-/* Ao lado do botão de som: mesma altura, mesmo topo, com uma folga entre os dois. */
+/* Ao lado do botão de som, no mesmo lugar de antes (a borda direita não mudou). O botão é um
+   pouco maior (alvo de toque de 44 px) e continua centralizado na vertical com o botão de som. */
 .pause-button {
+  --size: max(44px, calc(var(--u) * 22));
+  --sound: max(40px, calc(var(--u) * 20));
   position: absolute;
-  top: calc(var(--u) * 8);
-  right: calc(var(--u) * 8 + max(40px, calc(var(--u) * 20)) + max(6px, calc(var(--u) * 6)));
+  top: calc(var(--u) * 8 - (var(--size) - var(--sound)) / 2);
+  right: calc(var(--u) * 8 + var(--sound) + max(6px, calc(var(--u) * 6)));
   z-index: 5;
   display: grid;
   place-items: center;
-  width: max(40px, calc(var(--u) * 20));
-  height: max(40px, calc(var(--u) * 20));
+  width: var(--size);
+  height: var(--size);
   padding: 0;
   background: var(--paper);
   border: calc(var(--u) * 2) solid var(--ink);
@@ -417,9 +474,9 @@ body {
 }
 .pause-button:hover,
 .pause-button:focus-visible { opacity: 1; }
-.pause-button:focus-visible { outline: 2px solid #2d7be0; outline-offset: 2px; }
+.pause-button:focus-visible { outline: 2px solid #2d7be0; outline-offset: 3px; }
 .pause-button[hidden] { display: none; }
-.pause-button svg { width: 62%; height: 62%; }
+.pause-button svg { width: 64%; height: 64%; }
 .pause-button .icon-play { display: none; }
 .pause-button.is-paused .icon-pause { display: none; }
 .pause-button.is-paused .icon-play { display: inline; }
@@ -449,6 +506,7 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .hint { animation: none; }
+  .recovery-count.pop, .recovery-prompt { animation: none; }
   .screen { transition: none; }
   .back, .back svg { transition: none; }
 }

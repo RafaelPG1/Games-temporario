@@ -6,7 +6,7 @@
      1. Configuração (todas as constantes de ajuste estão aqui)
      2. Persistência (flappy_bird_storage.js, exclusivo deste jogo)
      3. Áudio (Web Audio API)
-     4. Estado da partida
+     4. Estado da partida (inclui partida salva e contagem de retomada após F5)
      5. Física do pássaro
      6. Canos (geração, dificuldade e remoção)
      7. Colisões
@@ -92,6 +92,16 @@
       masterVolume: 0.3,
     },
 
+    persistence: {
+      saveIntervalMs: 400,      // intervalo mínimo entre gravações automáticas durante a partida
+    },
+
+    recovery: {
+      seconds: 3,               // pausa de segurança ao voltar para uma partida em andamento
+      goSeconds: 0.7,           // quanto tempo o "GO!" fica na tela depois da contagem
+      onTabReturn: true,        // true: voltar de outra aba / tela bloqueada também faz a contagem
+    },
+
     view: {
       margin: 6,                // folga ao redor do palco (px de tela)
       maxCssHeight: 1000,       // não estica o jogo em telas enormes
@@ -127,7 +137,7 @@
 
   /* ======================================================================
      2. PERSISTÊNCIA
-     Toda leitura/gravação (recorde e preferência de som) passa por
+     Toda leitura/gravação (recorde, preferência de som e partida em andamento) passa por
      flappy_bird_storage.js, que precisa ser carregado antes deste arquivo.
      Ele trata dados inválidos e armazenamento indisponível.
      ====================================================================== */
@@ -264,6 +274,21 @@
 
   const clouds = [];      // decoração; mantida entre partidas
 
+  // Contagem de retomada (3, 2, 1, GO!). Só existe ao recarregar a página ou voltar a ela
+  // com uma partida em andamento; a pausa manual NUNCA passa por aqui. Não usa setTimeout:
+  // quem conta é o loop principal, então nunca há duas contagens ao mesmo tempo.
+  const recovery = {
+    active: false,        // true = retomada em andamento (game.paused também fica true)
+    waiting: false,       // true = esperando o jogador tocar / apertar Espaço; só então começa a contagem
+    remaining: 0,         // segundos que faltam
+    go: 0,                // segundos que o "GO!" ainda fica visível
+    shown: null,          // texto exibido agora (só mexe no DOM quando muda)
+  };
+
+  let clockNow = 0;       // último timestamp recebido do requestAnimationFrame
+  let lastSaveAt = 0;     // instante (nesse mesmo relógio) da última gravação da partida
+  let saveNow = false;    // true = gravar no próximo quadro (ex.: acabou de pontuar)
+
   function createBird() {
     return {
       x: CONFIG.bird.x,
@@ -277,6 +302,7 @@
 
   // Zera TUDO o que pertence a uma partida e volta para a tela inicial.
   function resetRound() {
+    cancelRecovery();
     game.state = STATES.READY;
     game.score = 0;
     game.newBest = false;
@@ -302,6 +328,8 @@
 
   function endGame() {
     if (game.state !== STATES.PLAYING) return;   // encerra uma única vez
+    cancelRecovery();
+    Store.clearRun();      // partida terminada não pode voltar depois de um F5 (o recorde fica)
     game.state = STATES.GAME_OVER;
     game.paused = false;
     game.overTime = 0;
@@ -328,19 +356,186 @@
   function pauseGame() {
     if (game.state !== STATES.PLAYING || game.paused) return;
     game.paused = true;
+    persistRun();             // congelada: grava o estado exato em que parou
     syncUi();
   }
 
   function resumeGame() {
-    if (game.state !== STATES.PLAYING || !game.paused) return;
+    if (game.state !== STATES.PLAYING || !game.paused || recovery.active) return;
     game.paused = false;
     lastTime = null;          // o primeiro quadro depois de continuar tem dt = 0: sem saltos
     syncUi();
   }
+  // Despausa passando pela contagem 3, 2, 1 (a mesma do F5)
+function resumeWithCountdown() {
+  if (game.state !== STATES.PLAYING || recovery.active) return;
+  beginRecovery();      // congela e prepara a contagem
+  confirmRecovery();    // o toque já aconteceu: começa o 3, 2, 1 na hora
+}
 
-  function togglePause() {
-    if (game.paused) resumeGame();
-    else pauseGame();
+function togglePause() {
+  if (recovery.active) return;
+  if (game.paused) resumeWithCountdown();
+  else pauseGame();
+}
+  /* ---------- Partida salva e retomada (F5) ---------- */
+
+  // Retrato completo da partida: tudo o que é preciso para reconstruí-la.
+  // A velocidade é derivada da pontuação (currentSpeed), então é gravada só como conferência.
+  function snapshotRun() {
+    const { bird } = game;
+    return {
+      score: game.score,
+      level: currentLevel(),
+      speed: currentSpeed(),
+      scroll: game.scroll,
+      time: game.time,
+      lastGapY: game.lastGapY,
+      bird: { x: bird.x, y: bird.y, vy: bird.vy, angle: bird.angle, wingTime: bird.wingTime },
+      pipes: game.pipes.map((pipe) => ({ x: pipe.x, gapY: pipe.gapY, gapSize: pipe.gapSize, scored: pipe.scored })),
+      clouds: clouds.map((cloud) => ({ x: cloud.x, y: cloud.y })),
+    };
+  }
+
+  // Grava a partida agora. Só existe partida "salvável" enquanto o estado é PLAYING.
+  function persistRun() {
+    if (game.state !== STATES.PLAYING || !game.bird) return;
+    lastSaveAt = clockNow;
+    saveNow = false;
+    Store.saveRun(snapshotRun());
+  }
+
+  // Chamado a cada quadro, mas só grava de tempos em tempos (e logo após marcar ponto).
+  // Pausado ou em contagem nada muda, então nada é gravado aqui (a pausa já gravou).
+  function autosaveRun() {
+    const due = saveNow || clockNow - lastSaveAt >= CONFIG.persistence.saveIntervalMs;
+    if (!due) return;
+    saveNow = false;
+    if (game.state === STATES.PLAYING && !game.paused) persistRun();
+  }
+
+  // Reconstrói a partida a partir do que foi salvo. Confere as regras do jogo ANTES de
+  // mexer no estado; se algo não fizer sentido, devolve false e o jogo fica na tela inicial.
+  function applyRun(run) {
+    const cfg = CONFIG.bird;
+    const pipeCfg = CONFIG.pipes;
+    const halfH = cfg.hitboxHeight / 2;
+    const saved = run.bird;
+
+    if (saved.y < halfH || saved.y + halfH >= GROUND_Y) return false;
+    if (saved.vy < -cfg.flapVelocity - 1 || saved.vy > cfg.maxFallSpeed + 1) return false;
+
+    let previousX = -Infinity;
+    for (const pipe of run.pipes) {
+      const topHeight = pipe.gapY - pipe.gapSize / 2;
+      const bottomHeight = GROUND_Y - (pipe.gapY + pipe.gapSize / 2);
+      if (pipe.x <= previousX || topHeight < 0 || bottomHeight < 0) return false;
+      previousX = pipe.x;
+    }
+
+    resetRound();                       // base limpa: um único lugar zera tudo
+    game.state = STATES.PLAYING;
+    game.score = run.score;             // atribuição direta: sem som e sem passar por updateScore
+    game.scroll = run.scroll;
+    game.time = run.time;
+    game.lastGapY = run.lastGapY;
+    game.bird = {
+      x: cfg.x, y: saved.y, vy: saved.vy, angle: saved.angle, wingTime: saved.wingTime, landed: false,
+    };
+    for (const pipe of run.pipes) {
+      game.pipes.push({
+        x: pipe.x,
+        width: pipeCfg.width,
+        gapY: pipe.gapY,
+        gapSize: pipe.gapSize,
+        topHeight: pipe.gapY - pipe.gapSize / 2,
+        bottomHeight: GROUND_Y - (pipe.gapY + pipe.gapSize / 2),
+        scored: pipe.scored,
+      });
+    }
+    if (run.clouds.length === clouds.length) {
+      run.clouds.forEach((cloud, i) => { clouds[i].x = cloud.x; clouds[i].y = cloud.y; });
+    }
+
+    if (hitsAnyPipe()) {                // partida salva já "batida": não faz sentido restaurar
+      resetRound();
+      return false;
+    }
+    return true;
+  }
+
+  // Só roda uma vez, no init, e só a partir da tela inicial.
+  function restoreSavedRun() {
+    if (game.state !== STATES.READY) return false;
+    const run = Store.loadRun();
+    if (!run) return false;
+    if (!applyRun(run)) {
+      Store.clearRun();
+      return false;
+    }
+    beginRecovery();
+    return true;
+  }
+
+  // Congela a partida e inicia a contagem. Chamar de novo apenas reinicia a contagem
+  // (existe um único objeto `recovery`, então nunca há duas).
+  function beginRecovery() {
+    if (game.state !== STATES.PLAYING) return;
+    recovery.active = true;
+    recovery.waiting = true;           // primeiro pede um toque / Espaço do jogador
+    recovery.remaining = CONFIG.recovery.seconds;
+    recovery.go = 0;
+    recovery.shown = null;
+    game.paused = true;
+    syncUi();
+  }
+
+  function tickRecovery(elapsed) {
+    if (recovery.waiting) return;     // sem toque do jogador a contagem não começa
+    recovery.remaining -= elapsed;
+    if (recovery.remaining <= 0) endRecovery();
+    else syncRecoveryUi();
+  }
+
+  function endRecovery() {
+    recovery.active = false;
+    recovery.waiting = false;
+    recovery.remaining = 0;
+    recovery.go = CONFIG.recovery.goSeconds;
+    recovery.shown = null;
+    game.paused = false;
+    lastTime = null;          // o primeiro quadro depois da contagem tem dt = 0: sem saltos
+    syncUi();
+  }
+
+  function cancelRecovery() {
+    recovery.active = false;
+    recovery.waiting = false;
+    recovery.remaining = 0;
+    recovery.go = 0;
+    recovery.shown = null;
+  }
+
+  // O jogador tocou / apertou Espaço: agora sim começa a contagem 3, 2, 1.
+  function confirmRecovery() {
+    if (!recovery.active || !recovery.waiting) return;
+    recovery.waiting = false;
+    recovery.remaining = CONFIG.recovery.seconds;
+    recovery.shown = null;
+    syncRecoveryUi();
+  }
+
+  function tickGo(elapsed) {
+    recovery.go = Math.max(0, recovery.go - elapsed);
+    if (recovery.go === 0) syncRecoveryUi();
+  }
+
+  // Ao voltar para a página com a partida correndo (ou já em contagem), passa pela contagem.
+  // Pausa manual fica como está; tela inicial e Game Over não são afetados.
+  function guardOnReturn() {
+    if (game.state !== STATES.PLAYING) return;
+    if (game.paused && !recovery.active) return;
+    beginRecovery();
   }
 
   /* ======================================================================
@@ -509,6 +704,7 @@
       if (!pipe.scored && box.left > pipe.x + pipe.width) {
         pipe.scored = true;
         game.score += 1;
+        saveNow = true;                  // pontuou: grava no próximo quadro
         Sound.score();
       }
     }
@@ -1009,6 +1205,7 @@
     stage: document.getElementById('stage'),
     muteButton: document.getElementById('mute-button'),
     pauseButton: document.getElementById('pause-button'),
+    recoveryCount: document.getElementById('recovery-count'),
     restartButton: document.getElementById('restart-button'),
     readyBest: document.getElementById('ready-best'),
     readyBestValue: document.getElementById('ready-best-value'),
@@ -1029,8 +1226,8 @@
 
     // Botão de pausa: só aparece durante a partida; o rótulo acompanha o estado.
     const playing = game.state === STATES.PLAYING;
-    stage.classList.toggle('is-paused', playing && game.paused);
-    ui.pauseButton.hidden = !playing;
+    stage.classList.toggle('is-paused', playing && game.paused && !recovery.active);
+    ui.pauseButton.hidden = !playing || recovery.active;     // na contagem não há o que continuar
     const pauseText = game.paused ? 'Continuar' : 'Pausar';     // só para leitores de tela e dica
     ui.pauseButton.classList.toggle('is-paused', game.paused);
     ui.pauseButton.setAttribute('aria-pressed', game.paused ? 'true' : 'false');
@@ -1045,6 +1242,34 @@
       ui.overScore.textContent = String(game.score);
       ui.overBest.textContent = String(game.best);
       ui.overNew.hidden = !game.newBest;
+    }
+
+    syncRecoveryUi();
+  }
+
+  // Contagem "Partida retomada" (3, 2, 1) e o "GO!" logo depois. Só mexe no DOM quando o texto muda.
+  function syncRecoveryUi() {
+    const playing = game.state === STATES.PLAYING;
+    const counting = playing && recovery.active;
+    const going = playing && !recovery.active && recovery.go > 0;
+    ui.stage.classList.toggle('is-recovery', counting);
+    ui.stage.classList.toggle('is-waiting', counting && recovery.waiting);
+    ui.stage.classList.toggle('is-go', going);
+
+    let text = null;
+    if (counting && !recovery.waiting) text = String(Math.max(1, Math.ceil(recovery.remaining)));
+    else if (going) text = 'GO!';
+
+    if (text === null) {
+      recovery.shown = null;
+    } else if (text !== recovery.shown) {
+      recovery.shown = text;
+      const el = ui.recoveryCount;
+      el.textContent = text;
+      el.classList.toggle('is-go', going);
+      el.classList.remove('pop');
+      void el.offsetWidth;               // reinicia a animação a cada número
+      el.classList.add('pop');
     }
   }
 
@@ -1063,23 +1288,31 @@
   // Ajuda "Como jogar": popover pequeno ancorado ao botão "?", fora da área do jogo.
   // Abrir ou fechar NÃO inicia, pausa nem altera a partida: é só um painel de leitura.
   let infoOpen = false;
+  pauseGame();
 
   const HELP = { gap: 12, edge: 8, compactWidth: 150, minWidth: 168, maxWidth: 240 };
 
-  function openInfo() {
-    if (infoOpen) return;
-    infoOpen = true;
-    ui.infoPopover.hidden = false;
-    ui.infoButton.setAttribute('aria-expanded', 'true');
-    placeHelp();
-  }
+function openInfo() {
+  if (infoOpen) return;
+  infoOpen = true;
+  ui.infoPopover.hidden = false;
+  ui.infoButton.setAttribute('aria-expanded', 'true');
+  placeHelp();
 
-  function closeInfo() {
-    if (!infoOpen) return;
-    infoOpen = false;
-    ui.infoPopover.hidden = true;
-    ui.infoButton.setAttribute('aria-expanded', 'false');
+  // Se a partida está rolando (e não pausada), pausa e anota que foi a ajuda
+  if (game.state === STATES.PLAYING && !game.paused) {
+    pauseGame();
+    pausedByHelp = true;
   }
+}
+
+function closeInfo() {
+  if (!infoOpen) return;
+  infoOpen = false;
+  ui.infoPopover.hidden = true;
+  ui.infoButton.setAttribute('aria-expanded', 'false');
+  // NÃO despausa aqui. Quem despausa é o toque na tela (onPointerDown)
+}
 
   // Escolhe onde o painel abre. A preferência é SEMPRE abaixo do botão:
   //   below = abaixo do botão, alinhado a ele (nunca sobre o jogo quando há espaço)
@@ -1171,6 +1404,11 @@
      impulso por comando.
      ====================================================================== */
   function handleAction() {
+    if (recovery.active) {            // retomada: o primeiro toque / Espaço inicia a contagem
+      Sound.unlock();
+      confirmRecovery();
+      return;
+    }
     if (game.paused) return;          // pausado: voar/tocar não faz nada (só o botão continua)
     Sound.unlock();
     if (game.state === STATES.READY) startGame();
@@ -1214,10 +1452,19 @@
     if (event.code === 'Space') event.preventDefault();
   }
 
-  function onPointerDown(event) {
-    const target = event.target;
-    const hit = (selector) => Boolean(target && target.closest && target.closest(selector));
+function onPointerDown(event) {
+  const target = event.target;
+  const hit = (selector) => Boolean(target && target.closest && target.closest(selector));
 
+  // Jogo pausado (por qualquer motivo) + toque na tela do jogo = despausa com 3, 2, 1
+  if (game.state === STATES.PLAYING && game.paused && !recovery.active
+      && hit('#stage') && !hit('button, a, header')) {
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    event.preventDefault();          // esse toque só despausa, o pássaro não pula
+    if (infoOpen) closeInfo();       // se a ajuda estava aberta, fecha também
+    resumeWithCountdown();
+    return;
+  }
     // Ajuda aberta: tocar fora dela só a fecha. Se o toque foi no jogo, não vira voo nem início.
     if (infoOpen && !hit('.help')) {
       closeInfo();
@@ -1291,10 +1538,19 @@
 
   function frame(now) {
     rafId = requestAnimationFrame(frame);
+    clockNow = now;
     if (lastTime === null) lastTime = now;
-    const dt = Math.min(Math.max((now - lastTime) / 1000, 0), CONFIG.timing.maxFrameTime);
+    const elapsed = Math.min(Math.max((now - lastTime) / 1000, 0), 0.25);   // tempo real, sem o limite do jogo
+    const dt = Math.min(elapsed, CONFIG.timing.maxFrameTime);
     lastTime = now;
-    if (!game.paused) update(dt);     // pausado: nada avança, mas o loop (único) continua
+
+    if (recovery.active) {
+      tickRecovery(elapsed);          // contagem de retomada: a simulação continua congelada
+    } else {
+      if (!game.paused) update(dt);   // pausado: nada avança, mas o loop (único) continua
+      if (recovery.go > 0) tickGo(elapsed);
+    }
+    autosaveRun();
     render();
   }
 
@@ -1304,10 +1560,28 @@
     rafId = requestAnimationFrame(frame);
   }
 
+  let booted = false;
+
+  function onVisibilityChange() {
+    lastTime = null;
+    if (document.visibilityState !== 'hidden') return;
+    persistRun();                                         // saiu da aba / recarregando: grava o quadro exato
+    if (CONFIG.recovery.onTabReturn) guardOnReturn();     // ao voltar, passa pela contagem
+  }
+
+  function onPageShow(event) {
+    if (!event.persisted) return;     // carga normal: o init() já cuidou da restauração
+    lastTime = null;
+    guardOnReturn();                  // página reaberta pelo cache do navegador (voltar/avançar)
+  }
+
   function init() {
+    if (booted) return;               // garante uma única inicialização (um loop, uma restauração)
+    booted = true;
     game.best = Store.getBest();
     initClouds();
     resetRound();
+    restoreSavedRun();                // partida salva em andamento? volta pausada, com contagem
     syncMuteButton();
 
     document.addEventListener('keydown', onKeyDown, { passive: false });
@@ -1346,7 +1620,9 @@
     window.addEventListener('resize', resizeCanvas);
     window.addEventListener('orientationchange', resizeCanvas);
     if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeCanvas);
-    document.addEventListener('visibilitychange', () => { lastTime = null; });
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('pagehide', persistRun);      // F5 / fechar: grava o estado exato
+    window.addEventListener('pageshow', onPageShow);
 
     resizeCanvas();
     startLoop();
@@ -1355,5 +1631,5 @@
   init();
 
   // Atalho para depuração no console: __flappy.game.score, __flappy.CONFIG, ...
-  window.__flappy = { game, CONFIG };
+  window.__flappy = { game, CONFIG, recovery };
 })();
