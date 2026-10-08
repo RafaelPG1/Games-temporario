@@ -4,11 +4,17 @@
      bestLevel  fase mais alta alcançada em uma partida (inteiro >= 1)
      bestScore  maior pontuação (inteiro >= 0)
      mouseControl  mouse move a barra (boolean; padrão: ligado)
+   A partida em andamento (bola, barra, blocos, itens, efeitos, timers, placar...) fica numa chave separada,
+   'breakout:run:v1', para não misturar com as estatísticas: loadRun(), saveRun(obj) e clearRun().
+   O snapshot recebe um número de versão (RUN_VERSION): se o formato mudar, snapshots antigos são descartados.
    Se o localStorage estiver bloqueado, os dados ficam só em memória (o jogo continua funcionando). */
 (() => {
   'use strict';
 
   const KEY = 'breakout:v1';
+  const RUN_KEY = 'breakout:run:v1';   // partida em andamento (snapshot completo)
+  const RUN_VERSION = 2;               // formato do snapshot (sobe quando os campos mudam)
+  let runMemory = null;                // cópia em memória, usada se o localStorage estiver bloqueado
   const DEFAULTS = { muted: false, bestLevel: 1, bestScore: 0, mouseControl: true, mouseMigrated: true };
   let data = null;
 
@@ -41,7 +47,7 @@
     try {
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (!key || key === KEY || !/breakout|quebra_blocos/i.test(key)) continue;
+        if (!key || key === KEY || key === RUN_KEY || !/breakout|quebra_blocos/i.test(key)) continue;
         const value = parse(storage.getItem(key));
         const last = key.split(/[:./]/).pop();
         if (last === 'muted') {
@@ -95,6 +101,28 @@
       if (!(key in next)) return;
       d[key] = next[key];
       save();
+    },
+    // Partida em andamento: um único objeto JSON, gravado inteiro a cada salvamento
+    loadRun() {
+      const storage = area();
+      let text = null;
+      if (storage) { try { text = storage.getItem(RUN_KEY); } catch (e) { /* ignora */ } }
+      const value = text === null ? runMemory : parse(text);
+      if (value && typeof value === 'object' && value.v === RUN_VERSION) return value;
+      if (value !== null && value !== undefined) this.clearRun();   // lixo ou versão antiga: descarta
+      return null;
+    },
+    saveRun(run) {
+      const payload = Object.assign({}, run, { v: RUN_VERSION, savedAt: Date.now() });
+      runMemory = payload;
+      const storage = area();
+      if (!storage) return false;
+      try { storage.setItem(RUN_KEY, JSON.stringify(payload)); return true; } catch (e) { return false; }
+    },
+    clearRun() {
+      runMemory = null;
+      const storage = area();
+      if (storage) { try { storage.removeItem(RUN_KEY); } catch (e) { /* ignora */ } }
     },
     // Registra a pontuação se for a maior já feita. Retorna true quando é um novo recorde.
     recordScore(score) {

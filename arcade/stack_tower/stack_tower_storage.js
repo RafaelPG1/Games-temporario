@@ -2,11 +2,15 @@
    Guarda um único objeto JSON em localStorage:
      best   maior pontuação (recorde; inteiro >= 0)
      muted  sons silenciados (boolean)
+   A partida em andamento (estado completo, para continuar após F5) fica em outra chave, 'stack_tower:run:v1',
+   para não regravar recorde/som a cada salvamento. Ela é apagada quando a partida termina ou é reiniciada.
    Se o localStorage estiver bloqueado, os dados ficam só em memória (o jogo continua funcionando). */
 (() => {
   'use strict';
 
   const KEY = 'stack_tower:v1';
+  const RUN_KEY = 'stack_tower:run:v1';
+  let memRun = null;   // cópia em memória (se o localStorage estiver bloqueado)
   const DEFAULTS = { best: 0, muted: false };
   let data = null;
 
@@ -41,7 +45,7 @@
     try {
       for (let i = 0; i < storage.length; i++) {
         const key = storage.key(i);
-        if (!key || key === KEY) continue;
+        if (!key || key === KEY || key === RUN_KEY) continue;
         const raw = storage.getItem(key);
         if (raw === null) continue;
         const value = parse(raw);
@@ -86,7 +90,30 @@
     try { storage.setItem(KEY, JSON.stringify(data)); } catch (e) { /* cheio ou bloqueado: mantém em memória */ }
   }
 
+  // Partida em andamento: objeto JSON livre (a validação dos campos é feita pelo jogo ao restaurar)
+  function getRun() {
+    const storage = area();
+    let text = null;
+    try { text = storage ? storage.getItem(RUN_KEY) : null; } catch (e) { text = null; }
+    if (text === null) return memRun;
+    const value = parse(text);
+    return value && typeof value === 'object' ? value : null;
+  }
+  function setRun(run) {
+    memRun = run;
+    const storage = area();
+    if (!storage) return;
+    try { storage.setItem(RUN_KEY, JSON.stringify(run)); } catch (e) { /* cheio ou bloqueado: fica só em memória */ }
+  }
+  function clearRun() {
+    memRun = null;
+    const storage = area();
+    if (!storage) return;
+    try { storage.removeItem(RUN_KEY); } catch (e) { /* ignora */ }
+  }
+
   window.StackTowerStorage = {
+    getRun, setRun, clearRun,
     get(key, fallback) {
       const d = load();
       return Object.prototype.hasOwnProperty.call(d, key) ? d[key] : fallback;

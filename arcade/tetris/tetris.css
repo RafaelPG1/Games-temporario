@@ -60,9 +60,10 @@ body {
 
 .topbar {
   flex: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;   /* o conjunto [SVG TETRIS] fica no centro exato */
   align-items: center;
-  gap: 14px;
+  column-gap: 14px;
   height: 56px;
   padding: 0 clamp(10px, 3vw, 24px);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -76,6 +77,8 @@ body {
 }
 
 .back {
+  grid-column: 1;
+  justify-self: start;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -102,6 +105,8 @@ body {
 .back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
 
 .game-id {
+  grid-column: 2;
+  justify-self: center;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -139,10 +144,13 @@ body {
 .icon-button:active { transform: translateY(1px); }
 .icon-button svg { width: 62%; height: 62%; }
 .icon-button .icon-cross { display: none; }
+.icon-button .icon-play { display: none; }
+.icon-button.is-paused .icon-pause { display: none; }
+.icon-button.is-paused .icon-play { display: inline; }
 .icon-button.is-muted .icon-waves { display: none; }
 .icon-button.is-muted .icon-cross { display: inline; }
 
-/* A pausa só aparece durante a partida (o espaço fica reservado) */
+/* A pausa só aparece durante a partida (o espaço fica reservado; em pausa continua visível) */
 #pause-button { visibility: hidden; }
 body[data-state="playing"] #pause-button,
 body[data-state="paused"] #pause-button { visibility: visible; }
@@ -277,7 +285,8 @@ body[data-state="paused"] #pause-button { visibility: visible; }
 }
 
 .stage[data-state="ready"] .screen-ready,
-.stage[data-state="paused"] .screen-paused,
+.stage[data-state="paused"][data-phase="waiting"] .screen-paused,
+.stage[data-state="paused"][data-phase="counting"] .screen-count,
 .stage[data-state="over"].show-panel .screen-over {
   opacity: 1;
   visibility: visible;
@@ -286,7 +295,30 @@ body[data-state="paused"] #pause-button { visibility: visible; }
 }
 
 .screen-ready { background: rgba(28, 20, 36, 0.55); }
-.screen-paused { background: rgba(28, 20, 36, 0.94); }   /* esconde as peças durante a pausa */
+/* Pausa: tom roxo do tabuleiro, grade de blocos e moldura; as peças ficam só entrevistas */
+.screen-paused {
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.04) 0 calc(var(--u) * 1), transparent calc(var(--u) * 1) calc(var(--u) * 8)),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.04) 0 calc(var(--u) * 1), transparent calc(var(--u) * 1) calc(var(--u) * 8)),
+    linear-gradient(180deg, rgba(62, 36, 88, 0.84), rgba(28, 20, 36, 0.9));
+  box-shadow: inset 0 0 0 calc(var(--u) * 2) rgba(179, 91, 224, 0.35);
+}
+.screen-count { background: rgba(28, 20, 36, 0.4); gap: 0; }   /* o tabuleiro continua visível */
+.pixel-art { display: block; image-rendering: crisp-edges; image-rendering: pixelated; }
+.stage.is-recovery .screen-paused .over-title { font-size: calc(var(--u) * 17); }
+
+/* Barra de progresso da contagem: uma peça I que vai se acendendo */
+.count-bar { display: flex; gap: calc(var(--u) * 1.5); margin-top: calc(var(--u) * 12); }
+.count-bar i {
+  width: calc(var(--u) * 14);
+  height: calc(var(--u) * 14);
+  background: #4fd0ee;
+  border: calc(var(--u) * 1.2) solid var(--ink);
+  box-shadow: inset calc(var(--u) * 1.6) calc(var(--u) * 1.6) 0 #b0f2ff, inset calc(var(--u) * -1.6) calc(var(--u) * -1.6) 0 #2a96b8;
+  opacity: 0.22;
+  transition: opacity 0.15s;
+}
+.count-bar i.on { opacity: 1; }
 
 /* ---------- Tela inicial ---------- */
 
@@ -416,6 +448,65 @@ body[data-state="paused"] #pause-button { visibility: visible; }
 .btn:active { transform: translateY(calc(var(--u) * 2)); box-shadow: 0 calc(var(--u) * 0.6) 0 calc(var(--u) * 2) var(--ink); }
 .btn:focus-visible { outline-color: #2d7be0; }
 
+/* Tela de pausa: título em destaque, ação principal num cartão de papel (como o painel de
+   fim de jogo e a ajuda) e "Reiniciar" como botão secundário, também em papel e tinta */
+.screen-paused { gap: calc(var(--u) * 7); }
+.resume-card {
+  padding: calc(var(--u) * 6) calc(var(--u) * 7);
+  background: var(--paper);
+  border: calc(var(--u) * 2) solid var(--ink);
+  box-shadow: inset 0 0 0 calc(var(--u) * 1) var(--paper-light), 0 calc(var(--u) * 2) 0 rgba(0, 0, 0, 0.3);
+}
+.resume-card .hint { gap: calc(var(--u) * 3); color: var(--ink); text-shadow: none; font-size: max(10px, calc(var(--u) * 7.2)); white-space: nowrap; }
+.resume-card .hint-or { opacity: 0.7; }
+/* Reiniciar: bloco de Tetris (mesmo bisel das peças da contagem), em vermelho para
+   diferenciar da ação principal. Sem cantos arredondados, sem cara de botão de página. */
+.btn-quit {
+  --bevel: calc(var(--u) * 2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 4);
+  min-width: calc(var(--u) * 62);
+  min-height: max(44px, calc(var(--u) * 14));
+  margin-bottom: calc(var(--u) * 2);
+  padding: calc(var(--u) * 2) calc(var(--u) * 7);
+  font-size: max(11px, calc(var(--u) * 6.6));
+  letter-spacing: 0.04em;
+  color: var(--white);
+  background: #ff6b57;
+  border: max(2px, calc(var(--u) * 1.5)) solid var(--ink);
+  outline: none;
+  text-shadow:
+    calc(var(--o) * -1) calc(var(--o) * -1) 0 var(--ink),
+    var(--o) calc(var(--o) * -1) 0 var(--ink),
+    calc(var(--o) * -1) var(--o) 0 var(--ink),
+    var(--o) var(--o) 0 var(--ink),
+    0 calc(var(--o) * 2) 0 var(--ink);
+  box-shadow:
+    inset var(--bevel) var(--bevel) 0 #ffb3a6,
+    inset calc(var(--bevel) * -1) calc(var(--bevel) * -1) 0 #c23a26,
+    0 calc(var(--u) * 2) 0 var(--ink);
+      margin-top: calc(var(--u) * 4);   /* mais longe do "SPACE" */
+  margin-bottom: calc(var(--u) * 2);
+}
+.btn-quit:hover { background: #ff7f6d; }
+/* Feedback no toque: o bloco "afunda" e o bisel inverte */
+.btn-quit:active {
+  transform: translateY(calc(var(--u) * 1.5));
+  box-shadow:
+    inset var(--bevel) var(--bevel) 0 #c23a26,
+    inset calc(var(--bevel) * -1) calc(var(--bevel) * -1) 0 #ffb3a6,
+    0 calc(var(--u) * 0.5) 0 var(--ink);
+}
+.btn-quit:focus-visible { outline: 2px solid #2d7be0; outline-offset: 3px; }
+.btn-quit svg { width: 1.5em; height: 1.5em; flex: none; }
+
+/* Dica de continuar: mesma animação `blink` da tela inicial. Só roda enquanto a tela
+   está visível, então sempre recomeça do início quando a pausa aparece. */
+.stage[data-state="paused"][data-phase="waiting"] .screen-paused .hint {
+  animation: blink 1.4s ease-in-out infinite;
+}
 .noscript {
   position: absolute;
   inset: auto 0 40% 0;
@@ -526,27 +617,45 @@ body[data-state="paused"] #pause-button { visibility: visible; }
   .touch-act { display: flex; justify-self: end; }
   .touch-move, .touch-act { align-self: end; gap: 10px; }
 
+  /* Painel em grade: "próxima" à esquerda; pontos/recorde/nível/linhas e, logo abaixo,
+     os três botões (som, pausa, ajuda) à direita. Alvos de 42px, sem sobreposição. */
   .hud {
     --o: 1.5px;
-    width: auto;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-  }
-  .hud-actions { order: 3; flex-direction: column; gap: 6px; }
-  .hud .label { font-size: 11px; }
-  .hud-next { gap: 3px; }
-  .next-box { width: 64px; height: 48px; border-width: 2px; }
-  .stats {
-    flex: 1 1 auto;
-    max-width: 260px;
+    width: 100%;
+    max-width: 400px;
+    justify-self: center;
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: auto auto;
+    justify-content: center;
+    grid-template-areas:
+      "next stats"
+      "next actions";
+    align-items: center;
+    column-gap: 18px;
+    row-gap: 8px;
+  }
+  .hud-next { grid-area: next; align-items: center; gap: 4px; }
+  .hud .label { font-size: 11px; }
+  .next-box { width: 72px; height: 88px; border-width: 2px; }
+  .stats {
+    grid-area: stats;
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(76px, max-content));
     gap: 2px 14px;
   }
   .stat { gap: 1px; }
-  .stat dd { font-size: 20px; }
+  .stat dd { font-size: 19px; overflow: hidden; text-overflow: clip; }
+  .hud-actions {
+    grid-area: actions;
+    order: 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  .hud-actions .help-btn,
+  .hud-actions .icon-button { flex: none; width: 42px; height: 42px; }
 }
 
 /* ==========================================================================
@@ -578,7 +687,9 @@ body[data-state="paused"] #pause-button { visibility: visible; }
     align-self: start;
     align-items: stretch;
   }
-  .hud-actions { justify-content: center; }
+  .hud-actions { justify-content: space-between; gap: 6px; }
+  .hud-actions .help-btn,
+  .hud-actions .icon-button { flex: none; width: 38px; height: 38px; }
   .hud-next { align-items: center; gap: 3px; }
   .hud .label { font-size: 11px; }
   .next-box { width: 84px; height: 63px; border-width: 2px; }
@@ -604,6 +715,12 @@ body[data-state="paused"] #pause-button { visibility: visible; }
 @media (max-width: 640px) {
   .topbar { height: 52px; }
 }
+/* Telas estreitas: o botão do catálogo vira só a seta (o nome segue no aria-label), para o
+   conjunto [SVG TETRIS] poder ficar no centro exato do cabeçalho sem encostar no botão. */
+@media (max-width: 460px) {
+  .back { width: 40px; padding: 0; justify-content: center; }
+  .back span { display: none; }
+}
 @media (max-height: 420px) {
   .topbar { height: 46px; }
   .game-text span { display: none; }
@@ -616,6 +733,8 @@ body[data-state="paused"] #pause-button { visibility: visible; }
   .help-popover { animation: none; }
   .back, .back svg { transition: none; }
   .help-btn { transition: none; }
+    .stage[data-state="paused"][data-phase="waiting"] .screen-paused .hint { animation: none; }
+      .screen-paused .hint > * { animation: none !important; }
 }
 
 /* ---------- Ajuda: botão "?" no painel de informações + popover ancorado ---------- */
@@ -659,11 +778,23 @@ body[data-state="paused"] #pause-button { visibility: visible; }
 .help-close:focus-visible { opacity: 1; outline: 2px solid #2d7be0; outline-offset: -2px; }
 @keyframes help-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
 
-/* O "?" entra na coluna/linha de botões do painel sem aumentar a altura dele */
-@media (orientation: portrait) {
-  .hud-actions { display: grid; grid-template-columns: repeat(2, 34px); gap: 5px; }
-  .hud-actions .icon-button { width: 34px; height: 34px; }
+/* Pausa: o piscar vai nos itens da dica (texto, "ou" e tecla), em vez de no contêiner,
+   e com !important para não ser anulado por outras regras ou por estilos inline. */
+@keyframes pause-blink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+.screen-paused .hint {
+  animation: none !important;       /* evita piscar duas vezes (contêiner + itens) */
 }
-@media (orientation: landscape) and (pointer: coarse) {
-  .hud-actions { gap: 6px; }
+.screen-paused .hint > * {
+  animation: pause-blink 1.4s ease-in-out infinite !important;
 }
+
+@keyframes screen-ready { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+
+.screen-ready .hint {
+  animation: none !important;       /* evita piscar duas vezes (contêiner + itens) */
+}
+.screen-ready .hint > * {
+  animation: screen-ready 1.4s ease-in-out infinite !important;
+}
+

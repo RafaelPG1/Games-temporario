@@ -25,6 +25,10 @@ const MAP = [
 ];
 const COLS = 19, ROWS = 21, T = 16, CW = COLS * T, CH = ROWS * T;
 const W = 288, H = 512, MARGIN = 6, MAX_CSS_HEIGHT = 1000;
+// Sem controle de toque (desktop) o palco não reserva a área do direcional: usa uma altura de referência menor
+const H_DESK = 396, touchMQ = window.matchMedia('(hover: none) and (pointer: coarse)');
+const stageH = () => (touchMQ.matches ? H : H_DESK);
+const CD_STEP = 0.75, CD_GO = 0.5; // contagem 3-2-1-GO! ao retomar (congelada: nada do jogo anda)
 // Persistência: pacman_storage.js (recorde, fase mais alta e som), exclusivo do Pac-Man.
 const store = PacmanStorage;
 const HOW_STRIP = 56, HOW_SIDE_MIN = 68; // faixa do botão "?" sob o palco / espaço lateral mínimo para ele ficar ao lado
@@ -43,6 +47,7 @@ const $ = (id) => document.getElementById(id);
 const ui = {
   arena: $('arena'), stage: $('stage'), canvas: $('canvas'), score: $('score'), lives: $('lives'), level: $('level'), best: $('best'),
   mute: $('mute-button'), pause: $('pause-button'), startScreen: document.querySelector('.screen-start'),
+  pauseTitle: $('pause-title'), pauseSub: $('pause-sub'),
 };
 const how = { btn: $('how-button'), pop: $('how-popover'), close: $('how-close') };
 const ctx = ui.canvas.getContext('2d');
@@ -100,7 +105,7 @@ function bfsFrom(tc, tr) {
 /* ===== Estado do jogo ===== */
 const G = {
   state: 'title',   // title | ready | play | dying | clear | over
-  paused: false, score: 0, lives: 3, level: 1, best: 0, bestAtStart: 0, newRecord: false,
+  paused: false, pauseWhy: null, cd: null, score: 0, lives: 3, level: 1, best: 0, bestAtStart: 0, newRecord: false,
   dots: [], left: 0, mode: 'scatter', modeIdx: 0, modeT: 0, fright: 0, chain: 0,
   t: 0, stateT: 0, P: null, ghosts: [], fx: [], pops: [], muted: false, eatAlt: 0,
 };
@@ -110,7 +115,7 @@ G.muted = store.getMuted();
 
 /* ===== Áudio (Web Audio, sem arquivos externos) ===== */
 const Sound = (() => {
-  let ac = null, master = null, off = false, lastChomp = 0;
+  let ac = null, master = null, off = false, lastChomp = 0; const live = new Set();
   function ensure() {
     if (off) return null;
     if (!ac) {
@@ -132,10 +137,12 @@ const Sound = (() => {
       g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.02);
+      live.add(o); o.onended = () => live.delete(o);
     } catch (e) { /* áudio nunca quebra o jogo */ }
   }
   return {
     unlock() { if (!G.muted) { try { ensure(); } catch (e) {} } },
+    silence() { for (const o of live) { try { o.stop(); } catch (e) {} } live.clear(); }, // pausa: nenhum som agendado continua tocando
     chomp() { // limitado a ~9 por segundo, alternando dois tons
       const n = performance.now(); if (n - lastChomp < 110) return; lastChomp = n;
       G.eatAlt ^= 1; tone(G.eatAlt ? 330 : 247, G.eatAlt ? 247 : 330, 0.08, 'triangle', 0.3);
@@ -241,12 +248,18 @@ function loadLevel() {
   G.dots = Maze.dots.map((row) => row.slice()); G.left = Maze.total;
   resetActors();
 }
-function setState(s) { G.state = s; G.stateT = 0; renderClasses(); }
+function setState(s) { G.state = s; G.stateT = 0; renderClasses(); saveGame(); }
 function startReady() { setState('ready'); Sound.start(); }
 function newGame() {
   if (G.state !== 'title' && G.state !== 'over') return;
-  G.score = 0; G.lives = 3; G.level = 1; G.bestAtStart = G.best; G.newRecord = false; G.paused = false;
+  G.score = 0; G.lives = 3; G.level = 1; G.bestAtStart = G.best; G.newRecord = false; G.paused = false; G.cd = null; G.pauseWhy = null;
   G.fx.length = 0; G.pops.length = 0; closeHelp(); loadLevel(); hud(); Sound.unlock(); startReady();
+}
+// Reiniciar (tela de pausa): descarta a partida em andamento e volta à tela inicial (recorde e fase mais alta continuam)
+function restartToTitle() {
+  Sound.silence(); closeHelp();
+  G.paused = false; G.cd = null; G.pauseWhy = null; G.score = 0; G.lives = 3; G.level = 1; G.newRecord = false; G.t = 0;
+  G.fx.length = 0; G.pops.length = 0; loadLevel(); hud(); setState('title');
 }
 function nextLevel() { G.level++; if (G.level > G.bestLevel) { G.bestLevel = G.level; store.setBestLevel(G.bestLevel); } loadLevel(); hud(); startReady(); }
 function gameOver() {
@@ -332,9 +345,79 @@ function update(dt) {
   else if (G.state === 'dying') { G.stateT += dt; if (G.stateT >= DYING_S) { if (G.lives <= 0) gameOver(); else { resetActors(); startReady(); } } }
   else if (G.state === 'clear') { G.stateT += dt; if (G.stateT >= CLEAR_S) nextLevel(); }
 }
-function togglePause(want) {
-  if (G.state === 'title' || G.state === 'over') return;
-  G.paused = want === undefined ? !G.paused : want; renderClasses();
+/* ===== Pausa: manual (botão/P/Esc/Espaço), automática (aba oculta/janela sem foco), ajuda (?) e partida restaurada.
+   Pausado = update() não roda. Retomar nunca é imediato: espera o jogador e faz a contagem 3-2-1-GO! (também congelada). ===== */
+const isActive = () => G.state !== 'title' && G.state !== 'over';
+function pauseGame(why) {
+  if (!isActive()) return;
+  const counting = !!G.cd; G.cd = null;                      // pausar durante a contagem cancela a contagem
+  if (!G.paused) { G.paused = true; G.pauseWhy = why || 'manual'; Sound.silence(); }
+  else if (!counting) return;                                 // já pausado: mantém o motivo original
+  saveGame(); renderClasses();
+}
+function resumeGame() {
+  if (!isActive() || !G.paused || G.cd) return;
+  closeHelp(); G.cd = { t: 0 }; Sound.unlock(); renderClasses();
+}
+function finishResume() { G.cd = null; G.paused = false; G.pauseWhy = null; renderClasses(); saveGame(); }
+function togglePause(want, why) {
+  if (!isActive()) return;
+  if (want === undefined ? (!G.paused || !!G.cd) : want) pauseGame(why); else resumeGame();
+}
+
+/* ===== Salvamento local: snapshot completo da partida (posições, direções, timers, bolinhas, fantasmas, efeitos) ===== */
+const dn = (d) => (d ? [d.x, d.y] : null);
+const dd = (a) => (Array.isArray(a) ? DLIST.find((k) => k.x === a[0] && k.y === a[1]) || null : null);
+function snapshot() {
+  const P = G.P;
+  return {
+    v: 1, state: G.state, stateT: G.stateT, score: G.score, lives: G.lives, level: G.level, bestAtStart: G.bestAtStart, newRecord: G.newRecord,
+    dots: G.dots.map((r) => r.join('')).join(''), left: G.left, mode: G.mode, modeIdx: G.modeIdx, modeT: G.modeT, fright: G.fright, chain: G.chain,
+    t: G.t, eatAlt: G.eatAlt,
+    P: { x: P.x, y: P.y, dir: dn(P.dir), want: dn(P.want), face: dn(P.face), anim: P.anim, moving: P.moving },
+    ghosts: G.ghosts.map((g) => ({ id: g.id, x: g.x, y: g.y, dir: dn(g.dir), state: g.state, fright: g.fright, rel: g.rel, bob: g.bob })),
+    fx: G.fx.map((f) => ({ ...f })), pops: G.pops.map((p) => ({ ...p })),
+  };
+}
+function saveGame() {
+  try { if (!isActive() || !G.P) store.clearGame(); else store.saveGame(snapshot()); } catch (e) { /* salvar nunca quebra o jogo */ }
+}
+function restoreGame(s) {
+  try {
+    const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
+    const okPos = (o) => o && num(o.x, -0.5, COLS) && num(o.y, 0, ROWS - 1);
+    if (!s || s.v !== 1 || !['ready', 'play', 'dying', 'clear'].includes(s.state)) return false;
+    if (typeof s.dots !== 'string' || s.dots.length !== ROWS * COLS || !Array.isArray(s.ghosts) || s.ghosts.length !== Object.keys(GHOSTS).length) return false;
+    if (!okPos(s.P) || !num(s.score, 0, 1e9) || !num(s.lives, 0, 9) || !num(s.level, 1, 999) || !num(s.stateT, 0, 100) || !num(s.t, 0, 1e9)) return false;
+    if (!num(s.modeIdx, 0, SCHEDULE.length - 1) || !num(s.modeT, 0, 1e4) || !num(s.fright, 0, 100) || !num(s.chain, 0, 99)) return false;
+    if (s.mode !== 'scatter' && s.mode !== 'chase') return false;
+    const dots = []; let left = 0;
+    for (let r = 0; r < ROWS; r++) {
+      dots.push([]);
+      for (let c = 0; c < COLS; c++) {
+        const v = Number(s.dots[r * COLS + c]);
+        if (v !== 0 && v !== Maze.dots[r][c]) return false;   // só existe bolinha onde o mapa tem bolinha
+        dots[r][c] = v; if (v) left++;
+      }
+    }
+    const seen = new Set(), ghosts = [];
+    for (const g of s.ghosts) {
+      if (!g || !GHOSTS[g.id] || seen.has(g.id) || !okPos(g) || !['normal', 'house', 'leaving', 'eaten'].includes(g.state) || !num(g.rel, -1e3, 1e3) || !num(g.bob, 0, 100)) return false;
+      seen.add(g.id);
+      ghosts.push({ id: g.id, color: GHOSTS[g.id].color, corner: GHOSTS[g.id].corner, x: g.x, y: g.y, dir: dd(g.dir), state: g.state, fright: g.fright === true, rel: g.rel, bob: g.bob });
+    }
+    const P = s.P;
+    G.P = { x: P.x, y: P.y, dir: dd(P.dir), want: dd(P.want), face: dd(P.face) || DIRS.left, anim: num(P.anim, 0, 1e9) ? P.anim : 0, moving: P.moving === true };
+    G.ghosts = ghosts; G.dots = dots; G.left = left;
+    G.state = s.state; G.stateT = s.stateT; G.score = Math.floor(s.score); G.lives = Math.floor(s.lives); G.level = Math.floor(s.level);
+    G.bestAtStart = num(s.bestAtStart, 0, 1e9) ? s.bestAtStart : G.best; G.newRecord = s.newRecord === true;
+    G.mode = s.mode; G.modeIdx = Math.floor(s.modeIdx); G.modeT = s.modeT; G.fright = s.fright; G.chain = Math.floor(s.chain);
+    G.t = s.t; G.eatAlt = s.eatAlt ? 1 : 0;
+    G.fx = (Array.isArray(s.fx) ? s.fx : []).filter((f) => f && ['x', 'y', 'vx', 'vy', 't', 'life'].every((k) => num(f[k], -1e6, 1e6)) && typeof f.color === 'string').slice(0, 200);
+    G.pops = (Array.isArray(s.pops) ? s.pops : []).filter((p) => p && ['x', 'y', 't'].every((k) => num(p[k], -1e6, 1e6)) && typeof p.text === 'string').slice(0, 20);
+    if (G.score > G.best) { G.best = G.score; store.setBest(G.best); }
+    return true;
+  } catch (e) { return false; }
 }
 
 /* ===== Interface (HUD e classes) ===== */
@@ -348,13 +431,17 @@ function hud() {
   ui.lives.setAttribute('aria-label', `${n} vidas`);
 }
 function renderClasses() {
-  const c = ui.stage.classList, s = G.state;
-  c.toggle('is-title', s === 'title'); c.toggle('is-over', s === 'over'); c.toggle('is-playing', s !== 'title' && s !== 'over');
-  c.toggle('is-paused', G.paused && s !== 'title' && s !== 'over'); c.toggle('is-power', G.fright > 0 && s === 'play');
-  const paused = G.paused && s !== 'title' && s !== 'over';
-  ui.pause.setAttribute('aria-label', paused ? 'Continuar' : 'Pausar'); ui.pause.title = paused ? 'Continuar (Espaço)' : 'Pausar (Espaço)';
+  const c = ui.stage.classList, s = G.state, active = s !== 'title' && s !== 'over';
+  const paused = G.paused && active, counting = paused && !!G.cd, shown = paused && !counting; // contando: sem tela de pausa, jogo ainda congelado
+  c.toggle('is-title', s === 'title'); c.toggle('is-over', s === 'over'); c.toggle('is-playing', active);
+  c.toggle('is-paused', shown); c.toggle('is-counting', counting); c.toggle('is-power', G.fright > 0 && s === 'play');
+  ui.pause.setAttribute('aria-label', shown ? 'Continuar' : 'Pausar'); ui.pause.dataset.tip = shown ? 'Continuar · P' : 'Pausar · P';
+  const restored = G.pauseWhy === 'restored', sub = restored ? 'Progresso recuperado' : G.pauseWhy === 'auto' ? 'Pausa automática' : '';
+  ui.pauseTitle.textContent = restored ? 'Partida retomada' : 'Pausado'; ui.pauseTitle.classList.toggle('is-long', restored);
+  ui.pauseSub.textContent = sub; ui.pauseSub.hidden = !sub;
   ui.mute.classList.toggle('is-muted', G.muted); ui.mute.setAttribute('aria-pressed', G.muted);
   ui.mute.setAttribute('aria-label', G.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
+  ui.mute.dataset.tip = G.muted ? 'Ativar som · M' : 'Silenciar · M';
 }
 function toggleMute() { G.muted = !G.muted; store.setMuted(G.muted); if (!G.muted) Sound.unlock(); renderClasses(); }
 
@@ -435,11 +522,24 @@ function draw() {
   ctx.globalAlpha = 1; ctx.font = "bold 11px 'Arial Black', Arial, sans-serif";
   if (G.state === 'ready') { ctx.fillStyle = '#ffd21f'; ctx.fillText('PRONTO!', CW / 2, 11 * T + 11); }
   if (G.state === 'clear') { ctx.fillStyle = '#ffd21f'; ctx.fillText('FASE COMPLETA', CW / 2, 11 * T + 11); }
+  if (G.cd) drawCountdown();
   if (ui.stage.classList.contains('is-power') !== (G.fright > 0 && G.state === 'play')) renderClasses();
 }
+function drawCountdown() {
+  const t = G.cd.t, i = Math.min(3, Math.floor(t / CD_STEP)), go = i === 3;
+  const p = go ? Math.min(1, (t - 3 * CD_STEP) / CD_GO) : (t - i * CD_STEP) / CD_STEP;
+  const pop = 1 - (1 - Math.min(1, p * 4)) ** 3, scale = 1.45 - 0.45 * pop;
+  ctx.save(); ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(3,5,26,.72)'; ctx.fillRect(0, 0, CW, CH);
+  ctx.globalAlpha = go ? 1 - Math.max(0, (p - 0.6) / 0.4) : 1; ctx.translate(CW / 2, CH / 2); ctx.scale(scale, scale);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = `bold ${go ? 58 : 76}px 'Arial Black', Arial, sans-serif`;
+  const label = go ? 'GO!' : String(3 - i);
+  ctx.fillStyle = '#7a5f00'; ctx.fillText(label, 0, 4);
+  ctx.fillStyle = '#ffd21f'; ctx.shadowColor = 'rgba(255,210,31,.55)'; ctx.shadowBlur = 14; ctx.fillText(label, 0, 0);
+  ctx.restore();
+}
 function fitStage(w, h) {
-  let ch = Math.min(h, MAX_CSS_HEIGHT), cw = ch * (W / H);
-  if (cw > w) { cw = w; ch = cw / (W / H); }
+  const sh = stageH(); let ch = Math.min(h, MAX_CSS_HEIGHT * sh / H), cw = ch * (W / sh);
+  if (cw > w) { cw = w; ch = cw / (W / sh); }
   return [Math.floor(cw), Math.floor(ch)];
 }
 function resizeStage() {
@@ -475,16 +575,17 @@ function positionHelp() {
 }
 function openHelp() {
   how.pop.hidden = false; how.btn.setAttribute('aria-expanded', 'true'); positionHelp();
-  if (G.state !== 'title' && G.state !== 'over' && !G.paused) togglePause(true); // lendo a ajuda, o jogo não corre
+  pauseGame('help'); // lendo a ajuda, o jogo não corre (e não retoma sozinho ao fechar)
 }
 function closeHelp() { how.pop.hidden = true; how.btn.setAttribute('aria-expanded', 'false'); }
 
 /* ===== Laço do jogo: um único requestAnimationFrame, com passo baseado no tempo real ===== */
-let raf = 0, last = 0;
+let raf = 0, last = 0, autoSaveT = 0;
 function frame(ts) {
   raf = requestAnimationFrame(frame);
   const dt = Math.min(0.033, Math.max(0, (ts - last) / 1000) || 0); last = ts;
-  if (!G.paused) update(dt);
+  if (G.cd) { G.cd.t += dt; if (G.cd.t >= 3 * CD_STEP + CD_GO) finishResume(); } // contagem: só o relógio dela anda
+  else if (!G.paused) { update(dt); if ((autoSaveT += dt) >= 1.5) { autoSaveT = 0; saveGame(); } }
   draw();
 }
 function startLoop() { if (!raf) raf = requestAnimationFrame(frame); }
@@ -493,6 +594,7 @@ function startLoop() { if (!raf) raf = requestAnimationFrame(frame); }
 const KEYS = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right' };
 function onKeyDown(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code === 'ArrowUp' && G.state === 'title') { e.preventDefault(); newGame(); return; } // tela inicial: ↑ também começa
   if (KEYS[e.code]) { e.preventDefault(); if (!G.paused) setWant(DIRS[KEYS[e.code]]); return; }
   if (e.repeat) return;
   if (e.code === 'Escape' && helpOpen()) { closeHelp(); return; }
@@ -501,7 +603,10 @@ function onKeyDown(e) {
   else if (e.code === 'KeyM') toggleMute();
 }
 function init() {
-  hud(); loadLevel(); renderClasses(); resizeStage();
+  loadLevel();
+  const snap = store.loadGame();
+  if (snap) { if (restoreGame(snap)) { G.paused = true; G.pauseWhy = 'restored'; } else { loadLevel(); store.clearGame(); } } // F5/reabertura: partida volta pausada, esperando o jogador
+  hud(); renderClasses(); resizeStage();
   document.querySelectorAll('.pad-btn').forEach((b) => b.addEventListener('pointerdown', (e) => {
     e.preventDefault(); Sound.unlock(); if (!G.paused) setWant(DIRS[b.dataset.dir]);
   }));
@@ -529,17 +634,23 @@ function init() {
   how.close.addEventListener('click', () => { closeHelp(); how.btn.focus({ preventScroll: true }); });
   $('again-button').addEventListener('click', () => { newGame(); $('again-button').blur(); });
   $('resume-button').addEventListener('click', () => { togglePause(false); $('resume-button').blur(); });
+  $('restart-button').addEventListener('click', () => { restartToTitle(); $('restart-button').blur(); });
   ui.pause.addEventListener('click', () => { togglePause(); ui.pause.blur(); }); // alterna: o mesmo botão pausa e continua
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
   document.addEventListener('keydown', onKeyDown);
   document.addEventListener('pointerdown', () => Sound.unlock());
   document.addEventListener('contextmenu', (e) => e.preventDefault());
-  window.addEventListener('blur', () => togglePause(true));
-  document.addEventListener('visibilitychange', () => { if (document.hidden) togglePause(true); });
+  window.addEventListener('blur', () => pauseGame('auto'));
+  document.addEventListener('visibilitychange', () => { if (document.hidden) { pauseGame('auto'); saveGame(); } }); // voltar à aba não retoma: o jogador decide
+  window.addEventListener('pagehide', saveGame); window.addEventListener('beforeunload', saveGame);
+  // Tooltips: clicar/tocar esconde a dica até o ponteiro sair do botão (CSS usa [data-tip-off])
+  document.addEventListener('pointerdown', (e) => { const b = e.target.closest && e.target.closest('[data-tip]'); if (b) b.setAttribute('data-tip-off', ''); });
+  document.querySelectorAll('[data-tip]').forEach((b) => b.addEventListener('pointerleave', () => b.removeAttribute('data-tip-off')));
+  if (touchMQ.addEventListener) touchMQ.addEventListener('change', resizeStage); else if (touchMQ.addListener) touchMQ.addListener(resizeStage);
   window.addEventListener('resize', resizeStage);
   window.addEventListener('orientationchange', resizeStage);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeStage);
   startLoop();
 }
 init();
-window.__pac = { G, Maze, MAP, DIRS, update, advance, setWant, newGame, togglePause, collisions, eatAt, startFright, ghostDecide, startLoop, nextLevel, pacDecide };
+window.__pac = { pauseGame, resumeGame, saveGame, restoreGame, snapshot, restartToTitle, G, Maze, MAP, DIRS, update, advance, setWant, newGame, togglePause, collisions, eatAt, startFright, ghostDecide, startLoop, nextLevel, pacDecide };

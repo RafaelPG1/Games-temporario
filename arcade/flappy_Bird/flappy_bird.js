@@ -378,6 +378,14 @@ function togglePause() {
   if (game.paused) resumeWithCountdown();
   else pauseGame();
 }
+
+  // Botão "Reiniciar" da tela de pausa: descarta a partida em andamento e volta à tela inicial.
+  // Só vale com a pausa manual ativa (é a única tela que mostra o botão). O recorde não muda.
+  function discardRun() {
+    if (game.state !== STATES.PLAYING || !game.paused || recovery.active) return;
+    Store.clearRun();      // sem isso, um F5 traria de volta a partida que acabou de ser descartada
+    resetRound();          // zera placar, canos, pássaro, pausa e contagem; estado volta a READY
+  }
   /* ---------- Partida salva e retomada (F5) ---------- */
 
   // Retrato completo da partida: tudo o que é preciso para reconstruí-la.
@@ -1207,6 +1215,7 @@ function togglePause() {
     pauseButton: document.getElementById('pause-button'),
     recoveryCount: document.getElementById('recovery-count'),
     restartButton: document.getElementById('restart-button'),
+    pauseRestartButton: document.getElementById('pause-restart-button'),
     readyBest: document.getElementById('ready-best'),
     readyBestValue: document.getElementById('ready-best-value'),
     overScore: document.getElementById('over-score'),
@@ -1232,7 +1241,7 @@ function togglePause() {
     ui.pauseButton.classList.toggle('is-paused', game.paused);
     ui.pauseButton.setAttribute('aria-pressed', game.paused ? 'true' : 'false');
     ui.pauseButton.setAttribute('aria-label', pauseText);
-    ui.pauseButton.title = pauseText + ' (P)';
+    ui.pauseButton.setAttribute('data-tip', pauseText + ' (P)');
 
     ui.readyBest.hidden = game.best <= 0;
     ui.readyBestValue.textContent = String(game.best);
@@ -1600,6 +1609,12 @@ function onPointerDown(event) {
       event.stopPropagation();
       tryRestart();                  // só reinicia; nunca inicia uma nova partida
     });
+    ui.pauseRestartButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (infoOpen) closeInfo();     // se a ajuda estava aberta (teclado), não deixa o painel na tela inicial
+      discardRun();
+      ui.pauseRestartButton.blur();  // Espaço não deve acionar o botão depois
+    });
     ui.muteButton.addEventListener('click', (event) => {
       event.stopPropagation();
       toggleMute();
@@ -1619,6 +1634,13 @@ function onPointerDown(event) {
       event.stopPropagation();
       togglePause();
       ui.pauseButton.blur();         // Espaço não deve acionar o botão depois
+    });
+
+    // Tooltips (data-tip): o CSS cuida do atraso. Aqui só some na hora ao pressionar e não volta
+    // até o mouse sair e entrar de novo (sem isso, o :hover traria o tooltip de volta depois do clique).
+    document.querySelectorAll('[data-tip]').forEach((el) => {
+      el.addEventListener('pointerdown', () => el.setAttribute('data-tip-off', ''));
+      ['pointerenter', 'pointerleave', 'pointercancel'].forEach((type) => el.addEventListener(type, () => el.removeAttribute('data-tip-off')));
     });
 
     window.addEventListener('resize', resizeCanvas);

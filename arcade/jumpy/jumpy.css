@@ -154,6 +154,35 @@ body {
 .btn:hover { background: #ff9a35; }
 .btn:active { transform: translateY(calc(var(--u) * 3)); box-shadow: 0 calc(var(--u) * 1) 0 calc(var(--u) * 3) var(--ink); }
 .btn:focus-visible { outline-color: #2d7be0; }
+/* Reiniciar (tela de pausa): botão em pixel art, sem ícone, mesma família dos botões do HUD (papel + contorno tinta).
+   Cantos em "escadinha" feitos só com sombras sem canto; a laje de baixo é a profundidade que some ao apertar. */
+.pause-restart {
+  --b: calc(var(--u) * 3);                 /* espessura do contorno (igual ao .btn) */
+  --d: calc(var(--u) * 4);                 /* profundidade da laje de baixo */
+  --face: var(--paper); --lit: var(--paper-light); --shade: #bdb676;
+  pointer-events: auto; position: static; margin: calc(var(--u) * 10) 0 0;
+  width: fit-content; display: inline-flex; align-items: center; justify-content: center;
+  min-height: max(44px, calc(var(--u) * 26)); padding: 0 calc(var(--u) * 14) calc(var(--u) * 2);
+  font: inherit; font-size: max(12px, calc(var(--u) * 12)); letter-spacing: calc(var(--u) * .6); text-transform: uppercase;
+  color: var(--ink); text-shadow: none; background: var(--face); border: 0; border-radius: 0;
+  cursor: pointer; touch-action: manipulation; -webkit-appearance: none; appearance: none;
+  box-shadow:
+    inset 0 calc(var(--u) * 2) 0 0 var(--lit), inset calc(var(--u) * 2) 0 0 0 var(--lit),
+    inset 0 calc(var(--u) * -3) 0 0 var(--shade),
+    0 calc(var(--b) * -1) 0 0 var(--ink), calc(var(--b) * -1) 0 0 0 var(--ink), var(--b) 0 0 0 var(--ink),
+    0 calc(var(--b) + var(--d)) 0 0 var(--ink),
+    calc(var(--b) * -1) var(--d) 0 0 var(--ink), var(--b) var(--d) 0 0 var(--ink);
+}
+.pr-label { display: block; line-height: 1; padding-top: calc(var(--u) * 1); }
+.pause-restart:hover { --face: var(--paper-light); --lit: #fffbd0; --d: calc(var(--u) * 5); transform: translateY(calc(var(--u) * -1)); }
+.pause-restart:active {                      /* pressionado: desce a altura da laje, a profundidade some */
+  --face: #cfc986; --lit: #cfc986; --shade: #b0a96a; --d: calc(var(--u) * 1);
+  transform: translateY(calc(var(--u) * 3));
+}
+.pause-restart:focus-visible { outline: calc(var(--u) * 2) solid #2d7be0; outline-offset: calc(var(--u) * 10); }
+@media (hover: none) {
+  .pause-restart:hover { --face: var(--paper); --lit: var(--paper-light); --d: calc(var(--u) * 4); transform: none; }
+}
 .icon-button {
   position: absolute; top: calc(var(--u) * 8); right: calc(var(--u) * 8); z-index: 5; display: grid; place-items: center;
   width: max(40px, calc(var(--u) * 20)); height: max(40px, calc(var(--u) * 20)); padding: 0;
@@ -247,3 +276,73 @@ body {
 .help-close:hover { opacity: 1; background: rgba(84,56,71,.12); }
 .help-close:focus-visible { opacity: 1; outline: 2px solid #2d7be0; outline-offset: -2px; }
 @keyframes help-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+
+/* Tooltips em pixel art (data-tip): balão de papel com contorno tinta, cantos em escadinha, laje de baixo e seta em degraus,
+   a mesma linguagem das teclas e do painel de ajuda. Só aparecem com mouse (hover) ou foco de teclado; nunca interceptam cliques. */
+.icon-button[data-tip], .help-btn[data-tip], .pause-restart[data-tip] {
+  --t: max(2px, calc(var(--u) * 2));                    /* "pixel" do tooltip */
+  --tip-delay: 0.3s;                                    /* <<< TEMPO ATÉ O TOOLTIP APARECER NO HOVER (mude aqui) */
+  --tip-gap: max(12px, calc(var(--u) * 9)); --tip-face: var(--paper-light); --tip-shade: var(--paper); --tip-ink: var(--ink);
+}
+.pause-restart[data-tip] { position: relative; --tip-gap: calc(var(--u) * 17); }   /* desvia da laje de baixo do botão */
+.help-btn[data-tip] { position: relative; }
+[data-tip]::before, [data-tip]::after { position: absolute; opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
+[data-tip]::after {
+  content: attr(data-tip); z-index: 60; top: calc(100% + var(--tip-gap)); right: 0; white-space: nowrap;
+  padding: max(6px, calc(var(--u) * 4.5)) max(9px, calc(var(--u) * 7)) max(6px, calc(var(--u) * 4.5));
+  font-family: "Arial Black", "Trebuchet MS", Arial, sans-serif; font-weight: 900; font-size: max(10.5px, calc(var(--u) * 8.5));
+  line-height: 1; letter-spacing: .06em; text-transform: uppercase; text-shadow: none; color: var(--tip-ink); background: var(--tip-face);
+  box-shadow: inset 0 calc(var(--t) * -1) 0 0 var(--tip-shade),
+    0 calc(var(--t) * -1) 0 0 var(--tip-ink), calc(var(--t) * -1) 0 0 0 var(--tip-ink), var(--t) 0 0 0 var(--tip-ink),
+    0 calc(var(--t) * 2) 0 0 var(--tip-ink), calc(var(--t) * -1) var(--t) 0 0 var(--tip-ink), var(--t) var(--t) 0 0 var(--tip-ink);
+}
+/* seta em degraus (ponta de 1 bloco, depois 3) apontando para o botão, com o miolo de papel furando o contorno do balão */
+[data-tip]::before {
+  content: ""; z-index: 61; width: var(--t); height: var(--t); background: var(--tip-ink);
+  left: calc(50% - var(--t) / 2); top: calc(100% + var(--tip-gap) - var(--t) * 3);
+  box-shadow: 0 var(--t) 0 0 var(--tip-face),
+    calc(var(--t) * -1) calc(var(--t) * 2) 0 0 var(--tip-face), 0 calc(var(--t) * 2) 0 0 var(--tip-face), var(--t) calc(var(--t) * 2) 0 0 var(--tip-face),
+    calc(var(--t) * -1) var(--t) 0 0 var(--tip-ink), var(--t) var(--t) 0 0 var(--tip-ink);
+}
+.pause-restart[data-tip]::after { right: auto; left: 50%; transform: translateX(-50%); }
+/* ajuda na faixa sob o jogo (celular em pé): o balão abre para cima */
+.arena.help-bottom .help-btn[data-tip]::after { top: auto; bottom: calc(100% + var(--tip-gap)); }
+.arena.help-bottom .help-btn[data-tip]::before {
+  top: auto; bottom: calc(100% + var(--tip-gap) - var(--t) * 3);
+  box-shadow: 0 calc(var(--t) * -1) 0 0 var(--tip-face),
+    calc(var(--t) * -1) calc(var(--t) * -2) 0 0 var(--tip-face), 0 calc(var(--t) * -2) 0 0 var(--tip-face), var(--t) calc(var(--t) * -2) 0 0 var(--tip-face),
+    calc(var(--t) * -1) calc(var(--t) * -1) 0 0 var(--tip-ink), var(--t) calc(var(--t) * -1) 0 0 var(--tip-ink);
+}
+/* Hover (mouse): o atraso é feito com transition-delay em visibility + opacity, então vale também com movimento reduzido.
+   Ao tirar o mouse o tooltip some na hora (transition: none no estado base). */
+@media (hover: hover) {
+  [data-tip]:hover::before, [data-tip]:hover::after {
+    visibility: visible; opacity: 1;
+    transition: visibility 0s linear var(--tip-delay), opacity .12s steps(2) var(--tip-delay);
+  }
+}
+/* Foco de teclado: aparece sem espera */
+[data-tip]:focus-visible::before, [data-tip]:focus-visible::after { visibility: visible; opacity: 1; }
+/* Ao clicar/apertar, some imediatamente */
+[data-tip]:active::before, [data-tip]:active::after { visibility: hidden; opacity: 0; transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  [data-tip]:hover::before, [data-tip]:hover::after {
+    transition: visibility 0s linear var(--tip-delay), opacity 0s linear var(--tip-delay);
+  }
+}
+
+/* Tooltip do "Como jogar": segue o visual escuro do botão (casca da página), não o do jogo */
+.help-btn[data-tip] { --edge: rgba(255, 200, 87, .55); --tip-gap: 12px; }
+.help-btn[data-tip]::after {
+  padding: 7px 12px 7px; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 600; font-size: 12.5px;
+  letter-spacing: .01em; text-transform: none; color: var(--shell-text); background: #11141d; border-radius: 8px;
+  box-shadow: 0 0 0 1px var(--edge), 0 8px 22px rgba(0, 0, 0, .55);
+}
+.help-btn[data-tip]::before {
+  width: 9px; height: 9px; left: calc(50% - 4.5px); top: calc(100% + var(--tip-gap) - 4.5px); background: #11141d; border-radius: 2px;
+  border: 1px solid var(--edge); border-right-color: transparent; border-bottom-color: transparent; box-shadow: none; transform: rotate(45deg);
+}
+.arena.help-bottom .help-btn[data-tip]::before {
+  top: auto; bottom: calc(100% + var(--tip-gap) - 4.5px); box-shadow: none;
+  border: 1px solid var(--edge); border-left-color: transparent; border-top-color: transparent;
+}

@@ -176,8 +176,8 @@ body {
 }
 /* Pausa: sempre visível e no mesmo lugar; só o ícone troca (pausar <-> continuar). Fora da partida fica apagado. */
 .icon-button .icon-play { display: none; }
-.is-paused #pause-button .icon-pause { display: none; }
-.is-paused #pause-button .icon-play { display: block; }
+.is-paused:not(.is-counting) #pause-button .icon-pause { display: none; }   /* na contagem 3-2-1 o ícone volta a ser "pausar" */
+.is-paused:not(.is-counting) #pause-button .icon-play { display: block; }
 #pause-button.is-inactive, #pause-button.is-inactive:hover { opacity: .45; cursor: default; }
 /* O som fica à esquerda da pausa, em posição fixa, para não mudar de lugar entre telas */
 #mute-button { right: calc(var(--u) * 12 + var(--btn)); }
@@ -504,3 +504,125 @@ body {
 .mouse-btn.is-on .mouse-dot { background: #4fd36b; box-shadow: 0 0 6px rgba(79,211,107,.8); }
 .arena.how-bottom .mouse-btn { left: calc(50% - var(--stage-w, 0px) / 2); bottom: 6px; }
 @media (hover: none) and (pointer: coarse) { .mouse-btn { display: none; } }
+
+
+/* ---------- Tela de pausa: título, aviso do motivo, Continuar e Reiniciar ---------- */
+.screen-paused { gap: calc(var(--u) * 10); }
+.over-title.is-resumed { max-width: 100%; color: var(--cyan); line-height: 1.04; text-wrap: balance; }   /* "Partida retomada" quebra em duas linhas */
+.pause-note {
+  margin: calc(var(--u) * -2) 0 calc(var(--u) * 2); max-width: 90%;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 700;
+  font-size: max(12px, calc(var(--u) * 10.5)); line-height: 1.3; letter-spacing: .01em; color: var(--steel);
+  text-shadow: 0 calc(var(--u) * 1) 0 var(--ink);
+}
+.pause-actions { display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 14); margin-top: calc(var(--u) * 6); }
+
+/* Reiniciar: mesmo bloco chanfrado do Continuar, mas em azul-marinho (ação secundária); com confirmação fica vermelho */
+.btn-alt {
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--u) * 6);
+  min-height: max(44px, calc(var(--u) * 22)); font-size: max(12px, calc(var(--u) * 11)); color: var(--steel); background: #2f3680;
+  box-shadow: inset calc(var(--u) * 2) calc(var(--u) * 2) 0 rgba(255, 255, 255, .16), inset calc(var(--u) * -2) calc(var(--u) * -3) 0 rgba(0, 0, 0, .3),
+              0 0 0 calc(var(--u) * 2) var(--ink), 0 calc(var(--u) * 5) 0 calc(var(--u) * 2) var(--ink);
+  transition: background .12s, color .12s;
+}
+.btn-alt:hover { color: var(--white); background: #3b43a0; }
+.btn-alt:active {
+  transform: translateY(calc(var(--u) * 3));
+  box-shadow: inset calc(var(--u) * 2) calc(var(--u) * 2) 0 rgba(255, 255, 255, .16), inset calc(var(--u) * -2) calc(var(--u) * -3) 0 rgba(0, 0, 0, .3),
+              0 0 0 calc(var(--u) * 2) var(--ink), 0 calc(var(--u) * 2) 0 calc(var(--u) * 2) var(--ink);
+}
+.btn-alt.is-armed, .btn-alt.is-armed:hover { color: var(--ink); background: var(--red); }
+.btn-alt.is-armed {
+  box-shadow: inset calc(var(--u) * 2) calc(var(--u) * 2) 0 #ff9aa4, inset calc(var(--u) * -2) calc(var(--u) * -3) 0 #c42a45,
+              0 0 0 calc(var(--u) * 2) var(--ink), 0 calc(var(--u) * 5) 0 calc(var(--u) * 2) var(--ink);
+}
+.btn-alt.is-armed:active {
+  box-shadow: inset calc(var(--u) * 2) calc(var(--u) * 2) 0 #ff9aa4, inset calc(var(--u) * -2) calc(var(--u) * -3) 0 #c42a45,
+              0 0 0 calc(var(--u) * 2) var(--ink), 0 calc(var(--u) * 2) 0 calc(var(--u) * 2) var(--ink);
+}
+/* Durante o 3-2-1 a tela de pausa sai de cena (o tabuleiro fica visível, só escurecido) */
+.is-counting .screen-paused { opacity: 0; visibility: hidden; transition: opacity .15s ease, visibility 0s linear .15s; }
+
+/* ---------- Contagem 3 · 2 · 1 · GO!: blocos do logotipo (vermelho, laranja, amarelo, verde) ---------- */
+.countdown {
+  position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; pointer-events: none;
+  opacity: 0; visibility: hidden; background: rgba(8, 10, 32, .5);
+  transition: opacity .2s ease, visibility 0s linear .2s;
+}
+.is-counting .countdown { opacity: 1; visibility: visible; transition-delay: 0s; }
+.is-go .countdown { opacity: 1; visibility: visible; background: transparent; transition: none; }   /* GO!: o jogo já voltou, sem escurecer */
+.count-tile {   /* as cores (--c, --cl, --cd) vêm das classes .t1 a .t4 dos blocos do logotipo */
+  display: grid; place-items: center; min-width: calc(var(--u) * 78); height: calc(var(--u) * 74); padding: 0 calc(var(--u) * 12);
+  font-family: var(--display); font-weight: 400; font-size: calc(var(--u) * 58); line-height: 1; letter-spacing: .02em; color: var(--ink);
+  background: var(--c, #ff4d5e); text-shadow: none;
+  box-shadow: inset calc(var(--u) * 4) calc(var(--u) * 4) 0 var(--cl, #ff9aa4), inset calc(var(--u) * -4) calc(var(--u) * -4) 0 var(--cd, #c42a45),
+              0 0 0 calc(var(--u) * 3) var(--ink), 0 calc(var(--u) * 7) 0 calc(var(--u) * 3) rgba(0, 0, 0, .35);
+}
+.count-tile.is-pop { animation: count-pop .5s cubic-bezier(.2, .9, .3, 1.15) both; }
+.is-go .count-tile.is-pop { animation: count-go .55s ease-out both; }
+@keyframes count-pop { from { transform: scale(1.7); opacity: 0; } 35% { opacity: 1; } to { transform: none; opacity: 1; } }
+@keyframes count-go {
+  0% { transform: scale(.8); opacity: 0; }
+  25% { transform: scale(1.1); opacity: 1; }
+  100% { transform: translateY(calc(var(--u) * -34)) scale(1); opacity: 0; }
+}
+
+/* ---------- Tooltips (data-tip) ----------
+   Hover: aparece depois de --tip-delay. Sair do botão ou apertá-lo: some na hora (o JS marca data-tip-off até o ponteiro sair).
+   Teclado (:focus-visible): aparece na hora. Telas de toque não têm hover, então não mostram tooltip.
+   Posição por data-tip-pos: above (padrão, centralizado) · above-start · above-end · below-end · right. */
+:root { --tip-delay: 0.3s; --tip-bg: #0b0d26; --tip-line: #3a4390; }
+[data-tip] { --tip-gap: 10px; --tip-dx: 0px; --tip-dy: 4px; }
+.page-btn[data-tip] { position: relative; }
+.icon-button { z-index: 7; }   /* o tooltip dos botões do topo passa por cima do painel de fases */
+#pause-button.is-inactive::before, #pause-button.is-inactive::after { display: none; }   /* sem partida não há o que pausar: sem tooltip */
+[data-tip]::before, [data-tip]::after {
+  box-sizing: border-box; position: absolute; z-index: 60; pointer-events: none;
+  opacity: 0; visibility: hidden; translate: var(--tip-dx) var(--tip-dy); transition: none;   /* sumir é imediato */
+}
+[data-tip]::after {
+  content: attr(data-tip); bottom: calc(100% + var(--tip-gap)); left: 50%; transform: translateX(-50%);
+  padding: 7px 10px 8px; white-space: nowrap; text-align: center;
+  font: 700 12px/1 "Trebuchet MS", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; letter-spacing: .02em;
+  color: var(--steel-light); text-shadow: none; text-transform: none;
+  background: var(--tip-bg); border: 2px solid var(--tip-line); border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(199, 206, 239, .1), 0 3px 0 rgba(0, 0, 0, .4), 0 10px 22px rgba(0, 0, 0, .45);
+}
+[data-tip]::before {   /* setinha: quadrado girado, com borda só nos dois lados que aparecem */
+  content: ""; z-index: 61; width: 8px; height: 8px; bottom: calc(100% + var(--tip-gap) - 4px); left: calc(50% - 4px);
+  background: var(--tip-bg); border: 0 solid var(--tip-line); border-width: 0 2px 2px 0; rotate: 45deg;
+}
+[data-tip-pos="above-start"]::after { left: 0; transform: none; }
+[data-tip-pos="above-end"]::after { left: auto; right: 0; transform: none; }
+[data-tip-pos="above-end"]::before { left: auto; right: calc(50% - 4px); }
+[data-tip-pos="below-end"] { --tip-dy: -4px; }
+[data-tip-pos="below-end"]::after { bottom: auto; top: calc(100% + var(--tip-gap)); left: auto; right: 0; transform: none; }
+[data-tip-pos="below-end"]::before { bottom: auto; top: calc(100% + var(--tip-gap) - 4px); left: auto; right: calc(50% - 4px); border-width: 2px 0 0 2px; }
+[data-tip-pos="right"] { --tip-dx: -4px; --tip-dy: 0px; }
+[data-tip-pos="right"]::after { bottom: auto; top: 50%; left: calc(100% + var(--tip-gap)); transform: translateY(-50%); }
+[data-tip-pos="right"]::before { bottom: auto; top: calc(50% - 4px); left: calc(100% + var(--tip-gap) - 4px); border-width: 0 0 2px 2px; }
+
+@media (hover: hover) and (pointer: fine) {
+  [data-tip]:hover:not([data-tip-off]):not(:active)::before, [data-tip]:hover:not([data-tip-off]):not(:active)::after {
+    opacity: 1; visibility: visible; translate: 0 0;
+    transition: opacity .16s ease var(--tip-delay), translate .16s ease var(--tip-delay), visibility 0s linear var(--tip-delay);
+  }
+}
+[data-tip]:focus-visible:not([data-tip-off]):not(:active)::before, [data-tip]:focus-visible:not([data-tip-off]):not(:active)::after {
+  opacity: 1; visibility: visible; translate: 0 0; transition: opacity .16s ease, translate .16s ease;   /* teclado: sem espera */
+}
+
+/* Redução de movimento: sem animações nem transições, mas o hover continua esperando --tip-delay para aparecer */
+@media (prefers-reduced-motion: reduce) {
+  [data-tip], [data-tip][data-tip-pos] { --tip-dx: 0px; --tip-dy: 0px; }
+  [data-tip]:focus-visible:not([data-tip-off]):not(:active)::before, [data-tip]:focus-visible:not([data-tip-off]):not(:active)::after { transition: none; }
+  .btn-alt { transition: none; }
+  .countdown { transition: none; }
+  .is-counting .screen-paused { transition: none; }
+  .count-tile.is-pop, .is-go .count-tile.is-pop { animation: none; }   /* o número só aparece, sem pulo (o JS ainda controla quanto tempo fica) */
+}
+@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
+  [data-tip]:hover:not([data-tip-off]):not(:active)::before, [data-tip]:hover:not([data-tip-off]):not(:active)::after {
+    transition: visibility 0s linear var(--tip-delay);   /* sem fade/slide: só o atraso de 0,3 s */
+  }
+}

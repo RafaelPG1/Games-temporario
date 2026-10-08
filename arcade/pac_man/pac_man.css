@@ -1,7 +1,7 @@
 /* arcade/pac_man/pac_man.css - --u = largura do palco / 288 (atualizado pelo JS) */
 :root {
   --menu-accent: #ffd21f; --pac: #ffd21f; --pac-dark: #b38f00; --navy: #03051a; --deep: #060a2e; --wall: #2f56ff; --ice: #bcd0ff; --ghost: #ff3b30;
-  --u: 1.5px;
+  --u: 1.5px; --tip-delay: 0.3s; /* atraso do tooltip ao passar o mouse (valor único) */
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
   --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
 }
@@ -103,9 +103,10 @@ body {
 
 /* Controle direcional */
 .pad {
-  margin: auto; display: grid; gap: calc(var(--u) * 3); grid-template-columns: repeat(3, var(--pad)); grid-template-rows: repeat(2, var(--pad));
+  margin: auto; display: none; gap: calc(var(--u) * 3); /* só em telas de toque (@media abaixo): no desktop não ocupa espaço */ grid-template-columns: repeat(3, var(--pad)); grid-template-rows: repeat(2, var(--pad));
   --pad: max(40px, calc(var(--u) * 33)); grid-template-areas: ". up ." "left down right";
 }
+@media (hover: none) and (pointer: coarse) { .pad { display: grid; } }
 .pad-up { grid-area: up; } .pad-left { grid-area: left; } .pad-right { grid-area: right; } .pad-down { grid-area: down; }
 .pad-btn {
   display: grid; place-items: center; padding: 0; background: rgba(47,86,255,.18); border: calc(var(--u) * 2) solid #2f56ff;
@@ -122,6 +123,16 @@ body {
   cursor: pointer; touch-action: manipulation;
 }
 .btn:hover { background: #ffe066; }
+.btn-ghost {
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(var(--u) * 6); min-height: max(40px, calc(var(--u) * 24));
+  color: var(--ice); background: rgba(47,86,255,.18); border-color: var(--wall); box-shadow: 0 calc(var(--u) * 3) 0 #1b2a8a;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.btn-ghost:hover { color: #fff; background: rgba(47,86,255,.36); border-color: #6f8bff; }
+.btn-ghost svg { flex: none; width: 1.3em; height: 1.3em; fill: none; stroke: var(--pac); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; transition: transform .35s cubic-bezier(.2,.8,.2,1); }
+.btn-ghost:hover svg { transform: rotate(-90deg); }
+.btn-ghost:active { box-shadow: 0 calc(var(--u) * 1) 0 #1b2a8a; }
+.pause-actions { width: 100%; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 9); }
 .btn:active { transform: translateY(calc(var(--u) * 2)); box-shadow: 0 calc(var(--u) * 1) 0 var(--pac-dark); }
 
 /* Telas sobrepostas */
@@ -131,20 +142,27 @@ body {
   opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s;
 }
 .is-title .screen-start, .is-paused .screen-paused, .is-over .screen-over { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
-.screen-heading { margin: 0; font-size: calc(var(--u) * 30); line-height: 1; text-transform: uppercase; color: var(--pac); }
+.screen-heading { margin: 0; font-size: calc(var(--u) * 30); line-height: 1; text-transform: uppercase; color: var(--pac); text-wrap: balance; }
+.screen-heading.is-long { font-size: calc(var(--u) * 26); line-height: 1.08; }
+.screen-paused { gap: calc(var(--u) * 10); }
+.screen-paused .screen-hint { margin-top: calc(var(--u) * -4); }
 .logo { margin: 0; font-size: calc(var(--u) * 44); line-height: 1; color: var(--pac); letter-spacing: .02em; text-shadow: 0 calc(var(--u) * 3) 0 #7a5f00, 0 0 calc(var(--u) * 14) rgba(255,210,31,.45); }
-/* Tela inicial: painel compacto na base do palco; labirinto, Pac-Man e fantasmas ficam visíveis (parados) acima dele */
-.screen-start { justify-content: flex-end; gap: 0; padding: 0 calc(var(--u) * 12) calc(var(--u) * 8); background: transparent; cursor: pointer; }
-.start-panel {
-  width: 100%; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 4); padding: calc(var(--u) * 7) calc(var(--u) * 10) calc(var(--u) * 9);
-  background: linear-gradient(180deg, rgba(11,18,80,.94), rgba(3,5,26,.95)); border-radius: calc(var(--u) * 9);
-  box-shadow: 0 0 0 calc(var(--u) * 2) #1b2a8a, 0 0 calc(var(--u) * 12) rgba(47,86,255,.35);
+/* Tela inicial: overlay opaco que cobre 100% do palco (nada do jogo aparece atrás), com o painel centralizado.
+   Ao iniciar ela some e o próprio palco passa a mostrar a partida; como é absoluta, não deixa espaço vazio. */
+.screen-start {
+  width: 100%; height: 100%; justify-content: center; gap: 0; padding: calc(var(--u) * 12); cursor: pointer;
+  background: radial-gradient(120% 70% at 50% 30%, #0b1250, var(--navy) 70%);
 }
-.start-panel .logo { font-size: calc(var(--u) * 28); }
+/* Sem caixa própria: o conteúdo fica direto sobre a tela inicial (que já é o único container) */
+.start-panel { width: 100%; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 7); padding: 0; background: none; box-shadow: none; }
+.start-panel .logo { font-size: calc(var(--u) * 38); }
+.start-panel .hint { margin-top: calc(var(--u) * 10); }
 .menu-note { margin: 0; font-size: max(9px, calc(var(--u) * 8.5)); line-height: 1.3; text-transform: uppercase; color: #7f95e6; }
 .menu-note b { color: var(--pac); }
 .hint { margin: calc(var(--u) * 2) 0 0; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 3); font-size: max(12px, calc(var(--u) * 13)); text-transform: uppercase; color: #fff; animation: blink 1.4s ease-in-out infinite; }
 .hint-or { font-size: max(10px, calc(var(--u) * 9)); letter-spacing: .08em; color: #7f95e6; }
+.hint-keys { display: inline-flex; align-items: center; gap: calc(var(--u) * 6); }
+.hint-sep { font-size: max(12px, calc(var(--u) * 12)); color: #7f95e6; }
 .hint .cap { --cap: max(24px, calc(var(--u) * 26)); }
 .is-title .pad { visibility: hidden; } /* o controle direcional não faz sentido sob o painel inicial */
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
@@ -208,13 +226,55 @@ body {
 
 .screen-text { margin: 0; font-size: max(12px, calc(var(--u) * 12)); line-height: 1.4; font-variant-numeric: tabular-nums; }
 .screen-text b { color: var(--pac); }
-.screen-hint { margin: 0; font-size: max(10px, calc(var(--u) * 8.5)); line-height: 1.4; color: #7f95e6; font-weight: 700; }
+.screen-hint { margin: 0; font-size: max(10px, calc(var(--u) * 8.5)); line-height: 1.4; letter-spacing: .06em; text-transform: uppercase; color: #7f95e6; font-weight: 700; }
 .record { margin: 0; padding: calc(var(--u) * 3) calc(var(--u) * 9); font-size: max(11px, calc(var(--u) * 10)); text-transform: uppercase; color: var(--navy); background: var(--pac); border-radius: 999px; }
 .record[hidden] { display: none; }
 .noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
+/* Tooltips: [data-tip]. Aparecem após --tip-delay no hover; somem na hora ao sair/clicar; com teclado (:focus-visible) aparecem na hora. */
+[data-tip] { --tip-gap: 9px; }
+[data-tip]::before, [data-tip]::after { position: absolute; z-index: 60; opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
+[data-tip]::after {
+  content: attr(data-tip); top: calc(100% + var(--tip-gap)); right: 0; padding: 6px 9px 5px; white-space: nowrap;
+  font: 900 10.5px/1.1 "Arial Black", "Trebuchet MS", Arial, sans-serif; letter-spacing: .06em; text-transform: uppercase; text-align: left;
+  color: var(--ice); background: #0a1048; border: 2px solid var(--wall); border-radius: 8px;
+  box-shadow: 0 0 0 1.5px #1b2a8a, 0 8px 18px rgba(0,0,0,.5); transform: translateY(-4px);
+}
+[data-tip]::before {
+  content: ""; z-index: 61; top: calc(100% + var(--tip-gap) - 5px); left: 50%; width: 10px; height: 10px; margin-left: -5px;
+  background: #0a1048; border: 2px solid var(--wall); border-right: 0; border-bottom: 0; transform: translateY(-4px) rotate(45deg);
+}
+.arena.how-bottom .how-btn::after { top: auto; bottom: calc(100% + var(--tip-gap)); transform: translateY(4px); }
+.arena.how-bottom .how-btn::before { top: auto; bottom: calc(100% + var(--tip-gap) - 5px); border: 2px solid var(--wall); border-left: 0; border-top: 0; transform: translateY(4px) rotate(45deg); }
+@media (hover: hover) {
+  [data-tip]:hover::after, [data-tip]:hover::before {
+    opacity: 1; visibility: visible;
+    transition: opacity .16s ease var(--tip-delay), transform .18s cubic-bezier(.2,.8,.2,1) var(--tip-delay), visibility 0s linear var(--tip-delay);
+  }
+  [data-tip]:hover::after { transform: none; }
+  [data-tip]:hover::before { transform: rotate(45deg); }
+}
+[data-tip]:focus-visible::after, [data-tip]:focus-visible::before { opacity: 1; visibility: visible; transition: opacity .12s ease, transform .15s cubic-bezier(.2,.8,.2,1); }
+[data-tip]:focus-visible::after { transform: none; }
+[data-tip]:focus-visible::before { transform: rotate(45deg); }
+/* Reduced motion: sem animação nem deslocamento, mas o atraso de 0,3s da aparição continua */
+@media (prefers-reduced-motion: reduce) {
+  [data-tip]::after { transform: none; }
+  [data-tip]::before { transform: rotate(45deg); }
+  .arena.how-bottom .how-btn::after { transform: none; }
+  .arena.how-bottom .how-btn::before { transform: rotate(45deg); }
+  [data-tip]:focus-visible::after, [data-tip]:focus-visible::before { transition: none; }
+}
+@media (prefers-reduced-motion: reduce) and (hover: hover) {
+  [data-tip]:hover::after, [data-tip]:hover::before { transition: opacity 0s linear var(--tip-delay), visibility 0s linear var(--tip-delay); }
+}
+/* Pressionar/clicar esconde na hora; o JS marca data-tip-off até o ponteiro sair do botão */
+[data-tip]:active::after, [data-tip]:active::before,
+[data-tip][data-tip-off]:not(:focus-visible)::after, [data-tip][data-tip-off]:not(:focus-visible)::before { opacity: 0; visibility: hidden; transition: none; }
+.how-btn[aria-expanded="true"]::after, .how-btn[aria-expanded="true"]::before { display: none; }
+
 @media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 520px) { .stage { --btn: max(36px, calc(var(--u) * 20)); gap: calc(var(--u) * 6); } .stat { min-height: calc(var(--u) * 30); } .btn { min-height: 40px; } }
-@media (max-height: 640px) { .menu-note { display: none; } .start-panel { gap: 2px; } } /* telas pequenas: o recorde já aparece no placar, o painel inicial fica mais baixo */
+@media (max-height: 640px) { .menu-note { display: none; } .start-panel { gap: calc(var(--u) * 4); } } /* telas pequenas: o recorde já aparece no placar, o painel inicial fica mais baixo */
 @media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }
-@media (prefers-reduced-motion: reduce) { .screen, .back, .back svg, .board, .how-btn { transition: none; } .hint, .how-popover { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .screen, .back, .back svg, .board, .how-btn, .btn-ghost, .btn-ghost svg { transition: none; } .hint, .how-popover { animation: none; } }

@@ -1,6 +1,6 @@
 /* ==========================================================================
 arcade/piano_tap/piano_tap.js - Jogo de reflexos com teclas de piano em HTML5 Canvas + JavaScript puro.
-Índice: 1 Configuração · 2 Áudio · 3 Estado · 4 Lógica · 5 Efeitos
+Índice: 1 Configuração · 2 Áudio · 3 Estado · 4 Lógica (4b Pausa, contagem e salvamento) · 5 Efeitos
 · 6 Renderização · 7 Interface · 8 Entrada · 9 Redimensionamento · 10 Loop
 Unidades do mundo: 1 = largura de uma coluna. O tabuleiro tem 4 x 6 unidades.
 ========================================================================== */
@@ -15,6 +15,8 @@ const CONFIG = {
   maxStep: 0.02, maxFrame: 0.1,                  // passo fixo máximo da simulação e limite de dt por quadro (s)
   historySize: 6, maxCol: 100, minCol: 24, margin: 14, restartLock: 500,
   volume: 0.3,
+  countFrom: 3, countStep: 0.7, goFlash: 0.6,   // contagem 3·2·1 (s por número) e quanto tempo o "GO!" fica na tela
+  saveVersion: 1, saveEvery: 250,              // formato do salvamento (piano_tap:save) e intervalo mínimo entre gravações em jogo (ms)
 };
 const COLORS = {
   seam: '#c4c8da', violet: '#9d8cff', violetSoft: '#e9e6ff', berry: '#ff4f7b', gold: '#ffc857', ink: '#120f2a',
@@ -22,7 +24,14 @@ const COLORS = {
 const { cols: COLS, rowHeight: ROW_H } = CONFIG;
 const VIEW_H = CONFIG.viewRows * ROW_H;
 const KEYS = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
-const STATES = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', OVER: 'over' };
+const STATES = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', COUNTDOWN: 'countdown', OVER: 'over' };
+// Quatro formas de pausar: manual (botão/P/Esc), help (abrir "Como jogar"), auto (aba oculta) e restored (recarregou a página).
+const PAUSE_COPY = {
+  manual:   { title: 'Pausado', note: '' },
+  help:     { title: 'Pausado', note: 'Pausa durante a ajuda' },
+  auto:     { title: 'Pausado', note: 'Pausa ao sair da aba' },
+  restored: { title: 'Partida retomada', note: 'Seu progresso foi recuperado' },
+};
 const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const lerp = (a, b, t) => a + (b - a) * t;
 
@@ -82,6 +91,8 @@ const Sound = (() => {
     record() { play(() => [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.14, volume: 0.35, delay: 0.1 * i }))); },
     hit() { play(() => { tone({ type: 'sawtooth', from: 220, to: 45, duration: 0.5, volume: 0.35 }); tone({ type: 'square', from: 110, to: 38, duration: 0.3, volume: 0.22 }); }); },
     click() { play(() => tone({ type: 'triangle', from: 520, to: 700, duration: 0.06, volume: 0.25 })); },
+    count() { play(() => tone({ type: 'triangle', from: 440, duration: 0.09, volume: 0.25 })); },
+    go() { play(() => { tone({ type: 'triangle', from: 659, duration: 0.1, volume: 0.28 }); tone({ type: 'sine', from: 988, duration: 0.2, volume: 0.35, delay: 0.07 }); }); },
   };
 })();
 
@@ -94,6 +105,7 @@ const game = {
   score: 0, startBest: 0, best: PianoTapStorage.getBest(), newRecord: false,
   noteIndex: 0, particles: [], floats: [],
   wrong: null, missRow: null, endReason: '', overAt: 0,
+  pauseReason: 'manual', countdown: null, goFlash: 0,   // pausa: motivo · contagem em curso ({ t, shown }) · tempo restante do "GO!"
 };
 
 const ui = {
@@ -106,6 +118,8 @@ const ui = {
   badge: document.getElementById('record-badge'), toast: document.getElementById('toast'),
   frame: document.getElementById('frame'), helpButton: document.getElementById('help-button'),
   helpPopover: document.getElementById('help-popover'), helpClose: document.getElementById('help-close'),
+  restartPause: document.getElementById('restart-pause-button'), pauseTitle: document.getElementById('pause-title'), pauseNote: document.getElementById('pause-note'),
+  count: document.getElementById('count-screen'), countNum: document.getElementById('count-num'),
 };
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
@@ -154,10 +168,12 @@ function resetRound() {
   Object.assign(game, {
     offset: VIEW_H - ROW_H, speed: CONFIG.speedStart, rows: [], nextN: 0, history: [],
     score: 0, startBest: game.best, newRecord: false, noteIndex: 0,
-    particles: [], floats: [], wrong: null, missRow: null, endReason: '',
+    particles: [], floats: [], wrong: null, missRow: null, endReason: '', countdown: null, goFlash: 0, pauseReason: 'manual',
   });
   fillRows();
   ui.board.classList.remove('hit', 'shake');
+  ui.count.classList.remove('go');
+  PianoTapStorage.clearGame();            // tela inicial = nenhuma partida a recuperar
   updateScore(false);
   setState(STATES.READY);
 }
@@ -166,6 +182,7 @@ function startGame() {
   if (game.state !== STATES.READY) return;
   Sound.unlock();
   setState(STATES.PLAYING);
+  saveGame();
 }
 
 // Um passo de simulação (dt pequeno e fixo no máximo): mover, repor fileiras, detectar tecla perdida, descartar antigas.
@@ -219,12 +236,9 @@ function endRound(reason, info) {
   if (!reduceMotion) ui.board.classList.add('shake');
   ui.board.classList.add('hit');
   game.overAt = performance.now();
+  game.goFlash = 0; ui.count.classList.remove('go');
+  PianoTapStorage.clearGame();            // partida encerrada: nada para retomar
   setState(STATES.OVER);
-}
-
-function setPaused(paused) {
-  if (paused && game.state === STATES.PLAYING) { setState(STATES.PAUSED); Sound.click(); }
-  else if (!paused && game.state === STATES.PAUSED) { setState(STATES.PLAYING); Sound.click(); }
 }
 
 function restart() {
@@ -233,6 +247,122 @@ function restart() {
   Sound.unlock(); Sound.click();
   resetRound();
   startGame();
+}
+
+function backToStart() {   // da tela de pausa: descarta a partida e volta à tela inicial
+  Sound.unlock(); Sound.click();
+  closeHelp();
+  resetRound();
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+}
+
+/* ===== 4b. PAUSA, CONTAGEM E SALVAMENTO =====
+   Fluxo: PLAYING/COUNTDOWN --setPaused(true, motivo)--> PAUSED --setPaused(false)--> COUNTDOWN (3·2·1·GO!) --> PLAYING.
+   Em PAUSED e COUNTDOWN o frame() não avança nada (tempo do jogo, simulação, partículas), então tudo fica congelado. */
+function setPaused(paused, reason = 'manual') {
+  const live = game.state === STATES.PLAYING || game.state === STATES.COUNTDOWN;
+  if (paused && live) {
+    game.countdown = null;                       // contagem interrompida recomeça do 3
+    game.goFlash = 0; ui.count.classList.remove('go');
+    game.pauseReason = reason;
+    setState(STATES.PAUSED);
+    saveGame();
+    Sound.click();
+  } else if (!paused && game.state === STATES.PAUSED) {
+    if (helpOpen) closeHelp();
+    beginCountdown();
+  }
+}
+
+function beginCountdown() {
+  game.countdown = { t: 0, shown: 0 };
+  setState(STATES.COUNTDOWN);
+  showCount(0);
+}
+
+function showCount(i) {
+  const go = i >= CONFIG.countFrom;
+  game.countdown.shown = i;
+  ui.countNum.textContent = go ? 'GO!' : String(CONFIG.countFrom - i);
+  ui.countNum.classList.toggle('is-go', go);
+  pop(ui.countNum, 'tick');
+  if (go) Sound.go(); else Sound.count();
+}
+
+// Chamado pelo frame() só em COUNTDOWN: o relógio da contagem é o único que anda; o jogo em si segue parado.
+function updateCountdown(dt) {
+  const c = game.countdown;
+  if (!c) return;
+  c.t += dt;
+  const i = Math.min(Math.floor(c.t / CONFIG.countStep), CONFIG.countFrom);
+  if (i === c.shown) return;
+  showCount(i);
+  if (i < CONFIG.countFrom) return;
+  game.countdown = null;                         // GO!: o jogo volta exatamente de onde parou
+  game.goFlash = CONFIG.goFlash;
+  ui.count.classList.add('go');
+  setState(STATES.PLAYING);
+  saveGame();
+}
+
+// Instantâneo completo: tudo que define "onde o jogador parou" (posição, velocidade, fileiras, histórico do sorteio, nota da melodia, efeitos).
+function snapshot() {
+  return {
+    v: CONFIG.saveVersion, savedAt: Date.now(),
+    offset: game.offset, speed: game.speed, time: game.time, nextN: game.nextN,
+    rows: game.rows.map((r) => ({ n: r.n, black: r.black, hit: r.hit, hitAt: r.hitAt })),
+    history: game.history.slice(),
+    score: game.score, startBest: game.startBest, newRecord: game.newRecord, noteIndex: game.noteIndex,
+    particles: game.particles.map((p) => ({ ...p })), floats: game.floats.map((f) => ({ ...f })),
+  };
+}
+
+function saveGame() {
+  if (game.state !== STATES.PLAYING && game.state !== STATES.PAUSED && game.state !== STATES.COUNTDOWN) return;
+  PianoTapStorage.saveGame(snapshot());
+}
+
+// Valida tudo antes de aplicar: salvamento corrompido ou adulterado é descartado (volta à tela inicial).
+function restoreGame(s) {
+  if (!s || typeof s !== 'object' || s.v !== CONFIG.saveVersion) return false;
+  const num = (v) => typeof v === 'number' && Number.isFinite(v);
+  const nat = (v) => Number.isInteger(v) && v >= 0;
+  if (![s.offset, s.speed, s.time].every(num) || s.time < 0 || s.speed < 0 || s.speed > CONFIG.speedMax * 2) return false;
+  if (![s.score, s.startBest, s.noteIndex].every(nat) || !Number.isInteger(s.nextN)) return false;
+  if (!Array.isArray(s.rows) || !s.rows.length || s.rows.length > 60) return false;
+  const rows = [];
+  for (let i = 0; i < s.rows.length; i++) {
+    const r = s.rows[i];
+    if (!r || !Number.isInteger(r.n) || !Number.isInteger(r.black) || r.black < -1 || r.black >= COLS || typeof r.hit !== 'boolean' || !num(r.hitAt)) return false;
+    if (i && r.n !== s.rows[i - 1].n + 1) return false;                 // fileiras consecutivas
+    if (r.hit && r.black < 0) return false;
+    rows.push({ n: r.n, black: r.black, hit: r.hit, hitAt: Math.min(r.hitAt, s.time) });
+  }
+  if (s.nextN !== rows[rows.length - 1].n + 1) return false;
+  const top = (r) => s.offset - r.n * ROW_H;
+  if (top(rows[0]) + ROW_H < VIEW_H - 1e-6) return false;               // o fundo do tabuleiro precisa estar coberto
+  if (rows.some((r) => r.black >= 0 && !r.hit && top(r) + ROW_H >= VIEW_H)) return false;   // tecla perdida já teria encerrado a partida
+  if (!Array.isArray(s.history) || s.history.length > CONFIG.historySize || !s.history.every((c) => Number.isInteger(c) && c >= 0 && c < COLS)) return false;
+
+  const list = (a) => (Array.isArray(a) ? a.slice(0, 200) : []);
+  const particles = list(s.particles).filter((p) => p && [p.x, p.y, p.age, p.life].every(num)).map((p) => (p.ring
+    ? { ring: true, x: p.x, y: p.y, age: p.age, life: p.life }
+    : [p.vx, p.vy, p.r].every(num) && typeof p.color === 'string' && p.color.length < 40
+      ? { x: p.x, y: p.y, vx: p.vx, vy: p.vy, age: p.age, life: p.life, r: p.r, color: p.color } : null)).filter(Boolean);
+  const floats = list(s.floats).filter((f) => f && [f.x, f.y, f.t].every(num)).map((f) => ({ x: f.x, y: f.y, t: f.t }));
+
+  Object.assign(game, {
+    offset: s.offset, speed: s.speed, time: s.time, nextN: s.nextN, rows, history: s.history.slice(),
+    score: s.score, startBest: s.startBest, newRecord: Boolean(s.newRecord), noteIndex: s.noteIndex, particles, floats,
+    wrong: null, missRow: null, endReason: '', countdown: null, goFlash: 0, pauseReason: 'restored',
+  });
+  fillRows();
+  game.best = Math.max(game.best, game.score);
+  ui.board.classList.remove('hit', 'shake');
+  ui.count.classList.remove('go');
+  updateScore(false);
+  setState(STATES.PAUSED);                       // aguarda o jogador: "Continuar" (ou Space) dispara o 3·2·1·GO!
+  return true;
 }
 
 /* ===== 5. EFEITOS (animam com o tempo do jogo; param na pausa e são limpos no reinício) ===== */
@@ -357,8 +487,13 @@ function setState(s) {
   game.state = s;
   const b = ui.board.classList;
   b.toggle('is-ready', s === STATES.READY); b.toggle('is-playing', s === STATES.PLAYING);
-  b.toggle('is-paused', s === STATES.PAUSED); b.toggle('is-over', s === STATES.OVER);
-  ui.pause.disabled = s !== STATES.PLAYING;
+  b.toggle('is-paused', s === STATES.PAUSED); b.toggle('is-countdown', s === STATES.COUNTDOWN); b.toggle('is-over', s === STATES.OVER);
+  ui.pause.disabled = s !== STATES.PLAYING && s !== STATES.COUNTDOWN;
+  if (s === STATES.PAUSED) {
+    const copy = PAUSE_COPY[game.pauseReason] || PAUSE_COPY.manual;
+    ui.pauseTitle.textContent = copy.title;
+    ui.pauseNote.textContent = copy.note; ui.pauseNote.hidden = !copy.note;
+  }
   if (s === STATES.OVER) {
     ui.overReason.textContent = game.endReason === 'white' ? 'Você tocou numa tecla branca.' : 'Uma tecla preta escapou.';
     ui.overScore.textContent = String(game.score);
@@ -378,8 +513,39 @@ function syncMute() {
   ui.mute.classList.toggle('is-muted', Sound.muted);
   ui.mute.setAttribute('aria-pressed', Sound.muted ? 'true' : 'false');
   ui.mute.setAttribute('aria-label', Sound.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
+  setTip(ui.mute, Sound.muted ? 'Ativar som' : 'Silenciar');
 }
 function toggleMute() { Sound.setMuted(!Sound.muted); syncMute(); Sound.click(); }
+
+// Tooltips: o texto vem de data-tip (e a tecla de atalho de data-key); o JS cria o balão .tip e o posiciona dentro da tela.
+// Atraso, aparecimento e desaparecimento são todos CSS (--tip-delay). Aqui só: clique esconde até o mouse sair (data-tip-off).
+function setTip(btn, text, key = btn.dataset.key) {
+  btn.dataset.tip = text;
+  let tip = btn.querySelector(':scope > .tip');
+  if (!tip) { tip = document.createElement('span'); tip.className = 'tip'; tip.setAttribute('aria-hidden', 'true'); btn.append(tip); }
+  tip.textContent = text;
+  if (key) { const k = document.createElement('kbd'); k.className = 'tip-key'; k.textContent = key; tip.append(k); }
+}
+function placeTip(btn) {
+  const tip = btn.querySelector(':scope > .tip');
+  if (!tip) return;
+  const edge = 8, gap = 10, r = btn.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  const center = r.left + r.width / 2, left = center - w / 2, right = center + w / 2, vw = document.documentElement.clientWidth;
+  const shift = left < edge ? edge - left : right > vw - edge ? vw - edge - right : 0;
+  tip.style.setProperty('--tip-x', `${Math.round(shift)}px`);
+  tip.style.setProperty('--tip-arrow', `${Math.round(Math.min(Math.max(w / 2 - shift, 12), w - 12))}px`);
+  tip.dataset.side = window.innerHeight - r.bottom - gap - edge >= h ? 'bottom' : 'top';
+}
+function initTips() {
+  document.querySelectorAll('[data-tip]').forEach((btn) => {
+    setTip(btn, btn.dataset.tip);
+    btn.addEventListener('pointerenter', () => placeTip(btn));
+    btn.addEventListener('focus', () => placeTip(btn));
+    btn.addEventListener('pointerdown', () => btn.setAttribute('data-tip-off', ''));
+    btn.addEventListener('pointerleave', () => btn.removeAttribute('data-tip-off'));
+    btn.addEventListener('pointercancel', () => btn.removeAttribute('data-tip-off'));
+  });
+}
 
 /* Ajuda "Como jogar": popover ancorado ABAIXO do botão "?", fora da área do jogo.
    Se abrir no meio da partida, o jogo pausa; ao fechar, a pausa continua até "Continuar". */
@@ -390,7 +556,7 @@ function openHelp() {
   helpOpen = true;
   ui.helpPopover.hidden = false;
   ui.helpButton.setAttribute('aria-expanded', 'true');
-  setPaused(true);                          // só tem efeito durante a partida
+  setPaused(true, 'help');                  // só tem efeito durante a partida (ou a contagem)
   placeHelp();
 }
 function closeHelp() {
@@ -451,7 +617,7 @@ function onKeyDown(e) {
   Sound.unlock();
   if (e.code in KEYS) { e.preventDefault(); if (!e.repeat) keyTap(KEYS[e.code]); }
   else if (e.code === 'KeyM' && !e.repeat) toggleMute();
-  else if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) setPaused(game.state === STATES.PLAYING);
+  else if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) setPaused(game.state === STATES.PLAYING || game.state === STATES.COUNTDOWN);
   else if (e.code === 'Space' || e.code === 'Enter') {
     if (e.target.closest && e.target.closest('button')) return;   // deixa o botão focado agir (início, continuar, jogar de novo, "?")
     e.preventDefault();
@@ -488,30 +654,35 @@ function resize() {
 /* ===== 10. LOOP E INICIALIZAÇÃO ===== */
 // Um único requestAnimationFrame para a vida toda da página. O movimento usa o tempo real (dt) dividido em
 // passos de no máximo 20 ms, então a velocidade não depende da taxa de quadros.
-let lastTime = null;
+let lastTime = null, lastSaveAt = 0;
 function frame(now) {
   requestAnimationFrame(frame);
   if (lastTime === null) lastTime = now;
   const dt = Math.min(Math.max((now - lastTime) / 1000, 0), CONFIG.maxFrame);
   lastTime = now;
-  if (game.state !== STATES.PAUSED) {
+  if (game.state === STATES.COUNTDOWN) updateCountdown(dt);   // só o relógio da contagem anda; física e timers ficam parados
+  else if (game.state !== STATES.PAUSED) {
     game.time += dt;
+    if (game.goFlash > 0) { game.goFlash -= dt; if (game.goFlash <= 0) ui.count.classList.remove('go'); }
     let left = dt;
     while (left > 0 && game.state === STATES.PLAYING) { const s = Math.min(left, CONFIG.maxStep); step(s); left -= s; }
     updateEffects(dt);
+    if (game.state === STATES.PLAYING && now - lastSaveAt >= CONFIG.saveEvery) { lastSaveAt = now; saveGame(); }
   }
   render();
 }
 
 function init() {
-  resetRound();
+  initTips();
+  const saved = PianoTapStorage.loadGame();
+  if (!(saved && restoreGame(saved))) resetRound();   // sem salvamento válido: tela inicial (e descarta o lixo)
   updateBest(false);
   syncMute();
   document.addEventListener('keydown', onKeyDown, { passive: false });
   ui.board.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) onPointerDown(e); });
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
-  ui.pause.addEventListener('click', () => { setPaused(true); ui.pause.blur(); });
+  ui.pause.addEventListener('click', () => { setPaused(true, 'manual'); ui.pause.blur(); });
   ui.start.addEventListener('click', startGame);
   ui.helpButton.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -524,9 +695,13 @@ function init() {
     if (helpOpen && !(e.target.closest && e.target.closest('#help-popover, #help-button'))) closeHelp();
   }, true);
   ui.resume.addEventListener('click', () => setPaused(false));
+  ui.restartPause.addEventListener('click', backToStart);
   ui.restart.addEventListener('click', restart);
-  window.addEventListener('blur', () => setPaused(true));
-  document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) setPaused(true); });
+  // Pausa automática ao sair da aba/minimizar; ao voltar o jogo segue pausado até o jogador continuar.
+  document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) { setPaused(true, 'auto'); saveGame(); } });
+  // F5/fechar/trocar de página: grava o estado exato para o init() recuperar.
+  window.addEventListener('pagehide', saveGame);
+  window.addEventListener('beforeunload', saveGame);
   window.addEventListener('resize', resize);
   window.addEventListener('orientationchange', resize);
   if (window.ResizeObserver) new ResizeObserver(resize).observe(ui.play);

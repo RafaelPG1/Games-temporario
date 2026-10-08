@@ -21,6 +21,9 @@ const CONFIG = {
   // helpRoom = espaço lateral mínimo (px) para o botão/painel de Efeitos ao lado do palco
   // howRoom = espaço lateral mínimo para o botão "Como jogar"; abaixo disso ele vai para uma faixa (howStrip, px) sob o palco
   view: { margin: 6, maxCssHeight: 1000, helpRoom: 296, howRoom: 66, howStrip: 56 },
+  // PAUSA: countStep = segundos de cada número do 3-2-1; goTime = quanto o "GO!" fica na tela; saveEvery = intervalo do
+  // salvamento automático da partida (s); confirmRestart = true faz o Reiniciar pedir um segundo toque (confirmTime s); false = um toque só
+  pause: { countStep: 0.75, goTime: 0.55, saveEvery: 1, confirmRestart: false, confirmTime: 3 },
   // EFEITOS: time = duração (s); mult = fator; specials = [mínimo, extra aleatório] por fase
   fx: {
     wide: { time: 12, mult: 1.5 }, narrow: { time: 8, mult: 0.65 }, sticky: { time: 12 },
@@ -163,7 +166,7 @@ const COLORS = {
   ball: '#ffffff', ballHalo: 'rgba(120,230,255,0.30)',
 };
 
-const { world: WORLD, field: FIELD, bricks: BR, paddle: PAD, ball: BALL, timing: TIM, fx: FX } = CONFIG;
+const { world: WORLD, field: FIELD, bricks: BR, paddle: PAD, ball: BALL, timing: TIM, fx: FX, pause: PAUSE } = CONFIG;
 const W = WORLD.width;
 const H = WORLD.height;
 const R = BALL.radius;
@@ -276,6 +279,9 @@ const Sound = (() => {
       safely(() => [392, 330, 262, 196].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.22, volume: 0.4, delay: i * 0.2 })));
     },
     click() { safely(() => tone({ type: 'square', from: 520, to: 700, duration: 0.05, volume: 0.22 })); },
+    tick(go) {   // contagem 3-2-1: bip curto; o GO! é mais agudo e sobe
+      safely(() => tone({ type: 'square', from: go ? 700 : 440, to: go ? 1250 : 440, duration: go ? 0.2 : 0.08, volume: go ? 0.3 : 0.22 }));
+    },
     crack() { safely(() => { tone({ type: 'square', from: 200, to: 120, duration: 0.06, volume: 0.25 }); noise({ duration: 0.06, volume: 0.2, cutoff: 3000 }); }); },
     boom() { safely(() => { noise({ duration: 0.38, volume: 0.7, cutoff: 900 }); tone({ type: 'sawtooth', from: 140, to: 40, duration: 0.35, volume: 0.4 }); }); },
     power() { safely(() => [600, 800, 1000].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.08, volume: 0.3, delay: i * 0.05 }))); },
@@ -404,6 +410,7 @@ function newGame() {
   game.state = STATES.PLAYING;
   syncHud();
   syncUi();
+  saveRun();
 }
 
 function startGame() {
@@ -420,19 +427,236 @@ function nextLevel() {
   game.state = STATES.PLAYING;
   syncHud();
   syncUi();
+  saveRun();
 }
 
 function tryRestart() {
   if (game.state === STATES.GAME_OVER && game.idleTime > TIM.lockTime) { Sound.click(); newGame(); }
 }
 
-function setPaused(paused) {
-  if (paused && game.state === STATES.PLAYING) game.state = STATES.PAUSED;
-  else if (!paused && game.state === STATES.PAUSED) { game.state = STATES.PLAYING; lastTime = null; }
+/* ----- PAUSA, RETOMADA E SALVAMENTO DA PARTIDA -----
+   Quatro caminhos levam à pausa (reason), todos pelo mesmo setPaused():
+     manual  botão, P ou Esc            auto   aba oculta / janela sem foco (visibilitychange, blur)
+     howto   abrir "Como jogar"         reload F5: a partida salva é restaurada já pausada ("Partida retomada")
+   (o seletor de fases também pausa, com reason 'menu').
+   O jogo congela de verdade porque update() só avança com state === PLAYING: física, timers de efeitos, tiros,
+   fases 'lost'/'cleared' e o relógio visual ficam parados. Sair da pausa sempre passa pela contagem 3-2-1-GO,
+   que roda fora do update(): enquanto ela corre o estado continua PAUSED e nada do jogo se mexe. */
+const PAUSE_TEXT = {
+  manual: { title: 'Pausado', note: '' },
+  menu: { title: 'Pausado', note: '' },
+  auto: { title: 'Pausado', note: 'Pausa automática ao sair da aba' },
+  howto: { title: 'Pausado', note: 'Pausado enquanto você lê' },
+  reload: { title: 'Partida retomada', note: 'Seu progresso foi restaurado' },
+};
+const COUNT_STYLE = { 3: ['3', 't1'], 2: ['2', 't2'], 1: ['1', 't3'], 0: ['GO!', 't4'] };   // cores dos blocos do logotipo
+let pauseReason = 'manual';
+let countdown = null;        // { start, shown } enquanto o 3-2-1 roda (state continua PAUSED)
+let goTimer = 0;
+let lastSaveAt = 0;
+let restartArmed = false, restartArmTimer = 0;
+
+function setPaused(paused, reason = 'manual') {
+  if (!paused) { requestResume(); return; }
+  if (game.state === STATES.PLAYING) { game.state = STATES.PAUSED; pauseReason = reason; }
+  else if (game.state === STATES.PAUSED && countdown) pauseReason = reason;   // pausou de novo durante a contagem: volta à tela de pausa
   else return;
-  Sound.click();
+  stopCountdown();
+  if (reason !== 'auto') Sound.click();
   input.left = input.right = false;
+  drag.id = null;
+  saveRun();
   syncUi();
+}
+
+// P / Esc / botão: alterna. Durante a contagem, pausa de novo em vez de ignorar.
+function togglePause() {
+  if (game.state === STATES.PLAYING) setPaused(true, 'manual');
+  else if (game.state === STATES.PAUSED) { if (countdown) setPaused(true, 'manual'); else requestResume(); }
+}
+
+// Continuar: não solta o jogo na hora; começa a contagem 3-2-1-GO (o jogo segue congelado até o GO!)
+function requestResume() {
+  if (game.state !== STATES.PAUSED || countdown) return;
+  setLevelOpen(false);
+  setHowOpen(false);
+  armRestart(false);
+  Sound.unlock();
+  countdown = { start: performance.now(), shown: 3 };
+  showCount(3);
+  Sound.tick(false);
+  syncUi();
+}
+
+function stopCountdown() {
+  countdown = null;
+  clearTimeout(goTimer);
+  ui.stage.classList.remove('is-go');
+}
+
+function showCount(n) {
+  const [text, tone] = COUNT_STYLE[n];
+  const el = ui.countTile;
+  el.className = `count-tile ${tone}`;
+  el.textContent = text;
+  void el.offsetWidth;            // reinicia a animação de entrada a cada número
+  el.classList.add('is-pop');
+}
+
+function tickCountdown(now) {
+  const n = Math.max(0, Math.floor((now - countdown.start) / (PAUSE.countStep * 1000)));
+  if (n >= 3) { finishCountdown(); return; }
+  if (3 - n !== countdown.shown) { countdown.shown = 3 - n; showCount(countdown.shown); Sound.tick(false); }
+}
+
+// GO!: o jogo volta a andar neste instante; o "GO!" só sobe e some por cima
+function finishCountdown() {
+  countdown = null;
+  game.state = STATES.PLAYING;
+  lastTime = null;
+  ui.stage.classList.add('is-go');
+  showCount(0);
+  Sound.tick(true);
+  clearTimeout(goTimer);
+  goTimer = setTimeout(() => ui.stage.classList.remove('is-go'), PAUSE.goTime * 1000);
+  saveRun();
+  syncUi();
+}
+
+// Reiniciar (tela de pausa): pede confirmação com um segundo toque e volta para a tela inicial
+function armRestart(on) {
+  clearTimeout(restartArmTimer);
+  restartArmed = on;
+  ui.pauseRestart.classList.toggle('is-armed', on);
+  ui.pauseRestart.setAttribute('aria-label', on ? 'Confirmar: descartar a partida e voltar à tela inicial' : 'Reiniciar a partida e voltar à tela inicial');
+  if (on) restartArmTimer = setTimeout(() => armRestart(false), PAUSE.confirmTime * 1000);
+}
+
+function onPauseRestart() {
+  if (game.state !== STATES.PAUSED || countdown) return;
+  if (PAUSE.confirmRestart && !restartArmed) { Sound.click(); armRestart(true); return; }   // 1º toque: o botão só fica vermelho (o texto não muda)
+  restartToTitle();
+}
+
+function restartToTitle() {
+  armRestart(false);
+  stopCountdown();
+  setLevelOpen(false);
+  setHowOpen(false);
+  input.left = input.right = false;
+  drag.id = null;
+  lastTime = null;
+  store.clearRun();
+  Object.assign(game, { score: 0, lives: CONFIG.lives, heartSlots: [], newLife: -1, clock: 0, idleTime: 0, timer: 0, state: STATES.READY });
+  loadLevel(startLevel());          // mesmo tabuleiro de abertura de uma visita nova
+  document.getElementById('title-level').textContent = String(store.get('bestLevel', 1));
+  Sound.click();
+  ui.pauseRestart.blur();
+  syncHud();
+  syncUi();
+}
+
+/* Salvamento: o snapshot guarda tudo o que muda o rumo da partida (barra, bolas com posição e velocidade, blocos
+   restantes com tipo e resistência, itens caindo, tiros, efeitos com o tempo que falta, fase, placar, vidas, fase
+   'lost'/'cleared' e seu timer, saco de blocos especiais). Fora ficam só enfeites que somem em segundos
+   (partículas, explosões, textos flutuantes, raios/fogo na tela) e as teclas apertadas. */
+const RUN_STATES = [STATES.PLAYING, STATES.PAUSED, STATES.WON];
+
+function snapshotRun() {
+  const g = game, p = g.paddle;
+  return {
+    state: g.state === STATES.WON ? 'won' : 'playing',   // pausada = "em jogo"; o restaurar decide pausar
+    level: g.level, score: g.score, lives: g.lives, heartSlots: Array.from(g.heartSlots, Boolean),   // from(): preenche posições vazias
+    phase: g.phase, timer: g.timer, idleTime: g.idleTime, clock: g.clock, baseSpeed: g.baseSpeed,
+    rows: g.rows, pv: g.pv, target: g.target, gunKick: g.gunKick,
+    paddle: { x: p.x, w: p.w, base: p.base },
+    fx: Object.assign({}, g.fx),
+    gunFire: g.gunFire ? { left: g.gunFire.left, t: g.gunFire.t } : null,
+    balls: g.balls.filter((b) => !b.dead).map((b) => ({
+      x: b.x, y: b.y, vx: b.vx, vy: b.vy, speed: b.speed, stuck: b.stuck, off: b.off, color: b.color, power: b.power,
+      trail: b.trail.map((q) => [q.x, q.y]),
+    })),
+    bricks: g.bricks.filter((b) => g.grid[b.r * BR.cols + b.c] === b).map((b) => [b.r, b.c, b.type, b.hp]),
+    items: g.items.map((it) => ({ type: it.type, x: it.x, y: it.y, vx: it.vx, vy: it.vy, g: it.g })),
+    shots: g.shots.map((s) => ({ x: s.x, y: s.y })),
+    bag: specialBag.slice(), picked: pickedLevel,
+  };
+}
+
+function saveRun() {
+  if (!RUN_STATES.includes(game.state)) return;
+  lastSaveAt = performance.now();
+  try { store.saveRun(snapshotRun()); } catch (e) { /* salvar nunca pode quebrar o jogo */ }
+}
+
+// Valida tudo antes de tocar no jogo: snapshot corrompido ou de outra versão é ignorado (e a partida começa do zero)
+function restoreRun(run) {
+  if (!run || typeof run !== 'object') return false;
+  try {
+    const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+    const level = Math.floor(run.level), rows = Math.floor(run.rows);
+    if (!(level >= 1 && level < 1e5) || !(rows >= 1 && rows <= 24)) return false;
+    if (!fin(run.score) || run.score < 0 || !fin(run.lives) || run.lives < -1 || run.lives > CONFIG.maxLives) return false;
+    if (!['play', 'lost', 'cleared'].includes(run.phase)) return false;
+    const pd = run.paddle;
+    if (!pd || !fin(pd.x) || !fin(pd.w) || !fin(pd.base) || pd.w < 10 || pd.w > W || pd.base < 10 || pd.base > W) return false;
+
+    const bricks = [], grid = new Array(BR.cols * rows).fill(null);
+    for (const e of Array.isArray(run.bricks) ? run.bricks : []) {
+      const [r, c, type, hp] = Array.isArray(e) ? e : [];
+      if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || r >= rows || c < 0 || c >= BR.cols) return false;
+      if (type !== null && !(typeof type === 'string' && Object.prototype.hasOwnProperty.call(SPECIALS, type))) return false;
+      if (grid[r * BR.cols + c] || !(hp === 1 || hp === 2)) return false;
+      const brick = { r, c, x: FIELD.left + c * BR.width, y: BR.top + r * BR.height, color: r % BRICK_COLORS.length, type, hp, flash: 0 };
+      bricks.push(brick);
+      grid[r * BR.cols + c] = brick;
+    }
+
+    const balls = [];
+    for (const b of (Array.isArray(run.balls) ? run.balls : []).slice(0, 16)) {
+      if (![b.x, b.y, b.vx, b.vy, b.speed, b.off].every(fin)) return false;
+      balls.push({
+        x: b.x, y: b.y, vx: b.vx, vy: b.vy, speed: b.speed, off: b.off, stuck: Boolean(b.stuck), dead: false,
+        color: typeof b.color === 'string' && /^#[0-9a-f]{3,8}$/i.test(b.color) ? b.color : '#ffffff',
+        power: b.power === 'fire' || b.power === 'bolt' ? b.power : null,
+        trail: (Array.isArray(b.trail) ? b.trail : []).slice(-5).filter((q) => Array.isArray(q) && fin(q[0]) && fin(q[1])).map((q) => ({ x: q[0], y: q[1] })),
+      });
+    }
+
+    const items = [];
+    for (const it of Array.isArray(run.items) ? run.items : []) {
+      if (!it || ![it.x, it.y, it.vx, it.vy, it.g].every(fin) || !Object.prototype.hasOwnProperty.call(SPECIALS, it.type)) return false;
+      items.push({ type: it.type, x: it.x, y: it.y, vx: it.vx, vy: it.vy, g: it.g });
+    }
+    const shots = (Array.isArray(run.shots) ? run.shots : []).filter((s) => s && fin(s.x) && fin(s.y)).map((s) => ({ x: s.x, y: s.y }));
+
+    const fx = freshFx(), savedFx = run.fx || {};
+    for (const k of Object.keys(fx)) if (fin(savedFx[k]) && savedFx[k] > 0) fx[k] = Math.min(savedFx[k], 120);
+    const gf = run.gunFire;
+    const gunFire = gf && fin(gf.left) && fin(gf.t) && gf.left > 0 ? { left: Math.floor(gf.left), t: gf.t } : null;
+
+    Object.assign(game, {
+      state: run.state === 'won' ? STATES.WON : STATES.PAUSED,
+      level, score: Math.floor(run.score), lives: Math.floor(run.lives), phase: run.phase, rows,
+      heartSlots: Array.from((Array.isArray(run.heartSlots) ? run.heartSlots : []).slice(0, CONFIG.maxLives), Boolean), newLife: -1,
+      timer: fin(run.timer) ? run.timer : 0, idleTime: run.state === 'won' ? TIM.lockTime : (fin(run.idleTime) ? run.idleTime : 0), pitFlash: 0,   // vitória: botão já liberado
+      clock: fin(run.clock) ? run.clock : 0, trailClock: 0,
+      baseSpeed: fin(run.baseSpeed) && run.baseSpeed > 0 ? run.baseSpeed : BALL.speedStart,
+      pv: fin(run.pv) ? run.pv : 0, target: fin(run.target) ? run.target : null, gunKick: fin(run.gunKick) ? run.gunKick : 0,
+      paddle: { x: pd.x, w: pd.w, base: pd.base },
+      bricks, grid, alive: bricks.length, balls, items, shots, gunFire, fx,
+      particles: [], blasts: [], popups: [],
+    });
+    setPaddleX(game.paddle.x);
+    specialBag = (Array.isArray(run.bag) ? run.bag : []).filter((k) => Object.prototype.hasOwnProperty.call(SPECIALS, k));
+    pickedLevel = Number.isInteger(run.picked) && run.picked >= 1 ? run.picked : null;
+    if (level > store.get('bestLevel', 1)) store.set('bestLevel', level);
+    pauseReason = 'reload';
+    if (game.state === STATES.WON) { ui.wonScore.textContent = String(game.score); ui.wonLevel.textContent = String(game.level); }
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 function releaseBall(b) {
@@ -480,6 +704,7 @@ function showWon() {
   ui.wonScore.textContent = String(game.score);
   ui.wonLevel.textContent = String(game.level);
   syncUi();
+  saveRun();
 }
 
 function gameOver() {
@@ -489,6 +714,7 @@ function gameOver() {
   ui.overScore.textContent = String(game.score);
   ui.overLevel.textContent = String(game.level);
   Sound.over();
+  store.clearRun();                    // partida encerrada: não há o que retomar
   syncUi();
 }
 
@@ -718,10 +944,11 @@ function spawnLineFx(kind, x, y, w, h, origin) {
   el.style.setProperty('--w', w); el.style.setProperty('--h', h);
   el.style.setProperty('--org', origin);
   el.addEventListener('animationend', (e) => { if (!e.pseudoElement) el.remove(); });
-  setTimeout(() => el.remove(), 1200);
+  lineFx.push({ el, left: 1.2 });                // vida em tempo de jogo (stepParticles): na pausa o efeito congela junto
   ui.stage.appendChild(el);
 }
-function clearLineFx() { ui.stage.querySelectorAll('.fx-line').forEach((el) => el.remove()); }
+const lineFx = [];
+function clearLineFx() { lineFx.length = 0; ui.stage.querySelectorAll('.fx-line').forEach((el) => el.remove()); }
 
 function ballPowerBlast(brick, power, dirX, dirY) {
   const horizontal = power === 'fire';
@@ -844,6 +1071,10 @@ function stepItems(h) {
 
 function stepParticles(h) {
   const ps = game.particles;
+  for (let i = lineFx.length - 1; i >= 0; i--) {       // segurança: remove o raio/fogo que não terminou sozinho
+    lineFx[i].left -= h;
+    if (lineFx[i].left <= 0 || !lineFx[i].el.isConnected) { lineFx[i].el.remove(); lineFx.splice(i, 1); }
+  }
   for (let i = ps.length - 1; i >= 0; i--) {
     const p = ps[i];
     p.life -= h;
@@ -1246,6 +1477,11 @@ const ui = {
   levelGrid: document.getElementById('level-grid'),
   mouseButton: document.getElementById('mouse-button'),
   resumeButton: document.getElementById('resume-button'),
+  pauseTitle: document.getElementById('pause-title'),
+  pauseNote: document.getElementById('pause-note'),
+  pauseRestart: document.getElementById('pause-restart-button'),
+  pauseRestartLabel: document.getElementById('pause-restart-label'),
+  countTile: document.getElementById('count-tile'),
   nextButton: document.getElementById('next-button'),
   restartButton: document.getElementById('restart-button'),
   score: document.getElementById('hud-score'),
@@ -1286,17 +1522,25 @@ function syncUi() {
   ui.stage.classList.toggle('is-paused', s === STATES.PAUSED);
   ui.stage.classList.toggle('is-won', s === STATES.WON);
   ui.stage.classList.toggle('is-over', s === STATES.GAME_OVER);
+  ui.stage.classList.toggle('is-counting', Boolean(countdown));   // 3-2-1 em andamento (o jogo segue congelado)
   ui.stage.classList.toggle('is-serving', s === STATES.PLAYING && game.phase === 'play' && game.balls.some((b) => b.stuck));
   if (s === STATES.PLAYING) setLevelOpen(false);      // o painel de fases só fica aberto com o jogo parado
   // Pausa: o botão nunca some nem muda de lugar; só troca o ícone (CSS, via .is-paused) e o rótulo
   const canPause = s === STATES.PLAYING || s === STATES.PAUSED;
-  const pauseLabel = s === STATES.PAUSED ? 'Continuar' : 'Pausar';
+  const pauseLabel = s === STATES.PAUSED && !countdown ? 'Continuar' : 'Pausar';   // na contagem dá para pausar de novo
   ui.pauseButton.classList.toggle('is-inactive', !canPause);
   ui.pauseButton.setAttribute('aria-disabled', canPause ? 'false' : 'true');
   ui.pauseButton.setAttribute('aria-label', pauseLabel);
-  ui.pauseButton.title = `${pauseLabel} (P)`;
+  ui.pauseButton.dataset.tip = `${pauseLabel} (P)`;
   syncLevelButton();
-  if (s === STATES.PAUSED) ui.resumeButton.focus({ preventScroll: true });
+  if (s === STATES.PAUSED) {
+    const txt = PAUSE_TEXT[pauseReason] || PAUSE_TEXT.manual;     // título e aviso conforme o motivo da pausa
+    ui.pauseTitle.textContent = txt.title;
+    ui.pauseTitle.classList.toggle('is-resumed', pauseReason === 'reload');
+    ui.pauseNote.textContent = txt.note;
+    ui.pauseNote.hidden = !txt.note;
+    if (!countdown) ui.resumeButton.focus({ preventScroll: true });
+  } else if (restartArmed) armRestart(false);
   if (s === STATES.WON) ui.nextButton.focus({ preventScroll: true });
   if (s === STATES.GAME_OVER) ui.restartButton.focus({ preventScroll: true });
 }
@@ -1391,7 +1635,7 @@ function buildLevelPages() {
     btn.type = 'button';
     btn.className = 'page-btn' + (first > top ? ' is-locked' : '');
     btn.textContent = String(p + 1);
-    btn.title = `Fases ${first}–${last}`;
+    btn.dataset.tip = `Fases ${first}–${last}`;
     btn.setAttribute('aria-label', `Página ${p + 1}, fases ${first} a ${last}`);
     btn.addEventListener('click', (e) => { e.stopPropagation(); levelPage = p; renderLevelPage(); });
     ui.levelPageList.appendChild(btn);
@@ -1443,7 +1687,7 @@ function setLevelOpen(open) {
 // O botão de fases está sempre visível. Durante a partida, abrir o painel pausa o jogo.
 function toggleLevelMenu() {
   if (levelOpen) { setLevelOpen(false); return; }
-  if (game.state === STATES.PLAYING) setPaused(true);
+  if (game.state === STATES.PLAYING) setPaused(true, 'menu');
   setLevelOpen(true);
 }
 
@@ -1470,7 +1714,7 @@ function syncMouseButton() {
   ui.mouseButton.classList.toggle('is-on', mouseControl);
   ui.mouseButton.setAttribute('aria-pressed', mouseControl ? 'true' : 'false');
   ui.mouseButton.setAttribute('aria-label', label);
-  ui.mouseButton.title = label;
+  ui.mouseButton.dataset.tip = `Mouse: ${mouseControl ? 'ligado' : 'desligado'}`;
 }
 function setMouseControl(on) {
   mouseControl = Boolean(on);
@@ -1487,7 +1731,7 @@ function setHowOpen(open) {
   if (open) setHelpOpen(false);
   ui.howPopover.hidden = !open;
   ui.howButton.setAttribute('aria-expanded', open ? 'true' : 'false');
-  if (open) placeHowPopover();
+  if (open) { setPaused(true, 'howto'); placeHowPopover(); }   // abrir o menu pausa a partida (fechar não retoma: Continuar faz a contagem)
 }
 
 // Abaixo do botão; se não couber, acima; se não couber, ao lado. Sempre dentro da arena.
@@ -1531,6 +1775,7 @@ function onKeyDown(e) {
   Sound.unlock();
   const isLeft = LEFT_KEYS.has(e.code), isRight = RIGHT_KEYS.has(e.code);
   if (levelOpen && (e.code === 'Space' || e.code === 'Enter') && e.target.closest && e.target.closest('.level-menu')) return;   // Enter/Espaço ativam o botão focado no painel
+  if ((e.code === 'Space' || e.code === 'Enter') && game.state === STATES.PAUSED && e.target.closest && e.target.closest('.pause-actions button')) return;   // Continuar / Reiniciar agem pelo próprio botão focado
   if (e.code === 'Escape' && howOpen) {
     setHowOpen(false);
   } else if (e.code === 'Escape' && levelOpen) {
@@ -1541,12 +1786,12 @@ function onKeyDown(e) {
   } else if (e.code === 'KeyM' && !e.repeat) {
     toggleMute();
   } else if ((e.code === 'Escape' || e.code === 'KeyP') && !e.repeat) {
-    setPaused(game.state === STATES.PLAYING);
+    togglePause();
   } else if (e.code === 'Space' || e.code === 'Enter') {
     e.preventDefault();
     if (e.repeat) return;
     if (game.state === STATES.READY) startGame();
-    else if (game.state === STATES.PAUSED) setPaused(false);
+    else if (game.state === STATES.PAUSED) requestResume();
     else if (game.state === STATES.WON) nextLevel();
     else if (game.state === STATES.GAME_OVER) tryRestart();
     else if (e.code === 'Space') launch();
@@ -1625,6 +1870,10 @@ function resizeCanvas() {
   ui.arena.style.setProperty('--stage-w', `${cssW}px`);
   ui.arena.classList.toggle('help-fits', fits);
   if (!fits) setHelpOpen(false);
+  // Tooltips dos botões externos: ao lado quando há espaço; senão abrem para dentro, sem sair da arena
+  const sideRoom = (ui.arena.clientWidth - cssW) / 2;
+  ui.howButton.dataset.tipPos = bottom ? 'above-end' : sideRoom >= 200 ? 'right' : 'below-end';
+  ui.mouseButton.dataset.tipPos = bottom ? 'above-start' : sideRoom >= 200 ? 'right' : 'above-end';
   canvas.width = Math.max(1, Math.round(cssW * dpr));
   canvas.height = Math.max(1, Math.round(canvas.width * H / W));
   S = canvas.width / W;
@@ -1639,17 +1888,24 @@ let lastTime = null;
 
 function frame(now) {
   rafId = requestAnimationFrame(frame);
+  if (countdown) tickCountdown(now);                 // a contagem usa o relógio real; o jogo (update) fica parado até o GO!
   if (lastTime === null) lastTime = now;
   const dt = Math.min(Math.max((now - lastTime) / 1000, 0), TIM.maxFrameTime);
   lastTime = now;
   update(dt);
   render();
+  if (game.state === STATES.PLAYING && now - lastSaveAt > PAUSE.saveEvery * 1000) saveRun();   // salvamento contínuo
 }
 
 function init() {
-  loadLevel(startLevel());  // a tela inicial já mostra o tabuleiro da fase selecionada
+  // F5/reload: se havia partida salva, volta exatamente ao ponto em que parou, pausada em "Partida retomada"
+  if (!restoreRun(store.loadRun())) {
+    store.clearRun();
+    loadLevel(startLevel());  // a tela inicial já mostra o tabuleiro da fase selecionada
+  }
   document.getElementById('title-level').textContent = String(store.get('bestLevel', 1));
   syncHud();
+  syncUi();
   syncMuteButton();
   syncMouseButton();
   syncLevelButton();
@@ -1663,15 +1919,29 @@ function init() {
   document.addEventListener('pointercancel', (e) => onPointerEnd(e, true));
   document.addEventListener('contextmenu', (e) => e.preventDefault());
 
+  // Pausa automática: aba oculta/minimizada (visibilitychange) ou janela sem foco. Ao voltar, o jogo continua pausado
+  // na tela de pausa e só segue (com 3-2-1-GO) quando o jogador pedir.
   window.addEventListener('blur', () => {
     input.left = input.right = false;
     drag.id = null;
-    setPaused(true);
+    setPaused(true, 'auto');
   });
-  document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) setPaused(true); });
+  document.addEventListener('visibilitychange', () => {
+    lastTime = null;
+    if (document.hidden) { setPaused(true, 'auto'); saveRun(); }
+  });
+  window.addEventListener('pagehide', saveRun);        // F5, fechar ou trocar de página: grava o estado exato
+  window.addEventListener('beforeunload', saveRun);
+
+  // Tooltips (data-tip): ao apertar o botão somem na hora e só voltam depois que o ponteiro sair e entrar de novo
+  document.addEventListener('pointerdown', (e) => { const el = e.target.closest && e.target.closest('[data-tip]'); if (el) el.setAttribute('data-tip-off', ''); }, true);
+  document.addEventListener('pointerout', (e) => {
+    const el = e.target.closest && e.target.closest('[data-tip-off]');
+    if (el && !el.contains(e.relatedTarget)) el.removeAttribute('data-tip-off');
+  });
 
   ui.muteButton.addEventListener('click', (e) => { e.stopPropagation(); toggleMute(); ui.muteButton.blur(); });
-  ui.pauseButton.addEventListener('click', (e) => { e.stopPropagation(); setPaused(game.state === STATES.PLAYING); ui.pauseButton.blur(); });   // alterna pausar/continuar; fora da partida não faz nada
+  ui.pauseButton.addEventListener('click', (e) => { e.stopPropagation(); togglePause(); ui.pauseButton.blur(); });   // alterna pausar/continuar; fora da partida não faz nada
   ui.helpButton.addEventListener('click', (e) => { e.stopPropagation(); setHelpOpen(!ui.arena.classList.contains('help-open')); ui.helpButton.blur(); });
   ui.howButton.addEventListener('click', (e) => { e.stopPropagation(); setHowOpen(!howOpen); ui.howButton.blur(); });
   ui.levelButton.addEventListener('click', (e) => { e.stopPropagation(); toggleLevelMenu(); ui.levelButton.blur(); });
@@ -1680,7 +1950,8 @@ function init() {
   ui.levelNext.addEventListener('click', (e) => { e.stopPropagation(); levelPage += 1; renderLevelPage(); });
   ui.mouseButton.addEventListener('click', (e) => { e.stopPropagation(); setMouseControl(!mouseControl); ui.mouseButton.blur(); });
   ui.howClose.addEventListener('click', (e) => { e.stopPropagation(); setHowOpen(false); ui.howClose.blur(); });
-  ui.resumeButton.addEventListener('click', (e) => { e.stopPropagation(); setPaused(false); ui.resumeButton.blur(); });
+  ui.resumeButton.addEventListener('click', (e) => { e.stopPropagation(); requestResume(); ui.resumeButton.blur(); });
+  ui.pauseRestart.addEventListener('click', (e) => { e.stopPropagation(); onPauseRestart(); });
   ui.nextButton.addEventListener('click', (e) => { e.stopPropagation(); nextLevel(); ui.nextButton.blur(); });
   ui.restartButton.addEventListener('click', (e) => { e.stopPropagation(); tryRestart(); ui.restartButton.blur(); });
 
@@ -1693,5 +1964,5 @@ function init() {
 }
 
 init();
-window.__breakout = { render, game, CONFIG, SHAPES, SPECIALS, update, launch, startGame, loadLevel, setPaddleX, applyEffect, buildLayout, dropItem, damage, BRICK_COLORS, BRICK_ICONS, SPEC_COL };
+window.__breakout = { snapshotRun, restoreRun, setPaused, requestResume, togglePause, render, game, CONFIG, SHAPES, SPECIALS, update, launch, startGame, loadLevel, setPaddleX, applyEffect, buildLayout, dropItem, damage, BRICK_COLORS, BRICK_ICONS, SPEC_COL };
 })();

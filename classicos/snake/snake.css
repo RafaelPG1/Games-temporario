@@ -5,6 +5,7 @@
   --moss-a: #15302a; --moss-b: #112821; --wall: #2e5a45; --wall-dark: #1c3a2c;
   --menu-accent: #7ee08a; --mint: #7ee08a; --lime: #c8f26b; --berry: #ff4f7b; --gold: #ffc857; --ink: #07140f;
   --cell: 20px; --bw: 320px;
+  --tip-delay: 0.3s;   /* espera do mouse antes de mostrar qualquer tooltip [data-tip] */
 }
 * { box-sizing: border-box; }
 html, body {
@@ -49,7 +50,7 @@ button { font: inherit; color: inherit; }
    Sem espaço lateral (celular): "?" logo abaixo do tabuleiro, à direita. O JS escolhe em data-help-pos. */
 .stage { position: relative; display: flex; flex-direction: column; }
 .stage .help-btn { position: absolute; top: 0; left: calc(100% + var(--cell) * .4 + 12px); }
-.stage[data-help-pos="below"] .help-btn { position: static; align-self: flex-end; margin-top: calc(var(--cell) * .4 + 10px); }
+.stage[data-help-pos="below"] .help-btn { position: relative; top: auto; left: auto; align-self: flex-end; margin-top: calc(var(--cell) * .4 + 10px); }
 .game-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(126,224,138,.25); }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
@@ -78,9 +79,10 @@ button { font: inherit; color: inherit; }
 .hud-actions { flex: none; display: flex; gap: 6px; }
 .tool {
   display: grid; place-items: center; width: 44px; padding: 0; color: var(--shell-text); cursor: pointer; touch-action: manipulation;
-  background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 12px; transition: border-color .2s, opacity .2s;
+  background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 12px; transition: border-color .2s, background .2s, opacity .2s, transform .1s;
 }
-.tool:hover:not(:disabled) { border-color: rgba(126,224,138,.6); }
+.tool:hover:not(:disabled) { background: #141722; border-color: rgba(126,224,138,.6); }
+.tool:active:not(:disabled) { transform: scale(.94); }
 .tool:disabled { opacity: .35; cursor: default; }
 .tool svg { width: 20px; height: 20px; }
 .tool .icon-cross { display: none; }
@@ -118,7 +120,7 @@ button { font: inherit; color: inherit; }
   opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s;
 }
 .screen-ready { background: rgba(6,18,13,.8); backdrop-filter: none; }
-.is-ready .screen-ready, .is-paused .screen-paused, .is-over .screen-over { opacity: 1; visibility: visible; transition-delay: 0s; }
+.is-ready .screen-ready, .is-paused .screen-paused, .is-over .screen-over, .is-countdown .screen-countdown, .screen-countdown.go { opacity: 1; visibility: visible; transition-delay: 0s; }
 .title { margin: 0; font-size: calc(var(--cell) * 2.4); font-weight: 900; letter-spacing: .02em; color: var(--mint); text-shadow: 0 calc(var(--cell) * .18) 0 #14352a, 0 0 calc(var(--cell) * 1.2) rgba(126,224,138,.4); }
 /* Indicação de início (sem botão): toque/clique ou Space */
 .hint {
@@ -136,11 +138,41 @@ button { font: inherit; color: inherit; }
 .badge[hidden] { display: none; }
 @keyframes badge { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .btn {
-  pointer-events: auto; min-width: calc(var(--cell) * 8); min-height: 46px; padding: 8px 22px; font-size: max(15px, calc(var(--cell) * .8)); font-weight: 800;
+  pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-width: calc(var(--cell) * 8); min-height: 46px; padding: 8px 22px; font-size: max(15px, calc(var(--cell) * .8)); font-weight: 800;
   color: var(--ink); background: var(--mint); border: 0; border-radius: 14px; box-shadow: 0 4px 0 #3f9a55; cursor: pointer; touch-action: manipulation;
 }
 .btn:hover { background: #95eba0; }
 .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #3f9a55; }
+.btn svg { flex: none; }
+
+/* Tela de pausa: título, aviso do motivo (pílula tracejada dourada, como o RECORDE) e dois botões empilhados */
+.screen-paused .over-title { font-size: calc(var(--cell) * 2); line-height: 1.05; text-wrap: balance; }
+.pause-note {
+  margin: calc(var(--cell) * -.3) 0 0; padding: 5px 13px; font-size: max(11px, calc(var(--cell) * .55)); font-weight: 700; line-height: 1.2;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--gold); border: 1.5px dashed rgba(255,200,87,.5); border-radius: 999px;
+}
+.pause-note[hidden] { display: none; }
+.actions { display: flex; flex-direction: column; gap: 12px; width: max(156px, calc(var(--cell) * 9)); }
+.actions .btn { width: 100%; }
+/* Botão secundário: mesmo "keycap" do primário, porém vazado em musgo com contorno de menta */
+.btn-ghost {
+  color: var(--mint); background: rgba(17,40,33,.92); border: 1.5px solid rgba(126,224,138,.4); box-shadow: 0 4px 0 var(--wall-dark);
+  transition: background .2s, border-color .2s;
+}
+.btn-ghost:hover { background: #17382d; border-color: rgba(126,224,138,.8); }
+.btn-ghost:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--wall-dark); }
+
+/* Contagem 3 · 2 · 1 · GO!: o jogo fica visível por trás, congelado */
+.screen-countdown { background: rgba(6,18,13,.4); backdrop-filter: none; }
+.screen-countdown.go { background: transparent; transition-delay: 0s; }
+.count-num {
+  display: block; font-size: calc(var(--cell) * 6.5); font-weight: 900; line-height: 1; color: var(--mint); font-variant-numeric: tabular-nums;
+  text-shadow: 0 calc(var(--cell) * .24) 0 #14352a, 0 0 calc(var(--cell) * 1.6) rgba(126,224,138,.45);
+}
+.count-num.is-go { font-size: calc(var(--cell) * 4.4); color: var(--lime); letter-spacing: .02em; text-shadow: 0 calc(var(--cell) * .2) 0 #3d5a12, 0 0 calc(var(--cell) * 1.6) rgba(200,242,107,.5); }
+.count-num.tick { animation: count-tick .7s cubic-bezier(.2,.9,.2,1) both; }
+@keyframes count-tick { 0% { transform: scale(1.7); opacity: 0; } 22% { transform: scale(.95); opacity: 1; } 36% { transform: scale(1); } 80% { opacity: 1; } 100% { transform: scale(.9); opacity: .2; } }
 
 /* Botões de toque: só em telas de toque */
 .dpad {
@@ -196,6 +228,40 @@ button { font: inherit; color: inherit; }
 .help-close:focus-visible { opacity: 1; outline: 2px solid var(--mint); outline-offset: -2px; }
 @keyframes help-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
 
+/* Tooltips: [data-tip] (+ [data-key] para a tecla de atalho). O JS cria o balão .tip; o atraso vem de --tip-delay.
+   Regras: mouse espera --tip-delay · sair/clicar/pressionar some na hora · teclado (:focus-visible) aparece na hora. */
+[data-tip] { position: relative; }
+.tip {
+  --tip-x: 0px; --tip-arrow: 50%; --tip-from: -5px;
+  position: absolute; z-index: 60; left: 50%; top: calc(100% + 10px); display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px;
+  font-family: inherit; font-size: 12px; font-weight: 700; line-height: 1; letter-spacing: .02em; text-transform: none; white-space: nowrap; pointer-events: none;
+  color: var(--shell-text); background: #0b1812; border: 1px solid rgba(126,224,138,.4); border-radius: 10px;
+  box-shadow: 0 2px 0 #050d09, 0 10px 22px rgba(0,0,0,.5);
+  opacity: 0; visibility: hidden; transform-origin: 50% 0;
+  transform: translate(calc(-50% + var(--tip-x)), var(--tip-from)) scale(.96);
+  transition: none;   /* estado oculto: some imediatamente */
+}
+.tip[data-side="top"] { top: auto; bottom: calc(100% + 10px); --tip-from: 5px; transform-origin: 50% 100%; }
+.tip::before {
+  content: ""; position: absolute; box-sizing: border-box; left: calc(var(--tip-arrow) - 4px); top: -5px; width: 8px; height: 8px;
+  background: #0b1812; border: 1px solid rgba(126,224,138,.4); border-right: 0; border-bottom: 0; transform: rotate(45deg);
+}
+.tip[data-side="top"]::before { top: auto; bottom: -5px; border: 1px solid rgba(126,224,138,.4); border-left: 0; border-top: 0; }
+.tip-key {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; font-family: inherit; font-size: 10px; font-weight: 800; line-height: 1;
+  text-transform: uppercase; color: var(--ink); background: #e6f7da; border: 1px solid #9fd88f; border-radius: 5px; box-shadow: 0 2px 0 #3f9a55;
+}
+@media (hover: hover) {
+  [data-tip]:hover:not(:disabled):not(:active):not([data-tip-off]) > .tip {
+    opacity: 1; visibility: visible; transform: translate(calc(-50% + var(--tip-x)), 0) scale(1);
+    transition: opacity .16s ease var(--tip-delay), transform .22s cubic-bezier(.2,.9,.3,1) var(--tip-delay), visibility 0s linear var(--tip-delay);
+  }
+}
+[data-tip]:focus-visible:not(:disabled):not(:active):not([data-tip-off]) > .tip {
+  opacity: 1; visibility: visible; transform: translate(calc(-50% + var(--tip-x)), 0) scale(1);
+  transition: opacity .12s ease, transform .16s cubic-bezier(.2,.9,.3,1), visibility 0s;
+}
+
 .noscript { position: fixed; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
 @media (max-width: 640px) { .topbar { height: 52px; } }
@@ -207,6 +273,17 @@ button { font: inherit; color: inherit; }
   .play { width: auto; flex: 1 1 0; height: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .hint { animation: none; } .screen, .back, .back svg, .help-btn, .help-btn svg { transition: none; } .help-popover { animation: none; }
-  .bump, .glow, .board.shake, .badge { animation: none; } .toast.show { animation-duration: .01s; opacity: 1; }
+  .hint { animation: none; } .screen, .back, .back svg, .help-btn, .help-btn svg, .tool, .btn-ghost { transition: none; } .help-popover { animation: none; }
+  .bump, .glow, .board.shake, .badge, .count-num.tick { animation: none; } .toast.show { animation-duration: .01s; opacity: 1; }
+}
+/* Tooltips com movimento reduzido: nada de deslize/escala/fade, mas a espera de --tip-delay continua valendo (transição de 0s com atraso) */
+@media (prefers-reduced-motion: reduce) {
+  .tip { transform: translate(calc(-50% + var(--tip-x)), 0); }
+  .tip::before { transition: none; }
+}
+@media (hover: hover) and (prefers-reduced-motion: reduce) {
+  [data-tip]:hover:not(:disabled):not(:active):not([data-tip-off]) > .tip { transition: opacity 0s linear var(--tip-delay), visibility 0s linear var(--tip-delay); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tip]:focus-visible:not(:disabled):not(:active):not([data-tip-off]) > .tip { transition: none; }
 }

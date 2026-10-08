@@ -67,10 +67,26 @@
             </p>
           </section>
 
-          <!-- Pausa -->
+          <!-- Pausa (manual, ajuda ou recuperação): espera toque/Space para iniciar a contagem -->
           <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
-            <h2 id="pause-title" class="over-title">Pausado</h2>
-            <button id="resume-button" class="btn" type="button">Continuar</button>
+            <canvas id="pause-art" class="pixel-art" aria-hidden="true"></canvas>
+            <h2 id="pause-title" class="over-title"><span>Pausado</span></h2>
+            <p class="hint">
+              <span class="hint-text">Toque para iniciar</span>
+              <span class="hint-or">ou</span>
+              <kbd class="cap cap-wide">Space</kbd>
+            </p>
+<button id="quit-button" class="btn btn-quit" type="button">
+
+  <span>Reiniciar</span>
+</button>
+          </section>
+
+          <!-- Contagem de segurança 3 → 2 → 1 → GO! (o jogo continua congelado) -->
+          <section class="screen screen-count" aria-label="Contagem para retomar">
+            <canvas id="count-art" class="pixel-art" aria-hidden="true"></canvas>
+            <div class="count-bar" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+            <span id="count-sr" class="sr-only" role="status" aria-live="assertive"></span>
           </section>
 
           <!-- Fim de partida -->
@@ -102,26 +118,45 @@
             <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
           </svg>
         </button>
-          <button id="mute-button" class="icon-button" type="button"
-                  aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
-            <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
-              <path fill="#543847" d="M1 6h3l4-3v10l-4-3H1z"/>
-              <g class="icon-waves" fill="#543847">
-                <rect x="10" y="6" width="1" height="4"/>
-                <rect x="12" y="4" width="1" height="8"/>
-                <rect x="14" y="2" width="1" height="12"/>
-              </g>
-              <g class="icon-cross" fill="#e5432b">
-                <rect x="10" y="5" width="2" height="2"/><rect x="12" y="7" width="2" height="2"/><rect x="14" y="9" width="2" height="2"/>
-                <rect x="14" y="5" width="2" height="2"/><rect x="10" y="9" width="2" height="2"/>
-              </g>
-            </svg>
-          </button>
-          <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (P)">
-            <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
-              <rect x="3" y="2" width="4" height="12" fill="#543847"/><rect x="9" y="2" width="4" height="12" fill="#543847"/>
-            </svg>
-          </button>
+<button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+  <svg viewBox="0 0 256 256" aria-hidden="true" focusable="false">
+    
+    <!-- Ícone COM VOLUME (Visível quando o som está ativado) -->
+    <g class="icon-waves" fill="#543847">
+      <path d="M160,32V224L88,168H40a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8H88Z" opacity="0.2"></path>
+      <path d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81ZM152,207.64,92.91,161.69A7.94,7.94,0,0,0,88,160H40V96H88a7.94,7.94,0,0,0,4.91-1.69L152,48.36ZM208,104v48a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm32-16v80a8,8,0,0,1-16,0V88a8,8,0,0,1,16,0Z"></path>
+    </g>
+
+    <!-- Ícone SEM SOM (Visível quando o som está mutado) -->
+    <g class="icon-cross">
+      <!-- Sombra e base do megafone (Em marrom) -->
+      <path fill="#543847" d="M160,32V224L88,168H40a8,8,0,0,1-8-8V96a8,8,0,0,1,8-8H88Z" opacity="0.2"></path>
+      <path fill="#543847" d="M163.51,24.81a8,8,0,0,0-8.42.88L85.25,80H40A16,16,0,0,0,24,96v64a16,16,0,0,0,16,16H85.25l69.84,54.31A8,8,0,0,0,168,224V32A8,8,0,0,0,163.51,24.81ZM152,207.64,92.91,161.69A7.94,7.94,0,0,0,88,160H40V96H88a7.94,7.94,0,0,0,4.91-1.69L152,48.36Z"></path>
+      
+      <!-- O "X" isolado e convertido (Em vermelho) -->
+      <path fill="#e5432b" d="M253.66,146.34a8,8,0,0,1-11.32,11.32L224,139.31l-18.34,18.35a8,8,0,0,1-11.32-11.32L212.69,128l-18.35-18.34a8,8,0,0,1,11.32-11.32L224,116.69l18.34-18.35a8,8,0,0,1,11.32,11.32L235.31,128Z"></path>
+    </g>
+
+  </svg>
+</button>
+
+<button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (P)">
+  <svg viewBox="0 0 256 256" aria-hidden="true" focusable="false" fill="#543847">
+    
+    <!-- Ícone de PAUSA -->
+    <g class="icon-pause">
+      <path d="M208,48V208a8,8,0,0,1-8,8H160a8,8,0,0,1-8-8V48a8,8,0,0,1,8-8h40A8,8,0,0,1,208,48ZM96,40H56a8,8,0,0,0-8,8V208a8,8,0,0,0,8,8H96a8,8,0,0,0,8-8V48A8,8,0,0,0,96,40Z" opacity="0.2"></path>
+      <path d="M200,32H160a16,16,0,0,0-16,16V208a16,16,0,0,0,16,16h40a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm0,176H160V48h40ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Zm0,176H56V48H96Z"></path>
+    </g>
+    
+    <!-- Ícone de PLAY -->
+    <g class="icon-play">
+      <path d="M228.23,134.69,84.15,222.81A8,8,0,0,1,72,216.12V39.88a8,8,0,0,1,12.15-6.69l144.08,88.12A7.82,7.82,0,0,1,228.23,134.69Z" opacity="0.2"></path>
+      <path d="M232.4,114.49,88.32,26.35a16,16,0,0,0-16.2-.3A15.86,15.86,0,0,0,64,39.87V216.13A15.94,15.94,0,0,0,80,232a16.07,16.07,0,0,0,8.36-2.35L232.4,141.51a15.81,15.81,0,0,0,0-27ZM80,215.94V40l143.83,88Z"></path>
+    </g>
+    
+  </svg>
+</button>
         </div>
         <div class="hud-next">
           <span class="label">Próxima</span>
@@ -134,7 +169,7 @@
           <div class="stat"><dt class="label">Linhas</dt><dd id="hud-lines">0</dd></div>
         </dl>
 
-        <!-- Como jogar: popover pequeno ancorado ao botão "?" (fora do tabuleiro) -->
+        <!-- Como jogar: popover pequeno ancorado ao botão "?" (fora do tabuleiro); abrir pausa a partida -->
         <div id="help-popover" class="help-popover" role="dialog" aria-labelledby="help-title" data-placement="below" hidden>
           <button id="help-close" class="help-close" type="button" aria-label="Fechar">
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">

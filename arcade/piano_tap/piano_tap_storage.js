@@ -7,12 +7,14 @@
    Dados guardados:
      piano_tap:best  -> maior pontuação (inteiro >= 0)
      piano_tap:muted -> '1' = som desligado, '0' = som ligado
+     piano_tap:save  -> instantâneo completo da partida em andamento (JSON); apagado ao reiniciar/terminar
 
    Garantias:
      - nunca lança exceção (modo privado, cookies bloqueados, cota cheia...);
      - sem armazenamento persistente, os valores ficam em memória na sessão;
      - dado ausente ou inválido vira o padrão seguro (recorde 0, som ligado);
      - o recorde salvo nunca diminui por engano;
+     - o salvamento da partida é opaco aqui: quem valida o conteúdo é piano_tap.js (dado corrompido => null);
      - migra uma vez o recorde/som salvos antes (chaves antigas "piano-tap:*" e o registro do game_storage.js), se existirem.
    ========================================================================== */
 (() => {
@@ -20,7 +22,7 @@
 
   const MAX_BEST = 1e9;
   const DEFAULTS = Object.freeze({ best: 0, muted: false });
-  const KEYS = Object.freeze({ best: 'piano_tap:best', muted: 'piano_tap:muted' });
+  const KEYS = Object.freeze({ best: 'piano_tap:best', muted: 'piano_tap:muted', save: 'piano_tap:save' });
   const LEGACY = Object.freeze({ best: 'piano-tap:best', muted: 'piano-tap:muted' });   // chaves que o jogo já usou
   const memory = {};
 
@@ -101,7 +103,32 @@
     return muted;
   }
 
+  function removeRaw(key) {
+    delete memory[key];
+    try { window.localStorage.removeItem(key); } catch (error) { /* nada a remover */ }
+  }
+
+  // Partida em andamento: objeto simples serializável. Devolve true se gravou de fato no navegador.
+  function saveGame(data) {
+    try { return writeRaw(KEYS.save, JSON.stringify(data)); }
+    catch (error) { return false; }
+  }
+
+  // Devolve o objeto salvo ou null (ausente, ilegível ou não-objeto; nesse caso o lixo é apagado).
+  function loadGame() {
+    const raw = readRaw(KEYS.save);
+    if (raw === null) return null;
+    try {
+      const data = JSON.parse(raw);
+      if (data && typeof data === 'object' && !Array.isArray(data)) return data;
+    } catch (error) { /* cai no descarte abaixo */ }
+    removeRaw(KEYS.save);
+    return null;
+  }
+
+  function clearGame() { removeRaw(KEYS.save); }
+
   migrate();
 
-  window.PianoTapStorage = Object.freeze({ KEYS, DEFAULTS, getBest, setBest, isMuted, setMuted });
+  window.PianoTapStorage = Object.freeze({ KEYS, DEFAULTS, getBest, setBest, isMuted, setMuted, saveGame, loadGame, clearGame });
 })();

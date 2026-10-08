@@ -36,14 +36,14 @@
 
   <div id="arena" class="arena">
     <main id="stage" class="stage is-title" aria-label="Pac-Man">
-      <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+      <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Silenciar · M">
         <svg viewBox="0 0 16 16" fill="none" stroke="#050824" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="#050824"/>
           <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
           <g class="icon-cross" stroke="#c9372a"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
         </svg>
       </button>
-      <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (Espaço)">
+      <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" data-tip="Pausar · P">
         <svg class="icon-pause" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="#050824"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="#050824"/></svg>
         <svg class="icon-play" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M4.8 2.9v10.2L13 8z" fill="#050824" stroke="#050824" stroke-width="1.6" stroke-linejoin="round"/></svg>
       </button>
@@ -71,15 +71,24 @@
           <h1 id="title-h" class="logo">Pac-Man</h1>
           <p class="menu-note">Recorde <b id="title-best">0</b> · Fase mais alta <b id="title-level">1</b></p>
           <p class="hint">
-            <span class="hint-text">Toque para iniciar</span>
+            <span class="hint-text">Toque para começar</span>
             <span class="hint-or">ou</span>
-            <kbd class="cap cap-wide">Space</kbd>
+            <span class="hint-keys">
+              <kbd class="cap cap-wide">Space</kbd><span class="hint-sep" aria-hidden="true">/</span><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-up"/></svg><span class="sr-only">Seta para cima</span></kbd>
+            </span>
           </p>
         </div>
       </section>
       <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
         <h2 id="pause-title" class="screen-heading">Pausado</h2>
-        <button id="resume-button" class="btn" type="button">Continuar</button>
+        <p id="pause-sub" class="screen-hint" hidden></p>
+        <div class="pause-actions">
+          <button id="resume-button" class="btn" type="button">Continuar</button>
+          <button id="restart-button" class="btn btn-ghost" type="button">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2.9 8a5.1 5.1 0 1 0 1.6-3.7M2.7 2.3v3.1h3.1"/></svg>
+            <span>Reiniciar</span>
+          </button>
+        </div>
       </section>
       <section class="screen screen-over" role="dialog" aria-labelledby="over-title">
         <h2 id="over-title" class="screen-heading">Fim de jogo</h2>
@@ -93,7 +102,7 @@
     <!-- Como jogar: botão só com ícone, ao lado do palco (fora do jogo, nunca no header) + popover ancorado a ele -->
     <button id="how-button" class="how-btn" type="button"
             aria-haspopup="dialog" aria-expanded="false" aria-controls="how-popover"
-            aria-label="Como jogar" title="Como jogar">
+            aria-label="Como jogar" data-tip="Como jogar">
       <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
         <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
         <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -101,7 +110,7 @@
       </svg>
     </button>
     <div id="how-popover" class="how-popover" role="dialog" aria-labelledby="how-title" data-placement="below" hidden>
-      <button id="how-close" class="how-close" type="button" aria-label="Fechar">
+      <button id="how-close" class="how-close" type="button" aria-label="Fechar" data-tip="Fechar · Esc">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
           <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square"/>
         </svg>

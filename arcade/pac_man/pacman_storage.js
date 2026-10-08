@@ -5,10 +5,12 @@
 const PacmanStorage = (() => {
   const KEY = 'arcadia:pac_man';
   const LEGACY = { best: 'pac_man:best', muted: 'pac_man:muted' };   // chaves antigas, importadas uma única vez
-  let data = null;
+  const SAVE_KEY = KEY + ':save';   // partida em andamento (estado completo), separada do registro de recorde/som
+  let data = null, memSave = null;
 
   const rawGet = (k) => { try { return window.localStorage.getItem(k); } catch (e) { return null; } };
   const rawSet = (k, v) => { try { window.localStorage.setItem(k, v); } catch (e) { /* sem armazenamento: segue só na memória */ } };
+  const rawDel = (k) => { try { window.localStorage.removeItem(k); } catch (e) { /* idem */ } };
   const toInt = (v, min) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n >= min ? n : min; };
 
   function load() {
@@ -31,5 +33,13 @@ const PacmanStorage = (() => {
     setBestLevel(n) { const d = load(), v = toInt(n, 1); if (v > d.bestLevel) { d.bestLevel = v; persist(); } return d.bestLevel; },
     getMuted() { return load().muted; },
     setMuted(on) { const d = load(); d.muted = on === true; persist(); return d.muted; },
+    // Partida em andamento: um snapshot JSON completo (o jogo valida o conteúdo ao restaurar)
+    saveGame(snap) { memSave = snap; try { rawSet(SAVE_KEY, JSON.stringify(snap)); } catch (e) { /* segue só na memória */ } },
+    loadGame() {
+      const raw = rawGet(SAVE_KEY);
+      if (raw) { try { const o = JSON.parse(raw); return o && typeof o === 'object' ? o : null; } catch (e) { return null; } }
+      return memSave;
+    },
+    clearGame() { memSave = null; rawDel(SAVE_KEY); },
   };
 })();

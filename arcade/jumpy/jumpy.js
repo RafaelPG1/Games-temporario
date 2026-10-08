@@ -313,6 +313,17 @@ function setPaused(paused) {
   syncUi();
 }
 
+// Reiniciar a partir da tela de pausa: descarta a partida em andamento (sem gravar recorde e sem snapshot
+// para o F5) e volta à tela inicial, pronta para uma nova partida.
+function abandonRun() {
+  if (game.state !== STATES.PAUSED) return;
+  releaseControl();
+  closeHelp();
+  JumpyStorage.clearRun();       // a partida descartada não pode voltar depois de um F5
+  Sound.click();
+  resetRound();                  // estado inicial + syncUi: volta para "Toque para iniciar"
+}
+
 function tryRestart() {
   if (game.state === STATES.GAME_OVER && game.overTime > 0.4) resetRound();
 }
@@ -1076,6 +1087,7 @@ const ui = {
   pauseButton: document.getElementById('pause-button'),
   muteButton: document.getElementById('mute-button'),
   restartButton: document.getElementById('restart-button'),
+  pauseRestart: document.getElementById('pause-restart'),
   recoveryCount: document.getElementById('recovery-count'),
   overScore: document.getElementById('over-score'),
   readyBest: document.getElementById('ready-best'),
@@ -1098,7 +1110,7 @@ function syncUi() {
   ui.pauseButton.classList.toggle('is-paused', paused);
   ui.pauseButton.disabled = s === STATES.RECOVERY;      // na contagem ele fica visível, mas não faz nada
   ui.pauseButton.setAttribute('aria-label', pauseText);
-  ui.pauseButton.title = pauseText + ' (P)';
+  ui.pauseButton.dataset.tip = pauseText + ' (P)';   // tooltip em CSS (data-tip): sem title nativo
   if (s === STATES.GAME_OVER) ui.overScore.textContent = String(game.score);
   if (s === STATES.READY) {                     // recorde na tela inicial (só depois de existir um)
     const best = JumpyStorage.getBest();
@@ -1441,6 +1453,7 @@ function init() {
     ui.pauseButton.blur();
   });
   ui.restartButton.addEventListener('click', (e) => { e.stopPropagation(); tryRestart(); });
+  ui.pauseRestart.addEventListener('click', (e) => { e.stopPropagation(); abandonRun(); ui.pauseRestart.blur(); });
 
   window.addEventListener('resize', resizeCanvas);
   window.addEventListener('orientationchange', resizeCanvas);

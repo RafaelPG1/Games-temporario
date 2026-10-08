@@ -5,6 +5,7 @@
   --lacquer: #1a1733; --lacquer-edge: #2f2a5c; --seam: #c4c8da;
   --menu-accent: #9d8cff; --violet: #9d8cff; --violet-soft: #e9e6ff; --violet-deep: #2a2360; --berry: #ff4f7b; --gold: #ffc857; --ink: #0d0a22;
   --col: 80px; --bw: 320px;
+  --tip-delay: 0.3s;   /* espera do mouse antes de mostrar qualquer tooltip [data-tip] */
 }
 * { box-sizing: border-box; }
 html, body {
@@ -34,7 +35,8 @@ button { font: inherit; color: inherit; }
 .back:hover { background: #141722; border-color: rgba(157,140,255,.65); }
 .back:hover svg { transform: translateX(-3px); color: var(--violet); }
 .back:active { transform: scale(.97); }
-.back:focus-visible, .tool:focus-visible, .btn:focus-visible, .help-btn:focus-visible, .start:focus-visible .start-card { outline: 2px solid var(--violet); outline-offset: 3px; }
+.back:focus-visible, .tool:focus-visible, .btn:focus-visible, .help-btn:focus-visible { outline: 2px solid var(--violet); outline-offset: 3px; }
+.start:focus-visible { outline: 2px solid var(--violet); outline-offset: -8px; }
 .game-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(157,140,255,.28); }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
@@ -59,7 +61,7 @@ button { font: inherit; color: inherit; }
 .frame { position: relative; display: flex; flex-direction: column; }
 .frame > .board { flex: none; }
 .frame .help-btn { position: absolute; top: 0; left: calc(100% + 16px); }
-.frame[data-help-pos="below"] .help-btn { position: static; align-self: flex-end; margin-top: 12px; }
+.frame[data-help-pos="below"] .help-btn { position: relative; top: auto; left: auto; align-self: flex-end; margin-top: 12px; }
 .help-btn {
   flex: none; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--shell-text); cursor: pointer; touch-action: manipulation;
   background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%;
@@ -85,9 +87,10 @@ button { font: inherit; color: inherit; }
 .hud-actions { flex: none; display: flex; gap: 6px; }
 .tool {
   display: grid; place-items: center; width: 44px; padding: 0; color: var(--shell-text); cursor: pointer; touch-action: manipulation;
-  background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 12px; transition: border-color .2s, opacity .2s;
+  background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 12px; transition: border-color .2s, background .2s, opacity .2s, transform .1s;
 }
-.tool:hover:not(:disabled) { border-color: rgba(157,140,255,.65); }
+.tool:hover:not(:disabled) { background: #141722; border-color: rgba(157,140,255,.65); }
+.tool:active:not(:disabled) { transform: scale(.94); }
 .tool:disabled { opacity: .35; cursor: default; }
 .tool svg { width: 20px; height: 20px; }
 .tool .icon-cross { display: none; }
@@ -123,30 +126,27 @@ button { font: inherit; color: inherit; }
   padding: 0 8%; text-align: center; background: rgba(8,7,22,.7); backdrop-filter: blur(3px);
   opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s;
 }
-.is-paused .screen-paused, .is-over .screen-over { opacity: 1; visibility: visible; transition-delay: 0s; }
-/* Tela inicial: painel central sobre o tabuleiro parado (as teclas continuam visíveis; véu quase imperceptível).
-   Toque/clique em qualquer ponto da área ou Space inicia; o painel some com fade suave. */
+.is-paused .screen-paused, .is-over .screen-over, .is-countdown .screen-countdown, .screen-countdown.go { opacity: 1; visibility: visible; transition-delay: 0s; }
+/* Tela inicial: o tabuleiro vira a tela inicial. A camada .start ocupa o .board inteiro (inset: 0; o .board recorta os cantos e
+   sua moldura de laca continua sendo a única borda), com fundo contínuo de borda a borda e o conteúdo centralizado, sem cartão
+   interno. Ao iniciar, o conteúdo some primeiro e o fundo se dissolve em seguida, revelando o jogo. Sem animações em loop. */
 .start {
-  position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; padding: 0; border: 0; border-radius: inherit;
-  color: inherit; background: rgba(8,7,22,.14); cursor: pointer; touch-action: manipulation;
-  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .45s ease, visibility 0s linear .45s;
+  position: absolute; inset: 0; z-index: 3; display: block; padding: 0; border: 0; border-radius: inherit;
+  color: inherit; background: linear-gradient(165deg, #2c2568, #141029); cursor: pointer; touch-action: manipulation;
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .35s ease .08s, visibility 0s linear .43s, filter .2s ease;
 }
 .is-ready .start { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+.start:hover { filter: brightness(1.08); }
 .start-card {
-  position: relative; display: flex; flex-direction: column; align-items: center; width: min(88%, calc(var(--col) * 3.5)); overflow: hidden;
-  padding: calc(var(--col) * .4) calc(var(--col) * .2) calc(var(--col) * .3); text-align: center;
-  background: linear-gradient(165deg, #2c2568, #141029); border-radius: calc(var(--col) * .2);
-  box-shadow: 0 0 0 1.5px rgba(157,140,255,.5), 0 calc(var(--col) * .14) calc(var(--col) * .34) rgba(0,0,0,.6),
-              0 0 calc(var(--col) * .5) rgba(157,140,255,.18), inset 0 1px 0 rgba(255,255,255,.14);
-  transition: transform .45s cubic-bezier(.3,.7,.3,1);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; height: 100%;
+  padding: calc(var(--col) * .4) calc(var(--col) * .3); text-align: center;
+  opacity: 0; transition: opacity .12s ease;
 }
-.start-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--col) * .07); background: linear-gradient(90deg, var(--violet), #c7bdff, var(--violet)); }
-.board:not(.is-ready) .start-card { transform: translateY(calc(var(--col) * -.14)) scale(.95); }
-.start:hover .start-card { transform: translateY(calc(var(--col) * -.04)); }
+.is-ready .start-card { opacity: 1; }
 .start-mark { width: calc(var(--col) * .52); height: calc(var(--col) * .52); border-radius: calc(var(--col) * .14); box-shadow: 0 0 0 1.5px rgba(157,140,255,.5), 0 0 calc(var(--col) * .3) rgba(157,140,255,.35); }
 .start-title { margin-top: calc(var(--col) * .2); font-size: max(20px, calc(var(--col) * .4)); font-weight: 900; line-height: 1; letter-spacing: .01em; color: var(--violet-soft); text-shadow: 0 calc(var(--col) * .03) 0 var(--violet-deep), 0 0 calc(var(--col) * .3) rgba(157,140,255,.5); }
 .start-rule { width: 76%; height: 0; margin: calc(var(--col) * .22) 0 calc(var(--col) * .2); border-top: 1.5px dashed rgba(157,140,255,.38); }
-.start-text { font-size: max(12px, calc(var(--col) * .165)); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #fff; animation: start-pulse 1.8s ease-in-out infinite; }
+.start-text { font-size: max(12px, calc(var(--col) * .165)); font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #fff; }
 .start-or { margin: calc(var(--col) * .1) 0; font-size: max(10px, calc(var(--col) * .12)); font-weight: 700; letter-spacing: .16em; text-transform: uppercase; color: var(--shell-muted); }
 /* tecla (estilo tecla branca de piano) */
 .cap {
@@ -155,7 +155,6 @@ button { font: inherit; color: inherit; }
   color: var(--ink); background: linear-gradient(#fff, #e4e1f7); border-radius: calc(var(--col) * .07); box-shadow: 0 calc(var(--col) * .045) 0 #8d84c9, 0 calc(var(--col) * .09) calc(var(--col) * .1) rgba(0,0,0,.35);
 }
 .start .cap { min-width: calc(var(--col) * 1.2); }
-@keyframes start-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
 
 .over-title { margin: 0; font-size: max(22px, calc(var(--col) * .5)); font-weight: 900; color: #fff; }
 .screen-over .over-title { color: var(--berry); }
@@ -168,11 +167,40 @@ button { font: inherit; color: inherit; }
 .badge[hidden] { display: none; }
 @keyframes badge { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .btn {
-  pointer-events: auto; min-width: calc(var(--col) * 2); min-height: 46px; margin-top: calc(var(--col) * .08); padding: 8px 22px; font-size: max(15px, calc(var(--col) * .19)); font-weight: 800;
+  pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-width: calc(var(--col) * 2); min-height: 46px; margin-top: calc(var(--col) * .08); padding: 8px 22px; font-size: max(15px, calc(var(--col) * .19)); font-weight: 800;
   color: var(--ink); background: var(--violet); border: 0; border-radius: 14px; box-shadow: 0 4px 0 #5a49c4; cursor: pointer; touch-action: manipulation;
 }
 .btn:hover { background: #b3a6ff; }
+.btn svg { flex: none; }
 .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #5a49c4; }
+
+/* Tela de pausa: título, aviso do motivo (pílula tracejada dourada, como o RECORDE) e dois botões empilhados */
+.screen-paused .over-title { font-size: max(22px, calc(var(--col) * .42)); line-height: 1.05; text-wrap: balance; }
+.pause-note {
+  margin: 0; padding: 5px 13px; font-size: max(11px, calc(var(--col) * .13)); font-weight: 700; line-height: 1.2;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--gold); border: 1.5px dashed rgba(255,200,87,.5); border-radius: 999px;
+}
+.pause-note[hidden] { display: none; }
+.actions { display: flex; flex-direction: column; gap: 12px; width: max(156px, calc(var(--col) * 2.3)); margin-top: calc(var(--col) * .08); }
+.actions .btn { width: 100%; margin-top: 0; }
+/* Botão secundário: mesmo "keycap" do primário, porém vazado em laca com contorno violeta */
+.btn-ghost {
+  color: var(--violet-soft); background: rgba(26,23,51,.92); border: 1.5px solid rgba(157,140,255,.45); box-shadow: 0 4px 0 var(--violet-deep);
+  transition: background .2s, border-color .2s;
+}
+.btn-ghost:hover { background: #251f52; border-color: rgba(157,140,255,.85); }
+.btn-ghost:active { transform: translateY(3px); box-shadow: 0 1px 0 var(--violet-deep); }
+
+/* Contagem 3 · 2 · 1 · GO!: o jogo fica visível por trás, congelado */
+.screen-countdown { background: rgba(8,7,22,.5); backdrop-filter: none; }
+.screen-countdown.go { background: transparent; transition-delay: 0s; }
+.count-num {
+  display: block; font-size: calc(var(--col) * 1.9); font-weight: 900; line-height: 1; color: var(--violet-soft); font-variant-numeric: tabular-nums;
+  text-shadow: 0 calc(var(--col) * .05) 0 var(--violet-deep), 0 0 calc(var(--col) * .5) rgba(157,140,255,.6);
+}
+.count-num.is-go { font-size: calc(var(--col) * 1.3); color: #fff; letter-spacing: .02em; text-shadow: 0 calc(var(--col) * .05) 0 var(--violet-deep), 0 0 calc(var(--col) * .55) rgba(157,140,255,.85); }
+.count-num.tick { animation: count-tick .7s cubic-bezier(.2,.9,.2,1) both; }
+@keyframes count-tick { 0% { transform: scale(1.7); opacity: 0; } 22% { transform: scale(.95); opacity: 1; } 36% { transform: scale(1); } 80% { opacity: 1; } 100% { transform: scale(.9); opacity: .2; } }
 
 /* Como jogar: popover ancorado ao botão "?", fora da área do jogo (posição calculada pelo JS) */
 .help-popover {
@@ -203,6 +231,40 @@ button { font: inherit; color: inherit; }
 .help-close:focus-visible { opacity: 1; outline: 2px solid var(--violet); outline-offset: -2px; }
 @keyframes help-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
 
+/* Tooltips: [data-tip] (+ [data-key] para a tecla de atalho). O JS cria o balão .tip; o atraso vem de --tip-delay.
+   Regras: mouse espera --tip-delay · sair/clicar/pressionar some na hora · teclado (:focus-visible) aparece na hora. */
+[data-tip] { position: relative; }
+.tip {
+  --tip-x: 0px; --tip-arrow: 50%; --tip-from: -5px;
+  position: absolute; z-index: 60; left: 50%; top: calc(100% + 10px); display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px;
+  font-family: inherit; font-size: 12px; font-weight: 700; line-height: 1; letter-spacing: .02em; text-transform: none; white-space: nowrap; pointer-events: none;
+  color: var(--shell-text); background: #131027; border: 1px solid rgba(157,140,255,.45); border-radius: 10px;
+  box-shadow: 0 2px 0 #07061a, 0 10px 22px rgba(0,0,0,.55);
+  opacity: 0; visibility: hidden; transform-origin: 50% 0;
+  transform: translate(calc(-50% + var(--tip-x)), var(--tip-from)) scale(.96);
+  transition: none;   /* estado oculto: some imediatamente */
+}
+.tip[data-side="top"] { top: auto; bottom: calc(100% + 10px); --tip-from: 5px; transform-origin: 50% 100%; }
+.tip::before {
+  content: ""; position: absolute; box-sizing: border-box; left: calc(var(--tip-arrow) - 4px); top: -5px; width: 8px; height: 8px;
+  background: #131027; border: 1px solid rgba(157,140,255,.45); border-right: 0; border-bottom: 0; transform: rotate(45deg);
+}
+.tip[data-side="top"]::before { top: auto; bottom: -5px; border: 1px solid rgba(157,140,255,.45); border-left: 0; border-top: 0; }
+.tip-key {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px; font-family: inherit; font-size: 10px; font-weight: 800; line-height: 1;
+  text-transform: uppercase; color: var(--ink); background: linear-gradient(#fff, #e4e1f7); border-radius: 5px; box-shadow: 0 2px 0 #8d84c9;
+}
+@media (hover: hover) {
+  [data-tip]:hover:not(:disabled):not(:active):not([data-tip-off]) > .tip {
+    opacity: 1; visibility: visible; transform: translate(calc(-50% + var(--tip-x)), 0) scale(1);
+    transition: opacity .16s ease var(--tip-delay), transform .22s cubic-bezier(.2,.9,.3,1) var(--tip-delay), visibility 0s linear var(--tip-delay);
+  }
+}
+[data-tip]:focus-visible:not(:disabled):not(:active):not([data-tip-off]) > .tip {
+  opacity: 1; visibility: visible; transform: translate(calc(-50% + var(--tip-x)), 0) scale(1);
+  transition: opacity .12s ease, transform .16s cubic-bezier(.2,.9,.3,1), visibility 0s;
+}
+
 .noscript { position: fixed; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
 @media (max-width: 640px) { .topbar { height: 52px; } }
@@ -215,6 +277,16 @@ button { font: inherit; color: inherit; }
   .reason { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .screen, .start, .start-card, .back, .back svg, .help-btn, .help-btn svg { transition: none; }
-  .bump, .glow, .board.shake, .badge, .start-text, .help-popover { animation: none; } .toast.show { animation-duration: .01s; opacity: 1; }
+  .screen, .start, .start-card, .back, .back svg, .help-btn, .help-btn svg, .tool, .btn-ghost { transition: none; }
+  .bump, .glow, .board.shake, .badge, .help-popover, .count-num.tick { animation: none; } .toast.show { animation-duration: .01s; opacity: 1; }
+}
+/* Tooltips com movimento reduzido: nada de deslize/escala/fade, mas a espera de --tip-delay continua valendo (transição de 0s com atraso) */
+@media (prefers-reduced-motion: reduce) {
+  .tip { transform: translate(calc(-50% + var(--tip-x)), 0); }
+}
+@media (hover: hover) and (prefers-reduced-motion: reduce) {
+  [data-tip]:hover:not(:disabled):not(:active):not([data-tip-off]) > .tip { transition: opacity 0s linear var(--tip-delay), visibility 0s linear var(--tip-delay); }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-tip]:focus-visible:not(:disabled):not(:active):not([data-tip-off]) > .tip { transition: none; }
 }

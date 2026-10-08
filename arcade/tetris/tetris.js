@@ -63,6 +63,12 @@
       maxFrameTime: 1 / 20,    // limite do delta time (aba em segundo plano, travadas)
       clearTime: 0.28,         // duração da animação de linhas eliminadas (s)
       gameOverDelay: 0.9,      // espera até mostrar o painel e aceitar reinício (s)
+      countStep: 0.7,          // duração de cada número da contagem 3, 2, 1 (s)
+      goTime: 0.5,             // duração do "GO!" antes de voltar ao jogo (s)
+    },
+
+    save: {
+      interval: 1000,          // salvamento periódico durante o jogo (ms); eventos importantes salvam na hora
     },
 
     audio: {
@@ -236,6 +242,13 @@
         });
       },
       click() { safely(() => tone({ type: 'square', from: 520, to: 700, duration: 0.05, volume: 0.2 })); },
+      count() { safely(() => tone({ type: 'square', from: 440, duration: 0.09, volume: 0.2 })); },
+      go() {
+        safely(() => {
+          tone({ type: 'square', from: 660, duration: 0.1, volume: 0.22 });
+          tone({ type: 'square', from: 990, duration: 0.2, volume: 0.22, delay: 0.09 });
+        });
+      },
     };
   })();
 
@@ -312,6 +325,8 @@
     clearElapsed: 0,
     overTime: 0,
     panelShown: false,
+    pauseReason: null,    // quando PAUSED: 'manual' | 'help' | 'recovery'
+    countdown: null,      // contagem de retomada em curso: { elapsed, step } ou null
   };
 
   const input = {
@@ -353,6 +368,8 @@
     game.clearElapsed = 0;
     game.overTime = 0;
     game.panelShown = false;
+    game.pauseReason = null;
+    game.countdown = null;
     resetInput();
     syncUi();
     syncHud();
@@ -375,7 +392,10 @@
     game.piece = null;
     game.overTime = 0;
     game.panelShown = false;
+    game.pauseReason = null;
+    game.countdown = null;
     resetInput();
+    clearSavedGame();                    // partida encerrada: não é mais restaurável (o recorde fica)
     if (game.score > game.best) {
       game.best = game.score;
       game.newBest = true;
@@ -386,14 +406,197 @@
     syncHud();
   }
 
-  function setPaused(paused) {
-    if (paused && game.state === STATES.PLAYING) game.state = STATES.PAUSED;
-    else if (!paused && game.state === STATES.PAUSED) game.state = STATES.PLAYING;
-    else return;
+  /* Pausa. PAUSED é um só estado, com um motivo (pauseReason):
+       'manual'   -> botão, P ou Esc                       (tela PAUSADO)
+       'help'     -> abriu o "Como jogar"                  (tela PAUSADO)
+       'recovery' -> F5, perda de foco, aba/tela oculta    (tela PARTIDA RETOMADA)
+     Em qualquer motivo o jogo fica congelado até o jogador tocar/apertar Space. Só então
+     roda a contagem 3-2-1-GO! (game.countdown), ainda congelada, e volta a PLAYING.
+     A contagem nunca mexe no estado da partida: só em game.countdown. */
+  function pauseGame(reason, { silent = false } = {}) {
+    if (game.state !== STATES.PLAYING) return false;
+    game.state = STATES.PAUSED;
+    game.pauseReason = reason;
+    game.countdown = null;
     lastTime = null;
     resetInput();
-    Sound.click();
+    if (!silent) Sound.click();
+    saveNow();
     syncUi();
+    return true;
+  }
+
+  function beginResume() {
+    if (game.state !== STATES.PAUSED || game.countdown || helpOpen) return;
+    game.countdown = { elapsed: 0, step: 0 };
+    lastTime = null;
+    resetInput();
+    Sound.unlock();
+    Sound.count();
+    syncUi();
+    renderCountStep(true);
+  }
+
+  function cancelCountdown() {
+    if (!game.countdown) return;
+    game.countdown = null;
+    lastTime = null;
+    syncUi();
+  }
+
+  function finishResume() {
+    game.countdown = null;
+    game.pauseReason = null;
+    game.state = STATES.PLAYING;
+    lastTime = null;
+    resetInput();
+    saveNow();
+    syncUi();
+  }
+
+  function updateCountdown(dt) {
+    const c = game.countdown;
+    if (!c) return;
+    const { countStep, goTime } = CONFIG.timing;
+    c.elapsed += dt;
+    if (c.elapsed >= countStep * 3 + goTime) { finishResume(); return; }
+    const step = c.elapsed >= countStep * 3 ? 3 : Math.floor(c.elapsed / countStep);
+    if (step !== c.step) {
+      c.step = step;
+      if (step === 3) Sound.go(); else Sound.count();
+      renderCountStep(true);
+    }
+  }
+
+  // Botão de pausa e tecla P: pausa, ou inicia/cancela a retomada.
+  function togglePause() {
+    if (game.state === STATES.PLAYING) pauseGame('manual');
+    else if (game.state === STATES.PAUSED) {
+      if (game.countdown) cancelCountdown(); else beginResume();
+    }
+  }
+
+  /* ======================================================================
+     5b. SALVAR E RESTAURAR A PARTIDA
+     Salva o necessário para reconstruir a partida exatamente: tabuleiro, peça atual
+     (tipo, rotação, posição), próxima peça, saco de peças, pontos, linhas, nível,
+     acumulador de queda e animação de linhas. Quando salva:
+       - na hora: ao pausar, perder o foco, travar peça, nascer peça, eliminar linhas, retomar,
+         e ao sair/recarregar a página (pagehide / beforeunload);
+       - a cada CONFIG.save.interval ms enquanto joga (rede de segurança).
+     Nada é salvo fora de PLAYING/PAUSED; o Game Over apaga a partida salva.
+     ====================================================================== */
+  const SAVE_VERSION = 1;
+  let lastSavedJson = null;
+
+  function snapshot() {
+    return {
+      v: SAVE_VERSION,
+      board: game.board.map((row) => row.map((c) => c || '.').join('')),
+      piece: game.piece ? { type: game.piece.type, rot: game.piece.rot, x: game.piece.x, y: game.piece.y } : null,
+      next: game.next,
+      bag: game.bag.slice(),
+      score: game.score,
+      lines: game.lines,
+      level: game.level,
+      interval: dropInterval(),            // velocidade de queda vigente (derivada do nível)
+      dropAcc: game.dropAcc,
+      clearRows: game.clearRows.slice(),
+      clearElapsed: game.clearElapsed,
+      paused: game.state === STATES.PAUSED,
+      pauseReason: game.pauseReason,
+    };
+  }
+
+  function saveNow() {
+    if (game.state !== STATES.PLAYING && game.state !== STATES.PAUSED) return;
+    const data = snapshot();
+    const json = JSON.stringify(data);
+    if (json === lastSavedJson) return;    // nada mudou: evita gravação inútil
+    lastSavedJson = json;
+    TetrisStorage.saveGame(data);
+  }
+
+  function clearSavedGame() {
+    lastSavedJson = null;
+    TetrisStorage.clearGame();
+  }
+
+  // Valida tudo antes de tocar no estado: um save corrompido é descartado, nunca aplicado pela metade.
+  function restoreGame(data) {
+    try { return applySave(data); } catch (error) { return false; }
+  }
+
+  function applySave(data) {
+    if (!data || data.v !== SAVE_VERSION) return false;
+    const isInt = Number.isInteger;
+    if (!Array.isArray(data.board) || data.board.length !== TOTAL_ROWS) return false;
+    const board = [];
+    for (const text of data.board) {
+      if (typeof text !== 'string' || text.length !== COLS) return false;
+      const row = [];
+      for (let i = 0; i < COLS; i++) {
+        const ch = text[i];
+        if (ch === '.') row.push(null);
+        else if (TYPES.includes(ch)) row.push(ch);
+        else return false;
+      }
+      board.push(row);
+    }
+    if (!TYPES.includes(data.next)) return false;
+    if (!Array.isArray(data.bag) || data.bag.length > TYPES.length || !data.bag.every((t) => TYPES.includes(t))) return false;
+    if (!isInt(data.score) || data.score < 0) return false;
+    if (!isInt(data.lines) || data.lines < 0) return false;
+    if (!isInt(data.level) || data.level < 1 || data.level > CONFIG.level.maxLevel) return false;
+
+    const clearRows = Array.isArray(data.clearRows) ? data.clearRows : [];
+    if (!clearRows.every((y) => isInt(y) && y >= 0 && y < TOTAL_ROWS && board[y].every((c) => c !== null))) return false;
+
+    let piece = null;
+    if (data.piece) {
+      const p = data.piece;
+      if (!TYPES.includes(p.type) || !isInt(p.rot) || p.rot < 0 || p.rot > 3) return false;
+      if (!isInt(p.x) || !isInt(p.y) || p.x < -4 || p.x > COLS || p.y < -4 || p.y > TOTAL_ROWS) return false;
+      piece = { type: p.type, rot: p.rot, x: p.x, y: p.y };
+    }
+    if (clearRows.length && piece) return false;
+    if (!clearRows.length && !piece) return false;     // sem nada para continuar
+
+    const previousBoard = game.board;
+    game.board = board;
+    if (piece && collides(piece.type, piece.rot, piece.x, piece.y)) { game.board = previousBoard; return false; }
+
+    game.piece = piece;
+    game.next = data.next;
+    game.bag = data.bag.slice();
+    game.score = data.score;
+    game.lines = data.lines;
+    game.level = data.level;
+    game.dropAcc = Number.isFinite(data.dropAcc) && data.dropAcc >= 0 ? Math.min(data.dropAcc, 10) : 0;
+    game.clearRows = clearRows.slice();
+    game.clearElapsed = Number.isFinite(data.clearElapsed) && data.clearElapsed >= 0 ? Math.min(data.clearElapsed, CONFIG.timing.clearTime) : 0;
+    game.newBest = false;
+    game.overTime = 0;
+    game.panelShown = false;
+    // Recarregar a página é sempre uma recuperação: congelado, esperando o jogador.
+    game.state = STATES.PAUSED;
+    game.pauseReason = 'recovery';
+    game.countdown = null;
+    resetInput();
+    lastTime = null;
+    lastSavedJson = JSON.stringify(snapshot());
+    return true;
+  }
+
+  // Da tela de pausa: encerra a partida atual e volta à tela inicial, sem guardar nada dela
+  // (o recorde, se foi batido, é mantido).
+  function quitToStart() {
+    if (game.state !== STATES.PAUSED) return;
+    if (game.score > game.best) { game.best = game.score; saveBest(game.best); }
+    clearSavedGame();
+    resetRound();                        // volta a READY com tudo zerado (também zera pausa e contagem)
+    lastTime = null;
+    Sound.click();
   }
 
   function tryRestart() {
@@ -441,6 +644,7 @@
     game.dropAcc = 0;
     renderNext();
     if (collides(type, 0, game.piece.x, game.piece.y)) endGame();   // sem espaço: fim de jogo
+    else saveNow();
   }
 
   function canAct() {
@@ -539,6 +743,7 @@
       Sound.levelUp(0.35);
     }
     syncHud();
+    saveNow();
   }
 
   function finishClear() {
@@ -790,7 +995,12 @@
     helpButton: document.getElementById('help-button'),
     helpPopover: document.getElementById('help-popover'),
     helpClose: document.getElementById('help-close'),
-    resumeButton: document.getElementById('resume-button'),
+    pauseArt: document.getElementById('pause-art'),
+    pauseTitle: document.getElementById('pause-title'),
+    countArt: document.getElementById('count-art'),
+    countBar: document.getElementById('count-bar') || document.querySelector('.count-bar'),
+    countSr: document.getElementById('count-sr'),
+    quitButton: document.getElementById('quit-button'),
     restartButton: document.getElementById('restart-button'),
     hudScore: document.getElementById('hud-score'),
     hudBest: document.getElementById('hud-best'),
@@ -801,17 +1011,103 @@
     overNew: document.getElementById('over-new'),
   };
 
+  let pauseTitleKey = null;
+
+  function setPauseTitle(recovery) {
+    const key = recovery ? 'recovery' : 'manual';
+    if (key === pauseTitleKey) return;
+    pauseTitleKey = key;
+    ui.pauseTitle.textContent = '';
+    for (const word of (recovery ? ['Partida', 'Retomada'] : ['Pausado'])) {
+      const span = document.createElement('span');
+      span.textContent = word;
+      ui.pauseTitle.appendChild(span);
+    }
+  }
+
   function syncUi() {
+    const paused = game.state === STATES.PAUSED;
+    const counting = paused && game.countdown !== null;
     ui.stage.dataset.state = game.state;
+    ui.stage.dataset.phase = counting ? 'counting' : 'waiting';
     document.body.dataset.state = game.state;
+    ui.stage.classList.toggle('is-recovery', game.pauseReason === 'recovery');
     ui.stage.classList.toggle('show-panel', game.state === STATES.GAME_OVER && game.panelShown);
     if (game.state === STATES.GAME_OVER) {
       ui.overScore.textContent = String(game.score);
       ui.overBest.textContent = String(game.best);
       ui.overNew.hidden = !game.newBest;
     }
-    if (game.state === STATES.PAUSED) ui.resumeButton.focus({ preventScroll: true });
-    ui.pauseButton.setAttribute('aria-label', game.state === STATES.PAUSED ? 'Continuar' : 'Pausar');
+    setPauseTitle(game.pauseReason === 'recovery');
+    // O botão mostra "play" enquanto o jogo espera para continuar; "pause" quando roda (ou conta).
+    const showPlay = paused && !counting;
+    ui.pauseButton.classList.toggle('is-paused', showPlay);
+    ui.pauseButton.setAttribute('aria-label', showPlay ? 'Continuar' : 'Pausar');
+    ui.pauseButton.title = showPlay ? 'Continuar (P)' : 'Pausar (P)';
+    renderScreenArt();
+  }
+
+  /* Arte pixelada das telas de pausa e contagem: blocos do próprio jogo (drawBlock),
+     desenhados na resolução física e sem suavização. */
+  const GLYPHS = {
+    '3': ['.###.', '#...#', '....#', '..##.', '....#', '#...#', '.###.'],
+    '2': ['.###.', '#...#', '....#', '...#.', '..#..', '.#...', '#####'],
+    '1': ['..#..', '.##..', '#.#..', '..#..', '..#..', '..#..', '#####'],
+    G: ['.###.', '#...#', '#....', '#.###', '#...#', '#...#', '.###.'],
+    O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+    '!': ['#', '#', '#', '#', '#', '.', '#'],
+  };
+  function composeArt(chars, letters) {
+    return GLYPHS[chars[0]].map((_, y) => chars.map((ch, i) => GLYPHS[ch][y].replace(/#/g, letters[i])).join('.'));
+  }
+  const COUNT_ART = [
+    { rows: composeArt(['3'], ['Z']), span: 0.42 },
+    { rows: composeArt(['2'], ['L']), span: 0.42 },
+    { rows: composeArt(['1'], ['O']), span: 0.42 },
+    { rows: composeArt(['G', 'O', '!'], ['S', 'I', 'T']), span: 0.6 },
+  ];
+  const PAUSE_ART = ['II.II', 'II.II', 'II.II', 'II.II', 'II.II', 'II.II'];   // mesmo desenho do botão de pausa
+  const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function drawPixelArt(canvasEl, rows, cellCss) {
+    const dpr = window.devicePixelRatio || 1;
+    const px = Math.max(3, Math.round(cellCss * dpr));
+    const cols = Math.max(...rows.map((r) => r.length));
+    canvasEl.width = cols * px;
+    canvasEl.height = rows.length * px;
+    canvasEl.style.width = `${canvasEl.width / dpr}px`;
+    canvasEl.style.height = `${canvasEl.height / dpr}px`;
+    const g = canvasEl.getContext('2d');
+    g.imageSmoothingEnabled = false;
+    g.clearRect(0, 0, canvasEl.width, canvasEl.height);
+    rows.forEach((row, y) => {
+      for (let x = 0; x < row.length; x++) if (PALETTE[row[x]]) drawBlock(g, x * px, y * px, px, row[x]);
+    });
+  }
+
+  function stageWidthCss() {
+    return parseFloat(ui.stage.style.width) || 200;
+  }
+
+  function renderScreenArt() {
+    if (game.state !== STATES.PAUSED) return;
+    if (game.countdown) renderCountStep(false);
+    else drawPixelArt(ui.pauseArt, PAUSE_ART, stageWidthCss() * 0.04);
+  }
+
+  function renderCountStep(animate) {
+    const c = game.countdown;
+    if (!c) return;
+    const art = COUNT_ART[c.step];
+    drawPixelArt(ui.countArt, art.rows, (stageWidthCss() * art.span) / art.rows[0].length);
+    Array.from(ui.countBar.children).forEach((el, i) => el.classList.toggle('on', i <= c.step));
+    ui.countSr.textContent = c.step === 3 ? 'Vai!' : String(3 - c.step);
+    if (animate && !REDUCED_MOTION.matches && typeof ui.countArt.animate === 'function') {
+      ui.countArt.animate(
+        [{ transform: 'scale(1.7)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }],
+        { duration: 240, easing: 'cubic-bezier(.2,.9,.3,1.2)' }
+      );
+    }
   }
 
   function syncHud() {
@@ -835,12 +1131,15 @@
   }
 
   // Ajuda "Como jogar": popover pequeno ancorado ao botão "?", fora do tabuleiro.
-  // Abrir ou fechar não inicia, pausa nem altera a partida: é só um painel de leitura.
+  // Abrir pausa a partida (se estiver rodando). Fechar NÃO retoma: o jogador precisa tocar
+  // na tela ou apertar Space, e então roda a contagem 3-2-1-GO!.
   let helpOpen = false;
   const HELP = { gap: 12, edge: 8, maxWidth: 250 };
 
   function openHelp() {
     if (helpOpen) return;
+    if (game.state === STATES.PLAYING) pauseGame('help');
+    else if (game.state === STATES.PAUSED) cancelCountdown();
     helpOpen = true;
     ui.helpPopover.hidden = false;
     ui.helpButton.setAttribute('aria-expanded', 'true');
@@ -951,14 +1250,17 @@
     } else if (code === 'Space') {
       if (game.state === STATES.PLAYING) hardDrop();
       else if (game.state === STATES.READY) startGame();
-      else if (game.state === STATES.PAUSED) setPaused(false);
+      else if (game.state === STATES.PAUSED) beginResume();
       else tryRestart();
     } else if (code === 'Enter') {
       if (game.state === STATES.READY) startGame();
-      else if (game.state === STATES.PAUSED) setPaused(false);
+      else if (game.state === STATES.PAUSED) beginResume();
       else if (game.state === STATES.GAME_OVER) tryRestart();
     } else if (code === 'KeyP') {
-      setPaused(game.state === STATES.PLAYING);
+      togglePause();
+    } else if (code === 'Escape') {
+      if (game.state === STATES.PLAYING) pauseGame('manual');
+      else if (game.state === STATES.PAUSED) cancelCountdown();
     } else if (code === 'KeyM') {
       toggleMute();
     }
@@ -1042,6 +1344,7 @@
     renderNext();
 
     render();       // redimensionar limpa os canvas: redesenha na hora para não piscar
+    renderScreenArt();   // a arte das telas de pausa/contagem acompanha o tamanho do palco
     placeHelp();    // reposiciona o painel de ajuda, se estiver aberto
   }
 
@@ -1050,14 +1353,20 @@
      ====================================================================== */
   let rafId = null;
   let lastTime = null;
+  let lastSaveAt = 0;
 
   function frame(now) {
     rafId = requestAnimationFrame(frame);
     if (lastTime === null) lastTime = now;
     const dt = Math.min(Math.max((now - lastTime) / 1000, 0), CONFIG.timing.maxFrameTime);
     lastTime = now;
+    if (game.countdown) updateCountdown(dt);     // contagem: o gameplay segue congelado
     update(dt);
     render();
+    if (game.state === STATES.PLAYING && now - lastSaveAt >= CONFIG.save.interval) {
+      lastSaveAt = now;
+      saveNow();
+    }
   }
 
   function startLoop() {
@@ -1066,47 +1375,66 @@
     rafId = requestAnimationFrame(frame);
   }
 
-  function pauseIfPlaying() {
+  // Perda de foco (aba, minimizar, segundo plano, tela bloqueada): salva e congela já.
+  // Ao voltar NÃO retoma sozinho: entra na recuperação (PARTIDA RETOMADA).
+  function autoPause() {
     input.held.left = input.held.right = input.down = false;
     input.dasDir = 0;
-    setPaused(true);                      // perder o foco pausa a partida
+    if (game.state === STATES.PLAYING) pauseGame('recovery', { silent: true });
+    else if (game.state === STATES.PAUSED) { cancelCountdown(); saveNow(); }
   }
 
   function init() {
     game.best = loadBest();
     resetRound();
+    const saved = TetrisStorage.loadGame();
+    if (saved) {
+      if (restoreGame(saved)) { syncUi(); syncHud(); renderNext(); }
+      else clearSavedGame();                         // save inválido: descarta
+    }
     syncMuteButton();
 
     document.addEventListener('keydown', onKeyDown, { passive: false });
     document.addEventListener('keyup', onKeyUp, { passive: false });
     document.addEventListener('pointerup', () => Sound.unlock());
     document.addEventListener('contextmenu', (event) => event.preventDefault());
-    window.addEventListener('blur', pauseIfPlaying);
+    window.addEventListener('blur', autoPause);
     document.addEventListener('visibilitychange', () => {
       lastTime = null;
-      if (document.hidden) pauseIfPlaying();
+      if (document.hidden) autoPause();
     });
+    const flush = () => saveNow();                   // F5, fechar ou sair da página: salva o estado exato
+    window.addEventListener('beforeunload', flush);
     window.addEventListener('pagehide', () => {
+      flush();
       if (game.score > game.best) saveBest(game.score);
     });
 
-    // Tocar/clicar no tabuleiro inicia a partida (sem botão "Jogar"). Com a ajuda aberta, o
-    // primeiro toque fora dela só a fecha.
+    // Tocar/clicar: no tabuleiro inicia a partida; com o jogo pausado, inicia a retomada
+    // (contagem 3-2-1-GO!). Com a ajuda aberta, o primeiro toque fora dela só a fecha.
     let helpClosedBy = null;
+    let helpClosedAt = -Infinity;
     document.addEventListener('pointerdown', (event) => {
       if (helpOpen && !(event.target.closest && event.target.closest('#help-popover, #help-button'))) {
         closeHelp();
         helpClosedBy = event;
+        helpClosedAt = performance.now();
       }
     }, true);
-    ui.stage.addEventListener('pointerdown', (event) => {
-      if (event.target.closest && event.target.closest('button')) return;
+    ui.arena.addEventListener('pointerdown', (event) => {
+      if (event.target.closest && event.target.closest('button, #help-popover')) return;
       if (helpClosedBy === event) return;
       if (event.pointerType === 'mouse' && event.button !== 0) return;
-      if (game.state !== STATES.READY) return;
-      event.preventDefault();
-      Sound.unlock();
-      startGame();
+      if (game.state === STATES.READY) {
+        if (!ui.stage.contains(event.target)) return;
+        event.preventDefault();
+        Sound.unlock();
+        startGame();
+      } else if (game.state === STATES.PAUSED && !game.countdown) {
+        event.preventDefault();
+        Sound.unlock();
+        beginResume();
+      }
     });
     ui.helpButton.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -1118,10 +1446,11 @@
       closeHelp();
       ui.helpButton.focus({ preventScroll: true });
     });
-    ui.resumeButton.addEventListener('click', (event) => {
+    ui.quitButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      setPaused(false);
-      ui.resumeButton.blur();
+      ui.quitButton.blur();
+      if (performance.now() - helpClosedAt < 400) return;   // o toque que fechou a ajuda não reinicia
+      quitToStart();
     });
     ui.restartButton.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -1131,8 +1460,9 @@
     });
     ui.pauseButton.addEventListener('click', (event) => {
       event.stopPropagation();
-      setPaused(game.state === STATES.PLAYING);
       ui.pauseButton.blur();
+      if (performance.now() - helpClosedAt < 400) return;   // o toque que fechou a ajuda não retoma
+      togglePause();
     });
     ui.muteButton.addEventListener('click', (event) => {
       event.stopPropagation();
