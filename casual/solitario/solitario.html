@@ -37,23 +37,31 @@
     <div id="game" class="game is-ready">
       <div id="game-body" class="game-body">
       <section class="hud" aria-label="Painel da partida">
-        <div class="stats">
+        <div class="scoreboard">
+          <div class="stat stat-score"><span class="label">Pontos</span><strong id="score" class="value">0</strong></div>
           <div class="stat"><span class="label">Tempo</span><strong id="time" class="value">0:00</strong></div>
           <div class="stat"><span class="label">Jogadas</span><strong id="moves" class="value">0</strong></div>
-          <div class="stat stat-score"><span class="label">Pontos</span><strong id="score" class="value">0</strong></div>
         </div>
-        <div class="tools">
-          <button id="undo-button" class="tool" type="button" aria-label="Desfazer última jogada" title="Desfazer (U)">
+        <div class="tools" role="toolbar" aria-label="Controles da partida">
+          <button id="pause-button" class="tool tool-main" type="button" aria-label="Pausar" data-tip="Pausar (P)">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/></svg>
+          </button>
+          <span class="tool-sep" aria-hidden="true"></span>
+          <button id="undo-button" class="tool" type="button" aria-label="Desfazer última jogada" data-tip="Desfazer (U)">
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3L2.5 6.5 6 10M3 6.5h6.5a3.5 3.5 0 0 1 0 7H7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <button id="restart-button" class="tool" type="button" aria-label="Reiniciar esta partida" title="Reiniciar (R)">
+          <button id="restart-button" class="tool" type="button" aria-label="Reiniciar esta partida" data-tip="Reiniciar (R)">
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
-          <button id="new-button" class="tool" type="button" aria-label="Nova partida" title="Nova partida (N)">
+          <button id="new-button" class="tool" type="button" aria-label="Nova partida" data-tip="Nova partida (N)">
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3" y="2" width="10" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 5.5v5M5.5 8h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
           </button>
-          <button id="mute-button" class="tool" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+          <span class="tool-sep" aria-hidden="true"></span>
+          <button id="mute-button" class="tool" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Som (M)">
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/><path class="icon-waves" d="M10.5 6a3 3 0 0 1 0 4M12.3 4.2a5.5 5.5 0 0 1 0 7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path class="icon-cross" d="M10.5 6l4 4M14.5 6l-4 4" fill="none" stroke="#ff8a6b" stroke-width="1.6" stroke-linecap="round"/></svg>
+          </button>
+          <button id="help-button" class="tool" type="button" aria-label="Como jogar" aria-haspopup="dialog" data-tip="Como jogar">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.1" fill="currentColor"/></svg>
           </button>
         </div>
       </section>
@@ -65,62 +73,83 @@
       </div>
 
       <!-- Tela inicial: a mesa fica parada até o primeiro toque/clique ou SPACE -->
-      <section id="start-screen" class="start" role="dialog" aria-label="Paciência: toque para iniciar ou pressione espaço">
-        <div class="start-card">
+      <section id="start-screen" class="overlay start" role="dialog" aria-label="Paciência: toque para iniciar ou pressione espaço">
+        <div class="panel">
           <div class="start-mark" aria-hidden="true">
             <span class="sm sm-a"></span>
             <span class="sm sm-b"><svg viewBox="0 0 24 24"><use href="#s-h"/></svg></span>
           </div>
-          <h2 class="start-title">Paciência</h2>
-          <p class="start-sub">Klondike clássico</p>
-          <div class="start-modes" role="radiogroup" aria-label="Cartas por compra">
-            <button type="button" role="radio" data-start-mode="1">Uma carta</button>
-            <button type="button" role="radio" data-start-mode="3">Três cartas</button>
-          </div>
+          <h2 class="panel-title">Paciência</h2>
+          <p class="panel-sub">Klondike clássico, uma carta por compra</p>
           <p id="start-best" class="start-best" hidden></p>
-          <p class="start-touch">Toque para iniciar</p>
-          <p class="start-or">ou</p>
-          <kbd class="spacebar">SPACE</kbd>
+          <button id="start-button" class="btn btn-main" type="button">Toque para iniciar</button>
+          <p class="panel-hint">ou aperte <kbd>Espaço</kbd></p>
+          <button id="start-help" class="btn-link" type="button">Como jogar</button>
         </div>
       </section>
-    </div>
 
-    <!-- Botão "Como jogar": fora do jogo, ao lado do container; o popover abre para baixo -->
-    <div class="help">
-      <button id="help-button" class="help-button" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="help-pop" title="Como jogar">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
-      </button>
-      <div id="help-pop" class="help-pop" role="dialog" aria-labelledby="help-title" hidden>
-        <h2 id="help-title" class="help-title">Como jogar</h2>
-        <p>Leve as 52 cartas às quatro fundações, do Ás ao Rei, um naipe em cada.</p>
-        <p>Nas colunas, monte em ordem decrescente alternando as cores. Só o Rei ocupa coluna vazia.</p>
-        <p>Toque no monte para comprar. Toque numa carta e depois no destino (ou arraste). Dois toques mandam a carta à fundação.</p>
-        <ul class="help-keys">
-          <li><kbd>D</kbd> comprar · <kbd>F</kbd> fundação · <kbd>U</kbd> desfazer</li>
-          <li><kbd>N</kbd> novo · <kbd>R</kbd> reiniciar · <kbd>M</kbd> som</li>
-        </ul>
+      <!-- Pausa e retomada (data-kind="pause" ou "recover") -->
+      <section id="pause-screen" class="overlay pause" data-kind="pause" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+        <div class="panel">
+          <div class="pause-icon" aria-hidden="true">
+            <svg class="i-pause" viewBox="0 0 16 16"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/></svg>
+            <svg class="i-recover" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h2 id="pause-title" class="panel-title">Pausado</h2>
+          <p id="pause-sub" class="panel-sub">Partida salva.</p>
+          <dl class="pause-stats">
+            <div><dt>Pontos</dt><dd id="p-score">0</dd></div>
+            <div><dt>Tempo</dt><dd id="p-time">0:00</dd></div>
+            <div><dt>Jogadas</dt><dd id="p-moves">0</dd></div>
+          </dl>
+          <button id="pause-continue" class="btn btn-main" type="button">
+            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M4.5 2.8v10.4L13 8z" fill="currentColor"/></svg>
+            <span>Continuar</span>
+          </button>
+          <p class="panel-hint">ou aperte <kbd>Espaço</kbd></p>
+          <div class="panel-row">
+            <button id="pause-restart" class="btn btn-ghost" type="button">Reiniciar</button>
+            <button id="pause-help" class="btn btn-ghost" type="button">Como jogar</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Retomada: 3 → 2 → 1 → GO! -->
+      <div id="countdown" class="overlay countdown" role="status" aria-live="assertive" aria-atomic="true">
+        <span id="count-num" class="count-num"></span>
       </div>
     </div>
+
     <p id="live" class="sr-only" role="status" aria-live="polite"></p>
   </main>
 
   <dialog id="dlg-new" class="dlg" aria-labelledby="new-title">
-    <h2 id="new-title">Nova partida</h2>
-    <p id="new-warn" class="dlg-warn" hidden>A partida atual ainda não terminou. Se continuar, o progresso será perdido.</p>
-    <fieldset class="seg">
-      <legend>Cartas por compra</legend>
-      <label><input type="radio" name="mode" value="1" checked><span>Uma carta</span></label>
-      <label><input type="radio" name="mode" value="3"><span>Três cartas</span></label>
-    </fieldset>
+    <h2 id="new-title">Nova partida?</h2>
+    <p class="dlg-warn">A partida atual ainda não terminou. Se continuar, o progresso será perdido.</p>
     <div class="dlg-actions">
       <button id="new-cancel" class="btn btn-ghost" type="button">Cancelar</button>
       <button id="new-start" class="btn" type="button">Embaralhar e jogar</button>
     </div>
   </dialog>
 
+  <dialog id="dlg-help" class="dlg dlg-wide" aria-labelledby="help-title">
+    <h2 id="help-title">Como jogar</h2>
+    <ul class="rules">
+      <li>Leve as 52 cartas às quatro fundações, do Ás ao Rei, um naipe em cada.</li>
+      <li>Nas colunas, monte em ordem decrescente alternando as cores. Só o Rei ocupa coluna vazia.</li>
+      <li>Compre uma carta por vez. Use ou mova essa carta antes de comprar outra. Se ela não servir em lugar nenhum, comprar devolve a carta ao fim do monte.</li>
+      <li>Toque numa carta e depois no destino, ou arraste (também com o dedo). Dois toques mandam a carta à fundação.</li>
+      <li>Pausar ou abrir esta ajuda congela a partida. Ao continuar, a contagem 3, 2, 1 antecede a volta ao jogo.</li>
+    </ul>
+    <p class="help-keys"><kbd>D</kbd> comprar · <kbd>F</kbd> fundação · <kbd>U</kbd> desfazer · <kbd>P</kbd> pausar · <kbd>N</kbd> novo · <kbd>R</kbd> reiniciar · <kbd>M</kbd> som</p>
+    <div class="dlg-actions">
+      <button id="help-close" class="btn" type="button">Entendi</button>
+    </div>
+  </dialog>
+
   <dialog id="dlg-restart" class="dlg" aria-labelledby="restart-title">
     <h2 id="restart-title">Reiniciar esta partida?</h2>
-    <p>As mesmas cartas voltam à posição inicial e o placar é zerado.</p>
+    <p id="restart-text">As mesmas cartas voltam à posição inicial e o placar é zerado.</p>
     <div class="dlg-actions">
       <button id="restart-cancel" class="btn btn-ghost" type="button">Cancelar</button>
       <button id="restart-ok" class="btn" type="button">Reiniciar</button>
@@ -137,6 +166,9 @@
       <button id="win-again" class="btn" type="button">Jogar novamente</button>
     </div>
   </dialog>
+
+  <!-- Tooltip único, reaproveitado por todos os botões com data-tip (nunca há dois ao mesmo tempo) -->
+  <div id="tip" class="tip" role="tooltip" aria-hidden="true"><span class="tip-text"></span><kbd class="tip-key" hidden></kbd></div>
 
   <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
 

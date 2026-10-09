@@ -18,79 +18,118 @@
     </a>
     <div class="game-id">
       <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
-        <rect width="32" height="32" rx="9" fill="#151a33"/>
-        <path d="M12 6v20M20 6v20M6 12h20M6 20h20" stroke="#343d75" stroke-width="2" stroke-linecap="round"/>
-        <path d="M7.5 7.5l3 3M10.5 7.5l-3 3" stroke="#ff7a6b" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="16" cy="16" r="2.6" fill="none" stroke="#5cd6e8" stroke-width="2"/>
+        <rect width="32" height="32" rx="9" fill="#163832"/>
+        <path d="M12 6v20M20 6v20M6 12h20M6 20h20" stroke="#eef6f1" stroke-width="2" stroke-linecap="round"/>
+        <path d="M7.5 7.5l3 3M10.5 7.5l-3 3" stroke="#ff8272" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="16" cy="16" r="2.6" fill="none" stroke="#74d6f0" stroke-width="2"/>
       </svg>
       <div class="game-text"><strong>Jogo da Velha</strong></div>
     </div>
   </header>
 
   <div id="arena" class="arena">
-    <div id="stage-wrap" class="stage-wrap" data-help="side">
-    <main id="stage" class="stage" aria-label="Jogo da Velha">
-      <div id="modes" class="seg" role="radiogroup" aria-label="Modo de jogo">
-        <button type="button" role="radio" data-mode="two">2 jogadores</button>
-        <button type="button" role="radio" data-mode="ai">Contra a IA</button>
-      </div>
-      <div id="levels" class="seg" role="radiogroup" aria-label="Dificuldade da IA">
-        <button type="button" role="radio" data-level="easy">Fácil</button>
-        <button type="button" role="radio" data-level="medium">Médio</button>
-        <button type="button" role="radio" data-level="hard">Difícil</button>
-      </div>
-      <div id="starters" class="starter" role="radiogroup" aria-label="Quem começa">
-        <span>Quem começa</span>
-        <button type="button" role="radio" data-starter="X" class="sx-btn">X</button>
-        <button type="button" role="radio" data-starter="O" class="so-btn">O</button>
-      </div>
+    <div id="stage-wrap" class="stage-wrap">
+      <main id="stage" class="stage" aria-label="Jogo da Velha">
 
-      <section class="scores" aria-label="Placar da sessão">
-        <div class="score score-x" id="card-X"><span id="name-X">Jogador X</span><strong id="score-X">0</strong></div>
-        <div class="score score-d" id="card-D"><span>Empates</span><strong id="score-D">0</strong></div>
-        <div class="score score-o" id="card-O"><span id="name-O">Jogador O</span><strong id="score-O">0</strong></div>
-      </section>
+        <!-- Partida (fica inerte enquanto a tela inicial está aberta) -->
+        <div id="game" class="game">
+          <section class="scores" aria-label="Placar da sessão">
+            <div class="score score-x" id="card-X"><span id="name-X">Jogador X</span><strong id="score-X">0</strong></div>
+            <div class="score score-d" id="card-D"><span>Empates</span><strong id="score-D">0</strong></div>
+            <div class="score score-o" id="card-O"><span id="name-O">Jogador O</span><strong id="score-O">0</strong></div>
+          </section>
 
-      <p id="status" class="status" aria-live="polite"></p>
-      <div class="board-wrap">
-        <div id="board" class="board" role="group" aria-label="Tabuleiro 3 por 3"></div>
-        <section id="start-screen" class="start" role="button" tabindex="0" aria-label="Toque para iniciar ou pressione espaço">
+          <p id="status" class="status" aria-live="polite"></p>
+
+          <div class="board-wrap">
+            <div id="board" class="board" role="group" aria-label="Tabuleiro 3 por 3"></div>
+
+            <!-- Pausa, ajuda, partida retomada e contagem: cobrem só o tabuleiro; os controles continuam à mostra -->
+            <div id="veil" class="veil" tabindex="-1" hidden>
+              <section id="panel-pause" class="panel" role="dialog" aria-labelledby="pause-title" hidden>
+                <h2 id="pause-title" class="panel-title">Pausa</h2>
+                <p id="pause-text" class="panel-text"></p>
+                <div class="panel-actions">
+                  <button id="resume-btn" class="btn" type="button">Continuar</button>
+                  <button id="pause-restart" class="btn btn-alt" type="button">Reiniciar</button>
+                </div>
+              </section>
+              <section id="panel-help" class="panel" role="dialog" aria-labelledby="help-title" hidden>
+                <h2 id="help-title" class="panel-title">Como jogar</h2>
+                <p class="panel-text">Alinhe três símbolos iguais na horizontal, vertical ou diagonal. Toque numa casa vazia para jogar.</p>
+                <p class="panel-text">Jogue em 2 jogadores ou contra a IA (Fácil, Médio ou Difícil).</p>
+                <p class="panel-keys"><kbd>P</kbd> pausa · <kbd>R</kbd> reiniciar · <kbd>M</kbd> som</p>
+                <div class="panel-actions">
+                  <button id="help-close" class="btn" type="button">Fechar</button>
+                </div>
+              </section>
+              <section id="panel-count" class="panel panel-count" aria-label="Retomando a partida" hidden>
+                <p id="count-num" class="count-num" role="status" aria-live="assertive">3</p>
+              </section>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="round-btn" class="btn" type="button" data-tip="Descarta a partida e volta ao início">Reiniciar</button>
+            <button id="session-btn" class="btn btn-alt" type="button" data-tip="Apaga o placar acumulado">Zerar placar</button>
+            <div class="tools" role="group" aria-label="Controles">
+              <button id="pause-btn" class="icon-btn" type="button" aria-label="Pausar partida" data-tip="Pausar (P)">
+                <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
+                  <g class="icon-pause"><rect x="3.5" y="3" width="3" height="10" rx="1"/><rect x="9.5" y="3" width="3" height="10" rx="1"/></g>
+                  <path class="icon-play" d="M4.5 2.8v10.4a.6.6 0 00.9.5l8-5.2a.6.6 0 000-1l-8-5.2a.6.6 0 00-.9.5z"/>
+                </svg>
+              </button>
+              <button id="mute-btn" class="icon-btn" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Som (M)">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
+                  <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
+                  <g class="icon-cross"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
+                </svg>
+              </button>
+              <button id="help-button" class="icon-btn" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="veil" data-tip="Como jogar">
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tela inicial: cobre 100% do palco (inset: 0) e traz modo, dificuldade e quem começa -->
+        <section id="start-screen" class="start" tabindex="0" aria-label="Tela inicial. Toque para iniciar ou pressione espaço">
           <div class="start-card">
+            <svg class="start-mark" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+              <g class="mk-hash"><path d="M40 8C39 40 41 80 40 112M80 8C81 40 79 80 80 112M8 40C40 39 80 41 112 40M8 80C40 81 80 79 112 80"/></g>
+              <path class="mk-x" d="M12 12C18 18 26 26 30 30M29 12C23 18 15 26 11 30"/>
+              <circle class="mk-o" cx="60" cy="60" r="12"/>
+              <path class="mk-x" d="M92 92C98 98 106 106 110 110M109 92C103 98 95 106 91 110"/>
+            </svg>
             <h2 class="start-title">Jogo da Velha</h2>
-            <p id="start-sub" class="start-sub"></p>
-            <p class="start-touch">Toque para iniciar</p>
+            <p class="start-sub">Alinhe três símbolos para vencer</p>
+
+            <div class="opts">
+              <div id="modes" class="seg" role="radiogroup" aria-label="Modo de jogo">
+                <button type="button" role="radio" data-mode="two">2 jogadores</button>
+                <button type="button" role="radio" data-mode="ai">Contra a IA</button>
+              </div>
+              <div id="levels" class="seg" role="radiogroup" aria-label="Dificuldade da IA">
+                <button type="button" role="radio" data-level="easy">Fácil</button>
+                <button type="button" role="radio" data-level="medium">Médio</button>
+                <button type="button" role="radio" data-level="hard">Difícil</button>
+              </div>
+              <div id="starters" class="starter" role="radiogroup" aria-label="Quem começa">
+                <span>Quem começa</span>
+                <button type="button" role="radio" data-starter="X" class="sx-btn">X</button>
+                <button type="button" role="radio" data-starter="O" class="so-btn">O</button>
+              </div>
+            </div>
+
+            <button id="start-btn" class="start-touch" type="button">Toque para iniciar</button>
             <p class="start-or">ou</p>
             <kbd class="spacebar">SPACE</kbd>
           </div>
         </section>
-      </div>
 
-      <div class="actions">
-        <button id="round-btn" class="btn" type="button">Reiniciar rodada</button>
-        <button id="session-btn" class="btn btn-alt" type="button">Zerar placar</button>
-        <button id="mute-btn" class="icon-btn" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
-            <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
-            <g class="icon-cross"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
-          </svg>
-        </button>
-      </div>
-      <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
-    </main>
-    <div class="help">
-      <button id="help-button" class="help-button" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="help-pop" title="Como jogar">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
-      </button>
-      <div id="help-pop" class="help-pop" role="dialog" aria-labelledby="help-title" hidden>
-        <h2 id="help-title" class="help-title">Como jogar</h2>
-        <p>Alinhe três símbolos iguais na horizontal, vertical ou diagonal. Toque numa casa vazia para jogar.</p>
-        <p>Jogue em 2 jogadores ou contra a IA (Fácil, Médio ou Difícil).</p>
-        <ul class="help-keys">
-          <li><kbd>R</kbd> nova rodada · <kbd>M</kbd> som</li>
-        </ul>
-      </div>
-    </div>
+        <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
+      </main>
     </div>
   </div>
 
