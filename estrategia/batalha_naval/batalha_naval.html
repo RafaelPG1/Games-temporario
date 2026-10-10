@@ -28,35 +28,49 @@
       <main id="stage" class="stage is-ready" data-phase="setup" aria-label="Batalha Naval">
         <div id="stage-body" class="stage-body">
           <section class="bar" aria-label="Partida">
-            <div class="mode"><b>Contra a IA</b><span id="turn" class="turn" aria-live="polite"></span></div>
-            <div class="levels" role="radiogroup" aria-label="Dificuldade">
-              <button type="button" role="radio" data-level="easy">Fácil</button>
-              <button type="button" role="radio" data-level="medium">Médio</button>
-              <button type="button" role="radio" data-level="hard">Difícil</button>
-            </div>
+            <div class="bar-title"><span id="turn" class="turn" aria-live="polite"></span><span id="lvl" class="lvl"></span></div>
             <div class="tools">
-              <button id="mute" class="icon-btn" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-                  <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
-                  <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
-                  <g class="icon-cross"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
-                </svg>
-              </button>
-              <label class="vol"><span>Volume</span><input id="vol" type="range" min="0" max="100" value="60"></label>
+              <div class="ctrl" role="group" aria-label="Controles">
+                <button id="pause-btn" class="icon-btn" type="button" aria-label="Pausar partida" data-tip="Pausar (P)">
+                  <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
+                    <g class="icon-pause"><rect x="3.5" y="3" width="3" height="10" rx="1"/><rect x="9.5" y="3" width="3" height="10" rx="1"/></g>
+                    <path class="icon-play" d="M4.5 2.8v10.4a.6.6 0 00.9.5l8-5.2a.6.6 0 000-1l-8-5.2a.6.6 0 00-.9.5z"/>
+                  </svg>
+                </button>
+                <button id="mute" class="icon-btn" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Som">
+                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
+                    <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
+                    <g class="icon-cross"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
+                  </svg>
+                </button>
+                <button id="help-button" class="icon-btn" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="veil" data-tip="Como jogar">
+                  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
+                </button>
+              </div>
               <button id="quit-button" class="btn btn-alt" type="button">Abandonar</button>
+            </div>
+            <div id="levels" class="levels-row">
+              <span class="lv-label">Dificuldade</span>
+              <div class="levels" role="radiogroup" aria-label="Dificuldade">
+                <button type="button" role="radio" data-level="easy">Fácil</button>
+                <button type="button" role="radio" data-level="medium">Médio</button>
+                <button type="button" role="radio" data-level="hard">Difícil</button>
+              </div>
             </div>
           </section>
 
           <p id="status" class="status" aria-live="polite"></p>
 
-          <div class="boards">
+          <div id="play" class="play">
+          <div id="boards" class="boards">
             <section class="panel foe" aria-labelledby="t-foe">
-              <h2 id="t-foe">Radar inimigo <small>toque para disparar</small></h2>
+              <h2 id="t-foe">Radar inimigo</h2>
               <div id="board-foe" class="board" aria-label="Mar inimigo"></div>
               <ul id="fleet-foe" class="fleet" aria-label="Frota inimiga"></ul>
             </section>
             <section class="panel mine" aria-labelledby="t-me">
-              <h2 id="t-me">Sua frota <small id="sub-me"></small></h2>
+              <h2 id="t-me"><span id="who-me">Sua frota</span> <small id="sub-me"></small></h2>
               <div id="board-me" class="board" aria-label="Seu mar"></div>
               <ul id="fleet-me" class="fleet" aria-label="Sua frota"></ul>
               <div class="setup">
@@ -71,23 +85,41 @@
             </section>
           </div>
 
-          <section class="comms" aria-label="Comunicações">
-            <ol id="log" class="log"></ol>
-            <div class="legend" aria-label="Legenda"><i class="k k-ship"></i>navio <i class="k k-hit"></i>acerto (navio ainda flutua) <i class="k k-miss"></i>água <i class="k k-sunk"></i>navio afundado <i class="k k-free"></i>não atacada</div>
-          </section>
+          <!-- Pausa, ajuda, partida retomada e contagem: cobrem só os mares; a barra de controles continua à mostra -->
+          <div id="veil" class="veil" tabindex="-1" hidden>
+            <section id="panel-pause" class="pbox" role="dialog" aria-labelledby="pause-title" hidden>
+              <h2 id="pause-title" class="ptitle">Pausa</h2>
+              <p id="pause-text"></p>
+              <div class="pbtns">
+                <button id="resume-btn" class="btn" type="button">Continuar</button>
+                <button id="pause-restart" class="btn btn-alt" type="button">Reiniciar</button>
+              </div>
+            </section>
+            <section id="panel-help" class="pbox" role="dialog" aria-labelledby="help-title" hidden>
+              <h2 id="help-title" class="help-title">Como jogar</h2>
+              <p>Posicione 5 navios (5, 4, 3, 3 e 2 casas) no seu mar, na horizontal ou vertical. Depois alternem disparos: vence quem afundar a frota inimiga primeiro.</p>
+              <p>Água = círculo · acerto = explosão · navio afundado = casco escuro.</p>
+              <ul class="help-keys">
+                <li><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> mover o foco</li>
+                <li><kbd>Enter</kbd> disparar · <kbd>R</kbd> girar o navio · <kbd>P</kbd> pausar</li>
+              </ul>
+              <div class="pbtns"><button id="help-close" class="btn" type="button">Fechar</button></div>
+            </section>
+          </div>
+          </div>
+
           <noscript><p>Ative o JavaScript para jogar.</p></noscript>
         </div>
 
         <!-- Tela inicial: o jogo fica parado até o primeiro toque/clique ou SPACE -->
-        <section id="start-screen" class="start" role="dialog" aria-label="Batalha Naval: toque para iniciar ou pressione espaço">
+        <section id="start-screen" class="start" aria-label="Tela inicial do Batalha Naval: toque para iniciar ou pressione espaço">
           <div class="start-card">
             <div class="radar" aria-hidden="true"><i></i><b></b></div>
             <h2 class="start-title">Batalha Naval</h2>
             <p class="start-sub">Afunde a frota inimiga antes que afundem a sua</p>
-            <div class="start-levels" role="radiogroup" aria-label="Dificuldade da IA">
-              <button type="button" role="radio" data-start-level="easy">Fácil</button>
-              <button type="button" role="radio" data-start-level="medium">Médio</button>
-              <button type="button" role="radio" data-start-level="hard">Difícil</button>
+            <div class="start-modes" role="radiogroup" aria-label="Modo de jogo">
+              <button type="button" role="radio" data-mode="2">2 jogadores</button>
+              <button type="button" role="radio" data-mode="1">Contra a IA</button>
             </div>
             <p class="start-touch">Toque para iniciar</p>
             <p class="start-or">ou</p>
@@ -99,27 +131,15 @@
           <h2 id="confirm-t">Abandonar a partida?</h2><p>O progresso atual será perdido.</p>
           <div class="row"><button id="yes" class="btn" type="button">Abandonar</button><button id="no" class="btn btn-alt" type="button">Voltar</button></div>
         </section>
+        <section id="handoff" class="screen" role="alertdialog" aria-labelledby="handoff-t" hidden>
+          <h2 id="handoff-t"></h2><p id="handoff-p"></p>
+          <button id="handoff-ok" class="btn btn-main" type="button">Estou pronto</button>
+        </section>
         <section id="result" class="screen" role="dialog" aria-labelledby="result-t" hidden>
           <h2 id="result-t"></h2><p id="result-p"></p>
           <button id="again" class="btn" type="button">Nova partida</button>
         </section>
       </main>
-    </div>
-
-    <!-- Botão "Como jogar": fora do jogo, ao lado do container; o popover abre para baixo -->
-    <div class="help">
-      <button id="help-button" class="help-button" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="help-pop" title="Como jogar">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
-      </button>
-      <div id="help-pop" class="help-pop" role="dialog" aria-labelledby="help-title" hidden>
-        <h2 id="help-title" class="help-title">Como jogar</h2>
-        <p>Posicione 5 navios (5, 4, 3, 3 e 2 casas) no seu mar, na horizontal ou vertical. Depois alternem disparos: vence quem afundar a frota inimiga primeiro.</p>
-        <p>Água = círculo · acerto = explosão · navio afundado = casco escuro.</p>
-        <ul class="help-keys">
-          <li><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> mover o foco</li>
-          <li><kbd>Enter</kbd> disparar · <kbd>R</kbd> girar o navio</li>
-        </ul>
-      </div>
     </div>
   </div>
 
