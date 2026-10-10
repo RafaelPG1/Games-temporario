@@ -4,23 +4,26 @@
    Script clássico (sem módulos ES). Carregue ANTES de memory_match.js.
    Expõe um único objeto global: MemoryMatchStorage.
 
-   Dados guardados:
+   Dados guardados (todos sob o prefixo "memory_match:", sem tocar nas chaves de outros jogos):
      memory_match:best  -> recorde: maior pontuação já alcançada (inteiro >= 0)
      memory_match:muted -> '1' = som desligado, '0' = som ligado
+     memory_match:game  -> partida em andamento (JSON): cartas na ordem atual, reveladas, pares,
+                           tentativas, pontuação, tempo, fase. Validado pelo jogo ao restaurar.
    Se a chave nova ainda não existe, lê as chaves antigas do jogo (memory:best / memory:muted).
 
    Garantias:
      - nunca lança exceção (modo privado, cookies bloqueados, cota cheia...);
      - sem armazenamento persistente, os valores ficam em memória na sessão;
-     - dado ausente ou inválido vira o padrão seguro (recorde 0, som ligado);
-     - o recorde salvo nunca diminui por engano.
+     - dado ausente ou inválido vira o padrão seguro (recorde 0, som ligado, sem partida salva);
+     - o recorde salvo nunca diminui por engano (e não é apagado ao reiniciar ou limpar a partida).
    ========================================================================== */
 (() => {
   'use strict';
 
-  const KEYS = Object.freeze({ best: 'memory_match:best', muted: 'memory_match:muted' });
+  const KEYS = Object.freeze({ best: 'memory_match:best', muted: 'memory_match:muted', game: 'memory_match:game' });
   const LEGACY = Object.freeze({ best: 'memory:best', muted: 'memory:muted' });
   const DEFAULTS = Object.freeze({ best: 0, muted: false });
+  const GAME_VERSION = 1;
   const memory = {};
 
   function readRaw(key) {
@@ -36,6 +39,11 @@
     memory[key] = text;
     try { window.localStorage.setItem(key, text); return true; }
     catch (error) { return false; }     // o jogo segue normalmente, só sem persistência
+  }
+
+  function removeRaw(key) {
+    delete memory[key];
+    try { window.localStorage.removeItem(key); } catch (error) { /* ignora */ }
   }
 
   const parseBest = (raw) => {
@@ -70,5 +78,23 @@
     return muted;
   }
 
-  window.MemoryMatchStorage = Object.freeze({ KEYS, DEFAULTS, getBest, setBest, isMuted, setMuted });
+  // Partida em andamento. O jogo entrega um objeto simples; aqui só serializamos.
+  // loadGame devolve o objeto salvo ou null (ausente, JSON quebrado, versão diferente).
+  function saveGame(state) {
+    try { return writeRaw(KEYS.game, JSON.stringify({ ...state, v: GAME_VERSION })); }
+    catch (error) { return false; }
+  }
+
+  function loadGame() {
+    const raw = readRaw(KEYS.game);
+    if (raw === null) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      return parsed && typeof parsed === 'object' && parsed.v === GAME_VERSION ? parsed : null;
+    } catch (error) { return null; }
+  }
+
+  function clearGame() { removeRaw(KEYS.game); }
+
+  window.MemoryMatchStorage = Object.freeze({ KEYS, DEFAULTS, getBest, setBest, isMuted, setMuted, saveGame, loadGame, clearGame });
 })();

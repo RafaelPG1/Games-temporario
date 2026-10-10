@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Jogo da Memória · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="memory_match.css?v=3">
+  <link rel="stylesheet" href="memory_match.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -26,90 +26,138 @@
 
   <main id="arena" class="arena">
     <div id="play" class="play">
-      <!-- stage = container do jogo + botão "?" lateral (controle externo ao container) -->
-      <div id="stage" class="stage" data-help-pos="side">
-        <div id="game-panel" class="game-panel is-ready">
+      <!-- Container único do jogo. As telas (início, pausa, contagem, vitória, ajuda) são camadas
+           que cobrem 100% deste painel; o conteúdo do jogo fica em #game-body. -->
+      <div id="game-panel" class="game-panel">
+        <div id="game-body" class="game-body">
           <section id="hud" class="hud" aria-label="Placar">
-            <div class="stat-score"><span class="label">PONTOS</span><strong id="score" class="value">0</strong></div>
-            <div id="best-card" class="stat-best">
-              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M4 2h8v4a4 4 0 0 1-8 0zM4 3H1.5v1.5A2.5 2.5 0 0 0 4 7M12 3h2.5v1.5A2.5 2.5 0 0 1 12 7M8 10v3M5 14h6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              <span class="label">RECORDE</span><strong id="best" class="value">0</strong>
+            <div class="hud-main">
+              <div class="stat-score"><span class="label">Pontos</span><strong id="score" class="value">0</strong></div>
+              <div id="best-card" class="stat-best">
+                <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M4 2h8v4a4 4 0 0 1-8 0zM4 3H1.5v1.5A2.5 2.5 0 0 0 4 7M12 3h2.5v1.5A2.5 2.5 0 0 1 12 7M8 10v3M5 14h6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="label">Recorde</span><strong id="best" class="value">0</strong>
+              </div>
             </div>
-            <div class="hud-actions">
-              <button id="mute-button" class="tool" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
-                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/><path class="icon-waves" d="M10.5 6a3 3 0 0 1 0 4M12.3 4.2a5.5 5.5 0 0 1 0 7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path class="icon-cross" d="M10.5 6l4 4M14.5 6l-4 4" fill="none" stroke="#ff7a59" stroke-width="1.6" stroke-linecap="round"/></svg>
-              </button>
-              <button id="reset-button" class="tool" type="button" aria-label="Reiniciar partida" title="Reiniciar (R)">
-                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-            </div>
-            <p class="progress"><span>Tentativas <b id="attempts">0</b></span><span>Pares <b id="pairs">0/10</b></span><i id="bar" class="bar"></i></p>
+            <p class="hud-stats">
+              <span>Tempo <b id="time">0:00</b></span>
+              <span>Tentativas <b id="attempts">0</b></span>
+              <span>Pares <b id="pairs">0/10</b></span>
+              <i id="bar" class="bar"></i>
+            </p>
           </section>
 
           <div class="board-wrap">
             <div id="board" class="board" aria-label="Cartas do jogo"></div>
             <p id="toast" class="toast" role="status"></p>
-            <!-- Tela de início (sem botão "Jogar"): toque/clique ou Space -->
-            <button id="start-screen" class="screen-ready" type="button" aria-label="Iniciar partida">
-              <span class="start-card">
-                <span class="title">Jogo da Memória</span>
-                <span class="hint">
-                  <span class="hint-text">Toque para iniciar</span>
-                  <span class="hint-or">ou</span>
-                  <kbd class="cap cap-wide">Space</kbd>
-                </span>
-              </span>
-            </button>
           </div>
 
-          <section id="win" class="win" role="dialog" aria-labelledby="win-title">
-            <div class="win-card">
-              <h2 id="win-title">Todos os pares!</h2>
-              <p class="win-score"><span id="win-score">0</span><small>pontos</small></p>
-              <p class="win-line">em <b id="win-attempts">0</b> tentativas</p>
-              <p id="record-badge" class="badge" hidden>Novo recorde!</p>
-              <button id="again-button" class="btn" type="button">Jogar novamente</button>
-            </div>
-          </section>
+          <!-- Conjunto único de controles: pausa, som, como jogar, reiniciar -->
+          <nav id="controls" class="controls" aria-label="Controles do jogo">
+            <button id="pause-button" class="tool" type="button" data-action="pause" data-tip="Pausar a partida" data-key="P" aria-label="Pausar partida">
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5 3v10M11 3v10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+            </button>
+            <button id="mute-button" class="tool" type="button" data-action="mute" data-tip="Desligar o som" data-key="M" aria-pressed="false" aria-label="Silenciar efeitos sonoros">
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/><path class="icon-waves" d="M10.5 6a3 3 0 0 1 0 4M12.3 4.2a5.5 5.5 0 0 1 0 7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path class="icon-cross" d="M10.5 6l4 4M14.5 6l-4 4" fill="none" stroke="#ff7a59" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+            <button id="help-button" class="tool" type="button" data-action="help" aria-haspopup="dialog" aria-expanded="false" data-tip="Como jogar (pausa a partida)" aria-label="Como jogar">
+              <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="14.6" r="1.1" fill="currentColor"/></svg>
+            </button>
+            <button id="reset-button" class="tool" type="button" data-action="restart" data-tip="Reiniciar com novas cartas" data-key="R" aria-label="Reiniciar partida">
+              <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </nav>
         </div>
 
-        <button id="help-button" class="help-btn" type="button"
-                aria-haspopup="dialog" aria-expanded="false" aria-controls="help-popover"
-                aria-label="Como jogar" title="Como jogar">
-          <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
-            <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
-            <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
-          </svg>
-        </button>
+        <!-- Início: ocupa o painel todo. Toque em qualquer ponto, botão ou Space. -->
+        <section id="screen-start" class="screen" aria-labelledby="start-title" role="dialog" aria-modal="true">
+          <div class="screen-inner">
+            <svg class="start-mark" viewBox="0 0 32 32" width="84" height="84" aria-hidden="true" focusable="false">
+              <rect width="32" height="32" rx="9" fill="#2b2d5b"/>
+              <rect x="6" y="8" width="11" height="15" rx="2.5" fill="#fff4dc" transform="rotate(-10 11 15)"/>
+              <rect x="15" y="9" width="11" height="15" rx="2.5" fill="#ff7a59" transform="rotate(8 20 16)"/>
+            </svg>
+            <h2 id="start-title" class="screen-title title-xl">Jogo da Memória</h2>
+            <p class="screen-note">Encontre os <span data-pairs>10</span> pares com o menor número de tentativas.</p>
+            <button class="cta" type="button" data-action="start" data-primary>
+              <span class="cta-text">Toque para iniciar</span>
+              <span class="cta-or">ou</span>
+              <kbd class="cap cap-wide">Space</kbd>
+            </button>
+            <p id="start-best" class="start-best" hidden>Recorde <b data-best>0</b></p>
+            <button class="link" type="button" data-action="help">Como jogar</button>
+          </div>
+        </section>
+
+        <!-- Pausa / partida retomada -->
+        <section id="screen-pause" class="screen" aria-labelledby="pause-title" role="dialog" aria-modal="true">
+          <div class="screen-inner">
+            <p id="resumed-chip" class="chip" hidden>Partida retomada</p>
+            <h2 id="pause-title" class="screen-title">Pausado</h2>
+            <p id="pause-note" class="screen-note">Partida em pausa.</p>
+            <dl class="summary">
+              <div><dt>Pontos</dt><dd id="pause-score">0</dd></div>
+              <div><dt>Tentativas</dt><dd id="pause-attempts">0</dd></div>
+              <div><dt>Tempo</dt><dd id="pause-time">0:00</dd></div>
+            </dl>
+            <div class="actions">
+              <button class="btn" type="button" data-action="resume" data-primary>Continuar</button>
+              <button class="btn btn-ghost" type="button" data-action="restart">Reiniciar</button>
+            </div>
+            <button class="link" type="button" data-action="help">Como jogar</button>
+          </div>
+        </section>
+
+        <!-- Contagem regressiva 3 → 2 → 1 → GO! -->
+        <section id="screen-count" class="screen screen-count" aria-label="Contagem regressiva" role="status" aria-live="polite">
+          <div class="screen-inner">
+            <p class="count-label">Retomando</p>
+            <p id="count-num" class="count-num" aria-live="assertive">3</p>
+          </div>
+        </section>
+
+        <!-- Vitória -->
+        <section id="screen-win" class="screen" aria-labelledby="win-title" role="dialog" aria-modal="true">
+          <div class="screen-inner">
+            <h2 id="win-title" class="screen-title title-xl">Todos os pares!</h2>
+            <p class="win-score"><span id="win-score">0</span><small>pontos</small></p>
+            <p class="screen-note">em <b id="win-attempts">0</b> tentativas · <b id="win-time">0:00</b></p>
+            <p id="record-badge" class="badge" hidden>Novo recorde!</p>
+            <button id="again-button" class="btn" type="button" data-action="restart" data-primary>Jogar novamente</button>
+          </div>
+        </section>
+
+        <!-- Como jogar: camada dentro do painel. Abrir pausa a partida; fechar NÃO retoma. -->
+        <section id="screen-help" class="screen screen-help" aria-labelledby="help-title" role="dialog" aria-modal="true">
+          <button class="help-close" type="button" data-action="help-close" aria-label="Fechar">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </button>
+          <div class="screen-inner help-card">
+            <h2 id="help-title" class="screen-title">Como jogar</h2>
+            <p class="help-text">Vire duas cartas por vez e encontre os <span data-pairs>10</span> pares de símbolos iguais, com o menor número de tentativas. Se forem diferentes, elas viram de volta: memorize onde cada símbolo está.</p>
+            <h3 class="help-sub">Pontuação</h3>
+            <ul class="rule-list">
+              <li><b>+100</b> a cada par encontrado</li>
+              <li><b>+25</b> por acerto seguido (acumula)</li>
+              <li><b>−10</b> a cada erro</li>
+            </ul>
+            <h3 class="help-sub">Controles</h3>
+            <ul class="ctl-list">
+              <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Virar carta</span></li>
+              <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar ou continuar</span></li>
+              <li><span class="ctl-keys"><kbd class="cap">P</kbd></span><span class="ctl-label">Pausar</span></li>
+              <li><span class="ctl-keys"><kbd class="cap">R</kbd></span><span class="ctl-label">Reiniciar</span></li>
+              <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
+            </ul>
+            <p class="help-note">Abrir a ajuda pausa a partida. Ao fechar, ela continua pausada até você tocar em Continuar. O recorde fica salvo neste aparelho.</p>
+            <button class="btn" type="button" data-action="help-close" data-primary>Entendi</button>
+          </div>
+        </section>
       </div>
     </div>
-
-    <!-- Como jogar: popover ancorado abaixo do botão "?" (fora do container do jogo) -->
-    <div id="help-popover" class="help-popover" role="dialog" aria-labelledby="help-title" data-placement="below" hidden>
-      <button id="help-close" class="help-close" type="button" aria-label="Fechar">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
-      </button>
-      <h2 id="help-title" class="help-title">Como jogar</h2>
-      <p class="help-text">Vire duas cartas por vez e encontre todos os 10 pares de símbolos iguais, com o menor número de tentativas. Se as cartas forem diferentes, elas viram de volta: memorize onde cada símbolo está.</p>
-      <h3 class="help-sub">Pontuação</h3>
-      <ul class="rule-list">
-        <li><b>+100</b> a cada par encontrado</li>
-        <li><b>+25</b> por acerto seguido (acumula)</li>
-        <li><b>−10</b> a cada erro</li>
-      </ul>
-      <h3 class="help-sub">Controles</h3>
-      <ul class="ctl-list">
-        <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Virar carta</span></li>
-        <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar partida</span></li>
-        <li><span class="ctl-keys"><kbd class="cap">R</kbd></span><span class="ctl-label">Reiniciar</span></li>
-        <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
-      </ul>
-      <p class="help-note">No computador, clique nas cartas com o mouse. O recorde fica salvo neste aparelho.</p>
-    </div>
   </main>
+  <div id="tip" class="tip" role="tooltip"><span id="tip-text"></span><kbd id="tip-key" class="cap" hidden></kbd></div>
   <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
-  <script src="memory_match_storage.js?v=3"></script>
-  <script src="memory_match.js?v=3"></script>
+  <script src="memory_match_storage.js?v=4"></script>
+  <script src="memory_match.js?v=4"></script>
 </body>
 </html>
