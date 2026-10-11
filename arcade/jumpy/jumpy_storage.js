@@ -8,6 +8,7 @@
      jumpy:muted -> '1' = som desligado, '0' = som ligado
                     (a mesma chave que o jogo já usava antes do registro compartilhado)
      jumpy:best  -> recorde: maior score já alcançado (inteiro >= 0)
+     jumpy:mouse -> '1' = arrastar com o mouse move o personagem, '0' = mouse bloqueado (padrão)
      jumpy:run   -> partida EM ANDAMENTO (JSON, um snapshot único), usada para voltar de onde
                     parou depois de um F5. Só existe enquanto a partida estiver viva: o Game Over
                     apaga essa chave; o recorde fica na chave própria.
@@ -23,8 +24,8 @@
 (() => {
   'use strict';
 
-  const KEYS = Object.freeze({ muted: 'jumpy:muted', best: 'jumpy:best', run: 'jumpy:run' });
-  const DEFAULTS = Object.freeze({ muted: false, best: 0 });
+  const KEYS = Object.freeze({ muted: 'jumpy:muted', best: 'jumpy:best', run: 'jumpy:run', mouse: 'jumpy:mouse' });
+  const DEFAULTS = Object.freeze({ muted: false, best: 0, mouse: false });
   const memory = {};
 
   function readRaw(key) {
@@ -53,6 +54,19 @@
     const muted = Boolean(value);
     writeRaw(KEYS.muted, muted ? '1' : '0');
     return muted;
+  }
+
+  function isMouseControl() {
+    const raw = readRaw(KEYS.mouse);
+    if (raw === '1') return true;
+    if (raw === '0') return false;
+    return DEFAULTS.mouse;
+  }
+
+  function setMouseControl(value) {
+    const on = Boolean(value);
+    writeRaw(KEYS.mouse, on ? '1' : '0');
+    return on;
   }
 
   function getBest() {
@@ -193,5 +207,5 @@
     try { window.localStorage.removeItem(KEYS.run); } catch (error) { /* nada a fazer */ }
   }
 
-  window.JumpyStorage = Object.freeze({ KEYS, DEFAULTS, isMuted, setMuted, getBest, setBest, saveRun, loadRun, clearRun });
+  window.JumpyStorage = Object.freeze({ KEYS, DEFAULTS, isMuted, setMuted, isMouseControl, setMouseControl, getBest, setBest, saveRun, loadRun, clearRun });
 })();

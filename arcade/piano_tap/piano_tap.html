@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Piano Tap · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="piano_tap.css?v=3">
+  <link rel="stylesheet" href="piano_tap.css?v=4">
 </head>
 <body>
   <header class="topbar">
@@ -97,7 +97,7 @@
 
         <section class="screen screen-over" role="dialog" aria-labelledby="over-title">
           <h2 id="over-title" class="over-title">Fim de jogo</h2>
-          <p id="over-reason" class="reason">Uma tecla preta escapou.</p>
+          <p id="over-reason" class="reason">Uma tecla escapou.</p>
           <p class="final"><span id="over-score">0</span><small>pontos</small></p>
           <p id="record-badge" class="badge" hidden>Novo recorde!</p>
           <p class="over-best">Recorde <strong id="over-best">0</strong></p>
@@ -129,23 +129,24 @@
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
     </button>
     <h2 id="help-title" class="help-title">Como jogar</h2>
-    <p class="help-text"><b>Objetivo:</b> tocar o maior número de teclas pretas possível. Cada acerto vale 1 ponto e toca uma nota da melodia.</p>
-    <p class="help-text">As teclas descem pelo teclado. Toque só nas pretas, da mais baixa para a mais alta, antes que cheguem à linha vermelha no fim da tela. A velocidade aumenta a cada ponto, até um limite.</p>
+    <p class="help-text"><b>Objetivo:</b> tocar o maior número de teclas escuras possível. Cada tecla vale 1 ponto e toca uma nota da melodia.</p>
+    <p class="help-text">As teclas descem pelas pistas. Toque nelas, da mais baixa para a mais alta, antes que cheguem à linha vermelha no fim da tela. A velocidade aumenta a cada ponto, até um limite.</p>
+    <p class="help-text"><b>Tecla longa</b> (com uma linha no meio): toque e <b>segure</b> até o brilho encher a tecla toda. Soltar antes encerra a partida. No celular, mais adiante aparecem <b>duas teclas na mesma fileira</b>: toque nas duas.</p>
     <h3 class="help-sub">Controles</h3>
     <ul class="ctl-list">
-      <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Tecla preta</span></li>
-      <li><span class="ctl-keys"><kbd class="cap">D</kbd><kbd class="cap">F</kbd><kbd class="cap">J</kbd><kbd class="cap">K</kbd></span><span class="ctl-label">Colunas 1 a 4</span></li>
+      <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Tecla (segure a longa)</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">D</kbd><kbd class="cap">F</kbd><kbd class="cap">J</kbd><kbd class="cap">K</kbd></span><span class="ctl-label">Colunas 1 a 4 (segure a longa)</span></li>
       <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar / continuar</span></li>
       <li><span class="ctl-keys"><kbd class="cap">P</kbd><span class="ctl-or">/</span><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar</span></li>
       <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
     </ul>
     <h3 class="help-sub">Fim de jogo</h3>
-    <p class="help-text">A partida acaba se você tocar numa tecla branca (ela fica marcada com um X) ou se uma tecla preta escapar pelo fim da tela.</p>
+    <p class="help-text">A partida acaba se você tocar fora das teclas (fica marcado com um X), soltar uma tecla longa antes da hora ou deixar uma tecla escapar pelo fim da tela.</p>
     <p class="help-note">O recorde fica salvo neste aparelho. Abrir esta ajuda durante a partida pausa o jogo.</p>
   </div>
 
   <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
-  <script src="piano_tap_storage.js?v=3"></script>
-  <script src="piano_tap.js?v=3"></script>
+  <script src="piano_tap_storage.js?v=4"></script>
+  <script src="piano_tap.js?v=4"></script>
 </body>
 </html>

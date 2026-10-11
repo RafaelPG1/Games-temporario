@@ -21,7 +21,7 @@ const CONFIG = {
   debris: { gravity: 1300 },
   timing: { maxFrameTime: 1 / 30 },
   countdown: { step: 0.7, go: 0.5 },    // 3 · 2 · 1 (step s cada) e GO! (go s)
-  save: { version: 1, everyMs: 300 },   // partida salva no máx. a cada 300 ms (e em todo evento importante)
+  save: { version: 1, everyMs: 1500 },  // partida salva no máx. a cada 1,5 s (e em todo evento importante); gravar é síncrono e travava o quadro
   // howRoom = espaço lateral mínimo para o botão "Como jogar"; abaixo disso ele vai para uma faixa (howStrip, px) sob o palco
   view: { margin: 6, maxCssHeight: 1000, howRoom: 66, howStrip: 56 },
 };
@@ -39,6 +39,12 @@ const ui = {
   overScore: $('over-score'), overBest: $('over-best'), badge: $('record-badge'),
   how: $('how-button'), howPop: $('how-popover'), howClose: $('how-close'),
 };
+
+// Camadas do cenário movidas direto pelo JS (transform inline): mudar uma variável CSS no palco a cada quadro obrigava o navegador a recalcular o estilo de todos os blocos
+ui.world = ui.scene.querySelector('.world');
+ui.night = ui.scene.querySelector('.night');
+ui.stars = ui.scene.querySelector('.stars');
+ui.pars = Array.from(ui.scene.querySelectorAll('.par')).map((el) => ({ el, k: parseFloat(el.style.getPropertyValue('--k')) || 0 }));
 
 // Persistência: stack_tower_storage.js (best, muted); dados antigos são recuperados uma vez, na primeira execução.
 const store = window.StackTowerStorage;
@@ -448,9 +454,18 @@ function render() {
       if (ov > 0) Object.assign(ui.pad.style, { width: `${ov}px`, transform: `translate3d(${l.toFixed(2)}px,${t.y - 4}px,0)` });
     }
   }
-  if (game.camShown !== game.cam) { ui.stage.style.setProperty('--cam', game.cam.toFixed(2)); game.camShown = game.cam; }
+  if (game.camShown !== game.cam) {
+    const c = game.cam;
+    ui.world.style.transform = `translate3d(0,${c.toFixed(2)}px,0)`;
+    for (const p of ui.pars) p.el.style.transform = `translate3d(0,${(c * p.k).toFixed(2)}px,0)`;
+    game.camShown = c;
+  }
   const alt = clamp(game.cam / CONFIG.camera.nightAltitude, 0, 1);
-  if (game.altShown !== alt) { ui.stage.style.setProperty('--alt', alt.toFixed(3)); game.altShown = alt; }
+  if (game.altShown !== alt) {
+    ui.night.style.opacity = alt.toFixed(3);
+    ui.stars.style.opacity = (0.28 + alt * 0.72).toFixed(3);
+    game.altShown = alt;
+  }
 }
 
 /* ===== 7. INTERFACE ===== */

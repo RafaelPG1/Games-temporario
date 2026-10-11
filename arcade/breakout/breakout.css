@@ -24,7 +24,7 @@ body {
 
 /* Cabeçalho (igual ao dos outros jogos) */
 .topbar {
-  flex: none; display: flex; align-items: center; gap: 14px; height: 56px;
+  flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 14px; height: 56px;   /* [ícone + título] no centro exato */
   padding: 0 clamp(10px, 3vw, 24px);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 600;
   color: var(--shell-text); background: linear-gradient(180deg, #0d0f16, var(--shell-bg));
@@ -41,7 +41,8 @@ body {
 .back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
 .back:active { transform: scale(.97); }
 .back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
-.game-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.back { grid-column: 1; justify-self: start; }
+.game-id { grid-column: 2; justify-self: center; display: flex; align-items: center; gap: 10px; min-width: 0; }
 .game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(51,199,232,.28); }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
@@ -326,6 +327,20 @@ body {
 .help-tag { padding: 1px 7px; font-size: 11px; font-style: normal; font-weight: 600; color: var(--shell-muted); background: rgba(255,255,255,.06); border-radius: 999px; white-space: nowrap; }
 
 @media (max-width: 640px) { .topbar { height: 52px; } }
+/* Celular: botão do catálogo compacto (mantém o texto) para o título continuar no centro exato */
+@media (max-width: 460px) {
+  .topbar { column-gap: 6px; padding: 0 8px; }
+  .back { min-height: 38px; padding: 0 9px 0 5px; gap: 2px; font-size: 12.5px; }
+  .back svg { width: 16px; height: 16px; }
+  .game-id { gap: 6px; }
+  .game-mark { width: 24px; height: 24px; border-radius: 7px; }
+  .game-text strong { font-size: 13.5px; }
+}
+/* Só em telas bem estreitas (< 320px): apenas a seta (o nome segue no aria-label) */
+@media (max-width: 319px) {
+  .back { width: 40px; padding: 0; justify-content: center; }
+  .back span { display: none; }
+}
 @media (max-height: 420px) { .controls { display: none; } .topbar { height: 46px; } .game-text span { display: none; } }
 @media (prefers-reduced-motion: reduce) { .is-serving .serve-hint { animation: none; } .screen { transition: none; } .back, .back svg { transition: none; } .is-ready .tile { animation: none; } .life { transition: none; } .help-toggle, .help-panel { transition: none; } .life.is-new { animation: none; } .how-popover, .level-menu { animation: none; } .how-btn, .mouse-btn { transition: none; } .hint { animation: none; } }
 

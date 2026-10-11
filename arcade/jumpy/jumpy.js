@@ -21,6 +21,7 @@ const CONFIG = {
     accel: 900,             // aceleração horizontal (px/s²)
     decel: 650,             // desaceleração sem tecla (px/s²)
     squashTime: 0.18,       // duração da animação de pouso
+    lookMinSpeed: 12,       // abaixo dessa velocidade horizontal (px/s) os olhos olham reto
   },
 
   // PLATAFORMAS: tamanho e espaçamento (start = fácil, end = difícil)
@@ -208,6 +209,22 @@ const Sound = (() => {
       });
     },
     click() { safely(() => tone({ type: 'square', from: 520, to: 700, duration: 0.05, volume: 0.22 })); },
+    // Contagem 3, 2, 1, GO!: só toca se o áudio já estiver liberado (sem gesto do jogador o navegador o mantém
+    // suspenso, e o bip ficaria "preso" para tocar de uma vez no primeiro toque).
+    count() {
+      if (!audioContext || audioContext.state !== 'running') return;
+      safely(() => {
+        tone({ type: 'square', from: 660, duration: 0.12, volume: 0.24 });
+        tone({ type: 'triangle', from: 330, duration: 0.12, volume: 0.3 });
+      });
+    },
+    go() {
+      if (!audioContext || audioContext.state !== 'running') return;
+      safely(() => {
+        tone({ type: 'square', from: 880, to: 1760, duration: 0.3, volume: 0.26 });
+        tone({ type: 'triangle', from: 440, to: 880, duration: 0.3, volume: 0.34 });
+      });
+    },
   };
 })();
 
@@ -230,7 +247,7 @@ const recovery = {
 };
 
 function createPlayer() {
-  return { x: W / 2, y: PLAT.groundY, vx: 0, vy: 0, facing: 1, tilt: 0, squash: 0 };
+  return { x: W / 2, y: PLAT.groundY, vx: 0, vy: 0, facing: 1, tilt: 0, squash: 0, look: 0 };
 }
 
 // Altura (m) do marco de índice i. Lista fixa em CONFIG.markers.heights, depois repete.
@@ -695,6 +712,9 @@ function animatePlayer(dt) {
   const p = game.player;
   p.squash = Math.max(0, p.squash - dt);
   p.tilt += ((p.vx / PLAYER.maxSpeed) * 0.3 - p.tilt) * Math.min(1, 12 * dt);
+  // Olhos: olham para o lado em que ele está indo; parado (ou quase), olham reto. Suavizado, sem "estalo".
+  const lookTarget = Math.abs(p.vx) > PLAYER.lookMinSpeed ? Math.sign(p.vx) : 0;
+  p.look = (p.look || 0) + (lookTarget - (p.look || 0)) * Math.min(1, 16 * dt);
   updatePlatforms(dt);
 }
 
@@ -1031,23 +1051,39 @@ function drawMarkers() {
   }
 }
 
+// O personagem é desenhado DIRETO no canvas visível (resolução da tela), com retângulos em vez do sprite 20x20.
+// Assim, ao inclinar e esticar/achatar, as bordas ficam nítidas e suaves (antes o sprite era girado/escalado no
+// mundo de 288x512 sem suavização, o que serrilhava e borrava o contorno). O visual em blocos continua o mesmo.
 function drawPlayer() {
   const p = game.player;
-  const frame = sprites.player[p.vy < 0 ? 1 : 0];
+  const spread = p.vy < 0 ? 1 : 0;
   const sq = p.squash / PLAYER.squashTime;
   const sy = sq > 0 ? 1 - 0.3 * sq : (p.vy < -700 ? 1.25 : p.vy < -200 ? 1.1 : 1);
   const sx = 1 / sy;
   const fy = Math.round(p.y - game.camY);
-  
+  const look = clamp(p.look || 0, -1, 1);
+  const feet = spread ? [2, 14] : [4, 12];
+  const kx = canvas.width / W, ky = canvas.height / H;     // mundo -> tela
+
   for (const off of [0, -W, W]) {
     const cx = Math.round(p.x + off);
     if (cx < -PLAYER.width || cx > W + PLAYER.width) continue;
-    ctx.save();
-    ctx.translate(cx, fy);
-    ctx.rotate(p.tilt);
-    ctx.scale(p.facing * sx, sy);
-    ctx.drawImage(frame, -PLAYER.width / 2, -PLAYER.height);
-    ctx.restore();
+    viewCtx.save();
+    viewCtx.scale(kx, ky);
+    viewCtx.translate(cx, fy);
+    viewCtx.rotate(p.tilt);
+    viewCtx.scale(sx, sy);
+    viewCtx.translate(-PLAYER.width / 2, -PLAYER.height);   // a partir daqui: coordenadas do sprite (0..20)
+    for (const fx of feet) { rect(viewCtx, COLORS.ink, fx, 16, 4, 4); rect(viewCtx, COLORS.bodyShade, fx + 1, 16, 2, 3); }
+    rect(viewCtx, COLORS.ink, 1, 0, 18, 17);
+    rect(viewCtx, COLORS.body, 2, 1, 16, 15);
+    rect(viewCtx, COLORS.bodyLight, 2, 1, 16, 3);
+    rect(viewCtx, COLORS.bodyShade, 2, 13, 16, 3);
+    for (const ex of [4, 11]) {
+      rect(viewCtx, COLORS.white, ex, 5, 5, 6);
+      rect(viewCtx, COLORS.ink, ex + 1 + look, 7, 3, 4);     // pupila: -1 = esquerda, 0 = reto, +1 = direita
+    }
+    viewCtx.restore();
   }
 }
 
@@ -1069,15 +1105,18 @@ function renderWorld() {
 
   for (const plat of game.platforms) drawPlatform(plat);
   drawMarkers();
-  drawPlayer();
-
-  if (game.state !== STATES.READY) drawText(`SCORE: ${game.score}`, 8, 8, 3);
 }
 
 function render() {
   renderWorld();
   viewCtx.imageSmoothingEnabled = false;
   viewCtx.drawImage(worldCanvas, 0, 0, canvas.width, canvas.height);
+  drawPlayer();                                   // por cima do mundo, em alta resolução
+  if (game.state !== STATES.READY) {              // placar por cima de tudo (desenhado no mundo e aplicado de novo)
+    ctx.clearRect(0, 0, W, H);
+    drawText(`SCORE: ${game.score}`, 8, 8, 3);
+    viewCtx.drawImage(worldCanvas, 0, 0, canvas.width, canvas.height);
+  }
 }
 
 /* ===== 8. INTERFACE ===== */
@@ -1086,6 +1125,7 @@ const ui = {
   stage: document.getElementById('stage'),
   pauseButton: document.getElementById('pause-button'),
   muteButton: document.getElementById('mute-button'),
+  mouseButton: document.getElementById('mouse-button'),
   restartButton: document.getElementById('restart-button'),
   pauseRestart: document.getElementById('pause-restart'),
   recoveryCount: document.getElementById('recovery-count'),
@@ -1133,6 +1173,7 @@ function syncRecoveryUi() {
   if (text === null) { recovery.shown = null; return; }
   if (text !== recovery.shown) {
     recovery.shown = text;
+    if (counting) Sound.count(); else Sound.go();     // um som para cada número e outro para o GO!
     const el = ui.recoveryCount;
     el.textContent = text;
     el.classList.toggle('is-go', going);
@@ -1153,6 +1194,25 @@ function toggleMute() {
   Sound.setMuted(!Sound.muted);
   syncMuteButton();
   Sound.click();
+}
+
+// Controle pelo mouse: ligado por padrão; bloqueado, clicar/arrastar com o mouse não move o personagem
+// (o clique ainda inicia/retoma o jogo). Toque e teclado não são afetados. A escolha fica salva.
+let mouseControl = JumpyStorage.isMouseControl();
+
+function syncMouseButton() {
+  const state = mouseControl ? 'ligado' : 'bloqueado';
+  ui.mouseButton.classList.toggle('is-on', mouseControl);
+  ui.mouseButton.setAttribute('aria-pressed', mouseControl ? 'true' : 'false');
+  ui.mouseButton.setAttribute('aria-label', `Controle pelo mouse: ${state}`);
+  ui.mouseButton.dataset.tip = `Mouse: ${state}`;
+}
+
+function setMouseControl(on) {
+  mouseControl = Boolean(on);
+  JumpyStorage.setMouseControl(mouseControl);
+  if (!mouseControl && input.control && input.control.type === 'mouse') releaseControl();   // soltou na hora: a entrada volta a zero
+  syncMouseButton();
 }
 
 // Ajuda "Como jogar": popover pequeno ancorado ao botão "?", fora da área do jogo.
@@ -1313,8 +1373,9 @@ function updateControl(c, x) {
 
 function beginControl(e) {
   if (input.control) return;                          // já há um dedo no comando: o outro é ignorado
+  if (e.pointerType === 'mouse' && !mouseControl) return;   // mouse bloqueado: não controla o personagem
   if (game.state !== STATES.PLAYING && game.state !== STATES.RECOVERY) return;
-  input.control = { id: e.pointerId, x: e.clientX, anchorX: e.clientX, target: 0, axis: 0 };
+  input.control = { id: e.pointerId, type: e.pointerType, x: e.clientX, anchorX: e.clientX, target: 0, axis: 0 };
   try { ui.arena.setPointerCapture(e.pointerId); } catch (error) { /* sem captura: os eventos ainda chegam ao document */ }
 }
 
@@ -1415,6 +1476,7 @@ function init() {
   resetRound();
   restoreSavedRun();    // partida salva em andamento? volta congelada, com contagem 3, 2, 1
   syncMuteButton();
+  syncMouseButton();
   document.addEventListener('keydown', onKeyDown, { passive: false });
   document.addEventListener('keyup', onKeyUp);
   document.addEventListener('pointerdown', onPointerDown, { passive: false });
@@ -1446,6 +1508,7 @@ function init() {
   });
   ui.helpClose.addEventListener('click', (e) => { e.stopPropagation(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); });
   ui.muteButton.addEventListener('click', (e) => { e.stopPropagation(); toggleMute(); ui.muteButton.blur(); });
+  ui.mouseButton.addEventListener('click', (e) => { e.stopPropagation(); setMouseControl(!mouseControl); ui.mouseButton.blur(); });
   ui.pauseButton.addEventListener('click', (e) => {
     e.stopPropagation();
     if (game.state === STATES.PLAYING) setPaused(true);

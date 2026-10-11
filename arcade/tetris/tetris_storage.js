@@ -7,6 +7,7 @@
    Dados guardados (chaves iguais às que o jogo já usava):
      tetris:best  -> recorde: maior score já alcançado (inteiro >= 0)
      tetris:muted -> '1' = som desligado, '0' = som ligado
+     tetris:mouse -> '1' = botões do mouse controlam a peça, '0' = desligado (padrão)
      tetris:save  -> partida em andamento (JSON); removida no Game Over
 
    Garantias:
@@ -18,8 +19,8 @@
 (() => {
   'use strict';
 
-  const KEYS = Object.freeze({ best: 'tetris:best', muted: 'tetris:muted', save: 'tetris:save' });
-  const DEFAULTS = Object.freeze({ best: 0, muted: false });
+  const KEYS = Object.freeze({ best: 'tetris:best', muted: 'tetris:muted', save: 'tetris:save', mouse: 'tetris:mouse' });
+  const DEFAULTS = Object.freeze({ best: 0, muted: false, mouse: false });
   const memory = {};
 
   function readRaw(key) {
@@ -65,6 +66,19 @@
     return muted;
   }
 
+  function isMouseControl() {
+    const raw = readRaw(KEYS.mouse);
+    if (raw === '1') return true;
+    if (raw === '0') return false;
+    return DEFAULTS.mouse;
+  }
+
+  function setMouseControl(value) {
+    const on = Boolean(value);
+    writeRaw(KEYS.mouse, on ? '1' : '0');
+    return on;
+  }
+
   // Partida em andamento. loadGame devolve o objeto salvo ou null (ausente/corrompido);
   // quem chama valida o conteúdo. clearGame torna a partida não restaurável (Game Over).
   function saveGame(snapshot) {
@@ -86,5 +100,5 @@
     try { window.localStorage.removeItem(KEYS.save); } catch (error) { /* ignora */ }
   }
 
-  window.TetrisStorage = Object.freeze({ KEYS, DEFAULTS, getBest, setBest, isMuted, setMuted, saveGame, loadGame, clearGame });
+  window.TetrisStorage = Object.freeze({ KEYS, DEFAULTS, getBest, setBest, isMuted, setMuted, isMouseControl, setMouseControl, saveGame, loadGame, clearGame });
 })();

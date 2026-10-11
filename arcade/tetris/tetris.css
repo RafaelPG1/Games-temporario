@@ -217,7 +217,7 @@ body[data-state="paused"] #pause-button { visibility: visible; }
   min-width: 0;
   min-height: 0;
 }
-.hud { grid-area: hud; align-self: start; }
+.hud { grid-area: hud; align-self: stretch; }
 .touch-move { grid-area: move; display: none; }
 .touch-act { grid-area: act; display: none; }
 
@@ -635,6 +635,7 @@ body[data-state="paused"] #pause-button { visibility: visible; }
     row-gap: 8px;
   }
   .hud-next { grid-area: next; align-items: center; gap: 4px; }
+  .layout .hud > .mouse-btn { grid-column: 1 / -1; justify-self: start; margin-top: 0; }
   .hud .label { font-size: 11px; }
   .next-box { width: 72px; height: 88px; border-width: 2px; }
   .stats {
@@ -718,6 +719,12 @@ body[data-state="paused"] #pause-button { visibility: visible; }
 /* Telas estreitas: o botão do catálogo vira só a seta (o nome segue no aria-label), para o
    conjunto [SVG TETRIS] poder ficar no centro exato do cabeçalho sem encostar no botão. */
 @media (max-width: 460px) {
+  .topbar { column-gap: 8px; }
+  .back { padding: 0 12px 0 8px; gap: 3px; font-size: 13px; }   /* mantém o texto "Catálogo" visível */
+  .game-text strong { font-size: 14px; }
+}
+/* Só em telas bem estreitas (< 340px) o botão vira apenas a seta */
+@media (max-width: 339px) {
   .back { width: 40px; padding: 0; justify-content: center; }
   .back span { display: none; }
 }
@@ -778,6 +785,51 @@ body[data-state="paused"] #pause-button { visibility: visible; }
 .help-close:focus-visible { opacity: 1; outline: 2px solid #2d7be0; outline-offset: -2px; }
 @keyframes help-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
 
+/* Rolagem do painel "Como jogar": só o conteúdo rola (título, botão de fechar e a setinha
+   do balão ficam fixos). Barra fina no estilo papel e tinta, igual ao resto do jogo. */
+.help-popover {
+  display: flex;
+  flex-direction: column;
+  width: min(340px, calc(100vw - 24px));     /* mais largo: a lista cabe sem rolagem lateral */
+  max-height: min(560px, calc(100dvh - 24px));
+}
+.help-popover[hidden] { display: none; }
+.help-title { flex: none; }
+.help-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-right: -8px;
+  padding-right: 10px;
+  overflow-x: hidden;                        /* nunca rola de lado */
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;                       /* o body bloqueia gestos; aqui o toque pode rolar */
+  scrollbar-width: thin;                     /* Firefox */
+  scrollbar-color: rgba(84, 56, 71, 0.45) transparent;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+.help-scroll:focus-visible { outline: 2px solid #2d7be0; outline-offset: 2px; border-radius: 4px; }
+
+/* Barra fina e arredondada: trilho invisível, "pílula" na cor da tinta que acende em laranja */
+.help-scroll::-webkit-scrollbar { width: 8px; }
+.help-scroll::-webkit-scrollbar-track { background: transparent; margin: 2px 0; }
+.help-scroll::-webkit-scrollbar-thumb {
+  background: rgba(84, 56, 71, 0.4);
+  background-clip: padding-box;
+  border: 2px solid transparent;             /* deixa a pílula mais fina que a faixa */
+  border-radius: 999px;
+  transition: background-color 0.2s;
+}
+.help-scroll::-webkit-scrollbar-thumb:hover { background-color: var(--orange); background-clip: padding-box; }
+.help-scroll::-webkit-scrollbar-thumb:active { background-color: var(--orange-dark); background-clip: padding-box; }
+
+/* Linhas de controle sem estourar a largura: teclas e rótulo podem quebrar de linha */
+.ctl-list li { gap: 8px; }
+.ctl-keys { min-width: 0; flex: none; flex-wrap: nowrap; }   /* rótulo logo depois das teclas */
+.ctl-label { min-width: 0; overflow-wrap: anywhere; }
+.help-text, .help-note { overflow-wrap: anywhere; }
+
 /* Pausa: o piscar vai nos itens da dica (texto, "ou" e tecla), em vez de no contêiner,
    e com !important para não ser anulado por outras regras ou por estilos inline. */
 @keyframes pause-blink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
@@ -798,3 +850,71 @@ body[data-state="paused"] #pause-button { visibility: visible; }
   animation: screen-ready 1.4s ease-in-out infinite !important;
 }
 
+
+/* ==========================================================================
+   Botão de controle pelo mouse (painel de informações) + tooltips do jogo
+   ========================================================================== */
+
+/* Botão no fim do painel (rente à base do tabuleiro), como nos outros jogos */
+.hud > .mouse-btn { margin-top: auto; align-self: flex-start; }
+
+/* Mouse desligado: ícone apagado com risco vermelho. Ligado: ícone dourado, sem risco, ponto verde. */
+.help-btn.mouse-btn { position: relative; color: var(--shell-muted); }
+.help-btn.mouse-btn.is-on { color: var(--shell-accent); background: #141722; border-color: rgba(255, 200, 87, 0.75); box-shadow: 0 0 0 4px rgba(255, 200, 87, 0.1); }
+.mouse-btn.is-on .mouse-slash { display: none; }
+.mouse-dot {
+  position: absolute; top: 3px; right: 3px; width: 10px; height: 10px; border-radius: 50%;
+  background: #4a5088; border: 2px solid var(--shell-surface);
+}
+.mouse-btn.is-on .mouse-dot { background: #4fd36b; box-shadow: 0 0 6px rgba(79, 211, 107, 0.8); }
+@media (hover: none) and (pointer: coarse) { .mouse-btn { display: none; } }   /* telas só de toque não têm mouse */
+
+/* Tooltips (data-tip): balão de papel com contorno de tinta, cantos em escadinha, laje de sombra embaixo e
+   seta em degraus: a mesma linguagem dos botões de papel, do painel de ajuda e do Game Over.
+   Hover: aparece depois de --tip-delay. Apertar o botão ou sair dele: some na hora (o JS marca data-tip-off
+   até o ponteiro sair). Teclado (:focus-visible): aparece sem espera. Telas de toque não têm hover. */
+:root { --tip-delay: 0.3s; }   /* <<< TEMPO ATÉ O TOOLTIP APARECER NO HOVER (mude aqui) */
+[data-tip] {
+  position: relative;
+  --t: 3px;                                  /* "pixel" do tooltip */
+  --tip-gap: 14px; --tip-face: var(--paper-light); --tip-shade: var(--paper); --tip-ink: var(--ink);
+}
+[data-tip]::before, [data-tip]::after { position: absolute; z-index: 60; pointer-events: none; opacity: 0; visibility: hidden; transition: none; }
+[data-tip]::after {
+  content: attr(data-tip); top: calc(100% + var(--tip-gap)); left: 50%; transform: translateX(-50%);
+  padding: 7px 10px 8px; white-space: nowrap;
+  font-family: "Arial Black", "Trebuchet MS", Arial, sans-serif; font-weight: 900; font-size: 11.5px; line-height: 1;
+  letter-spacing: 0.06em; text-transform: uppercase; text-shadow: none; color: var(--tip-ink); background: var(--tip-face);
+  box-shadow: inset 0 calc(var(--t) * -1) 0 0 var(--tip-shade),
+    0 calc(var(--t) * -1) 0 0 var(--tip-ink), calc(var(--t) * -1) 0 0 0 var(--tip-ink), var(--t) 0 0 0 var(--tip-ink),
+    0 calc(var(--t) * 2) 0 0 var(--tip-ink), calc(var(--t) * -1) var(--t) 0 0 var(--tip-ink), var(--t) var(--t) 0 0 var(--tip-ink);
+}
+/* seta em degraus (ponta de 1 bloco, depois 3) apontando para o botão, com o miolo de papel furando o contorno do balão */
+[data-tip]::before {
+  content: ""; width: var(--t); height: var(--t); background: var(--tip-ink);
+  left: calc(50% - var(--t) / 2); top: calc(100% + var(--tip-gap) - var(--t) * 3);
+  box-shadow: 0 var(--t) 0 0 var(--tip-face),
+    calc(var(--t) * -1) calc(var(--t) * 2) 0 0 var(--tip-face), 0 calc(var(--t) * 2) 0 0 var(--tip-face), var(--t) calc(var(--t) * 2) 0 0 var(--tip-face),
+    calc(var(--t) * -1) var(--t) 0 0 var(--tip-ink), var(--t) var(--t) 0 0 var(--tip-ink);
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-tip]:hover:not([data-tip-off]):not(:active)::before, [data-tip]:hover:not([data-tip-off]):not(:active)::after {
+    visibility: visible; opacity: 1;
+    transition: visibility 0s linear var(--tip-delay), opacity 0.12s steps(2) var(--tip-delay);
+  }
+}
+[data-tip]:focus-visible:not([data-tip-off]):not(:active)::before, [data-tip]:focus-visible:not([data-tip-off]):not(:active)::after { visibility: visible; opacity: 1; }
+@media (prefers-reduced-motion: reduce) and (hover: hover) and (pointer: fine) {
+  [data-tip]:hover:not([data-tip-off]):not(:active)::before, [data-tip]:hover:not([data-tip-off]):not(:active)::after {
+    transition: visibility 0s linear var(--tip-delay), opacity 0s linear var(--tip-delay);
+  }
+}
+
+/* Tooltip do botão do mouse: fica rente à borda de baixo, então o balão abre para CIMA e para a direita */
+.hud > .mouse-btn[data-tip]::after { top: auto; bottom: calc(100% + var(--tip-gap)); left: 0; transform: none; }
+.hud > .mouse-btn[data-tip]::before {
+  top: auto; bottom: calc(100% + var(--tip-gap) - var(--t) * 3);
+  box-shadow: 0 calc(var(--t) * -1) 0 0 var(--tip-face),
+    calc(var(--t) * -1) calc(var(--t) * -2) 0 0 var(--tip-face), 0 calc(var(--t) * -2) 0 0 var(--tip-face), var(--t) calc(var(--t) * -2) 0 0 var(--tip-face),
+    calc(var(--t) * -1) calc(var(--t) * -1) 0 0 var(--tip-ink), var(--t) calc(var(--t) * -1) 0 0 var(--tip-ink);
+}

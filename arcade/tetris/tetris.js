@@ -338,6 +338,7 @@
   };
   const DIR = { left: -1, right: 1 };
   const pressedKeys = new Set();
+  let mouseSoft = false;               // botão esquerdo do mouse segurando a queda acelerada
 
   function emptyBoard() {
     return Array.from({ length: TOTAL_ROWS }, () => new Array(COLS).fill(null));
@@ -351,6 +352,7 @@
     input.dasTimer = 0;
     input.dasCharged = false;
     pressedKeys.clear();
+    mouseSoft = false;
   }
 
   function resetRound() {
@@ -992,6 +994,7 @@
     touchAct: document.getElementById('touch-act'),
     pauseButton: document.getElementById('pause-button'),
     muteButton: document.getElementById('mute-button'),
+    mouseButton: document.getElementById('mouse-button'),
     helpButton: document.getElementById('help-button'),
     helpPopover: document.getElementById('help-popover'),
     helpClose: document.getElementById('help-close'),
@@ -1043,7 +1046,7 @@
     const showPlay = paused && !counting;
     ui.pauseButton.classList.toggle('is-paused', showPlay);
     ui.pauseButton.setAttribute('aria-label', showPlay ? 'Continuar' : 'Pausar');
-    ui.pauseButton.title = showPlay ? 'Continuar (P)' : 'Pausar (P)';
+    ui.pauseButton.dataset.tip = showPlay ? 'Continuar (P)' : 'Pausar (P)';
     renderScreenArt();
   }
 
@@ -1128,6 +1131,25 @@
     Sound.setMuted(!Sound.muted);
     syncMuteButton();
     Sound.click();
+  }
+
+  // Controle pelo mouse (botões): desligado por padrão; a escolha fica salva. A RODA gira a peça sempre,
+  // com o mouse ligado ou não. Ligado: botão esquerdo (segurar) acelera a queda e o direito faz a queda direta.
+  let mouseControl = TetrisStorage.isMouseControl();
+
+  function syncMouseButton() {
+    const state = mouseControl ? 'ligado' : 'desligado';
+    ui.mouseButton.classList.toggle('is-on', mouseControl);
+    ui.mouseButton.setAttribute('aria-pressed', mouseControl ? 'true' : 'false');
+    ui.mouseButton.setAttribute('aria-label', `Controle pelo mouse: ${state}`);
+    ui.mouseButton.dataset.tip = `Mouse: ${state}`;
+  }
+
+  function setMouseControl(on) {
+    mouseControl = Boolean(on);
+    TetrisStorage.setMouseControl(mouseControl);
+    if (!mouseControl) releaseMouseSoft();      // soltou na hora: a queda volta ao normal
+    syncMouseButton();
   }
 
   // Ajuda "Como jogar": popover pequeno ancorado ao botão "?", fora do tabuleiro.
@@ -1232,6 +1254,55 @@
     KeyW: 'rotate',
   };
   const BLOCKED_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowDown', 'ArrowUp', 'Space']);
+
+  /* Mouse. Roda: gira a peça (CONFIG: um giro por "clique" da roda; touchpad acumula até o mesmo valor).
+     Botões (só com o controle pelo mouse ligado): esquerdo segura a queda acelerada, direito = queda direta. */
+  const WHEEL_STEP = 50;        // deslocamento acumulado (px) que vale um giro; um clique de roda comum dá ~100
+  const WHEEL_GAP_MS = 60;      // intervalo mínimo entre giros (segura a inércia de touchpad/roda livre)
+  const WHEEL_IDLE_MS = 250;    // parou de girar a roda: o acumulado zera
+  let wheelAcc = 0;
+  let wheelStamp = 0;
+  let wheelLast = 0;
+
+  function onWheel(event) {
+    if (event.ctrlKey || event.metaKey) return;                              // zoom do navegador
+    if (event.target.closest && event.target.closest('#help-popover')) return;   // deixa o painel de ajuda rolar
+    event.preventDefault();
+    if (game.state !== STATES.PLAYING) return;
+    const now = performance.now();
+    if (now - wheelStamp > WHEEL_IDLE_MS) wheelAcc = 0;
+    wheelStamp = now;
+    const unit = event.deltaMode === 1 ? 33 : event.deltaMode === 2 ? 100 : 1;   // linhas/páginas -> px
+    wheelAcc += event.deltaY * unit;
+    if (Math.abs(wheelAcc) < WHEEL_STEP) return;
+    wheelAcc = 0;
+    if (now - wheelLast < WHEEL_GAP_MS) return;
+    wheelLast = now;
+    Sound.unlock();
+    rotatePiece();
+  }
+
+  function releaseMouseSoft() {
+    if (!mouseSoft) return;
+    mouseSoft = false;
+    input.down = pressedKeys.has('ArrowDown') || pressedKeys.has('KeyS');    // não cancela a tecla, se ela ainda estiver apertada
+  }
+
+  function onMouseDown(event) {
+    if (event.pointerType !== 'mouse' || !mouseControl) return;
+    if (game.state !== STATES.PLAYING) return;     // o clique que inicia/retoma não vira queda acelerada
+    if (event.target.closest && event.target.closest('button, #help-popover')) return;
+    if (event.button === 0) {
+      event.preventDefault();
+      Sound.unlock();
+      mouseSoft = true;
+      input.down = true;
+    } else if (event.button === 2) {
+      event.preventDefault();
+      Sound.unlock();
+      hardDrop();
+    }
+  }
 
   function onKeyDown(event) {
     if (event.ctrlKey || event.metaKey || event.altKey) return;
@@ -1379,6 +1450,7 @@
   // Ao voltar NÃO retoma sozinho: entra na recuperação (PARTIDA RETOMADA).
   function autoPause() {
     input.held.left = input.held.right = input.down = false;
+    mouseSoft = false;
     input.dasDir = 0;
     if (game.state === STATES.PLAYING) pauseGame('recovery', { silent: true });
     else if (game.state === STATES.PAUSED) { cancelCountdown(); saveNow(); }
@@ -1393,10 +1465,16 @@
       else clearSavedGame();                         // save inválido: descarta
     }
     syncMuteButton();
+    syncMouseButton();
 
     document.addEventListener('keydown', onKeyDown, { passive: false });
+    document.addEventListener('wheel', onWheel, { passive: false });
     document.addEventListener('keyup', onKeyUp, { passive: false });
-    document.addEventListener('pointerup', () => Sound.unlock());
+    document.addEventListener('pointerup', (event) => {
+      Sound.unlock();
+      if (event.pointerType === 'mouse' && event.button === 0) releaseMouseSoft();
+    });
+    document.addEventListener('pointercancel', releaseMouseSoft);
     document.addEventListener('contextmenu', (event) => event.preventDefault());
     window.addEventListener('blur', autoPause);
     document.addEventListener('visibilitychange', () => {
@@ -1409,6 +1487,8 @@
       flush();
       if (game.score > game.best) saveBest(game.score);
     });
+
+    ui.arena.addEventListener('pointerdown', onMouseDown);   // ANTES do handler abaixo: o clique que inicia o jogo não acelera a queda
 
     // Tocar/clicar: no tabuleiro inicia a partida; com o jogo pausado, inicia a retomada
     // (contagem 3-2-1-GO!). Com a ajuda aberta, o primeiro toque fora dela só a fecha.
@@ -1468,6 +1548,22 @@
       event.stopPropagation();
       toggleMute();
       ui.muteButton.blur();              // Espaço não deve acionar o botão depois
+    });
+
+    ui.mouseButton.addEventListener('click', (event) => {
+      event.stopPropagation();
+      setMouseControl(!mouseControl);
+      ui.mouseButton.blur();
+    });
+
+    // Tooltips (data-tip): ao apertar o botão somem na hora e só voltam depois que o ponteiro sair e entrar de novo
+    document.addEventListener('pointerdown', (event) => {
+      const el = event.target.closest && event.target.closest('[data-tip]');
+      if (el) el.setAttribute('data-tip-off', '');
+    }, true);
+    document.addEventListener('pointerout', (event) => {
+      const el = event.target.closest && event.target.closest('[data-tip-off]');
+      if (el && !el.contains(event.relatedTarget)) el.removeAttribute('data-tip-off');
     });
 
     document.querySelectorAll('.tbtn').forEach(bindTouchButton);

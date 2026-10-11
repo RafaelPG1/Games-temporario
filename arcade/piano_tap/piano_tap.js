@@ -16,10 +16,13 @@ const CONFIG = {
   historySize: 6, maxCol: 100, minCol: 24, margin: 14, restartLock: 500,
   volume: 0.3,
   countFrom: 3, countStep: 0.7, goFlash: 0.6,   // contagem 3·2·1 (s por número) e quanto tempo o "GO!" fica na tela
-  saveVersion: 1, saveEvery: 250,              // formato do salvamento (piano_tap:save) e intervalo mínimo entre gravações em jogo (ms)
+  holdFrom: 5, holdChance: 0.2, holdLongFrom: 30, holdLongChance: 0.3, holdsOnDesktop: true,   // tecla longa (segurar): a partir de N pontos; len 2 (padrão) ou 3 (rara)
+  doubleFrom: 25, doubleChance: 0.22,          // duas teclas na mesma fileira: SÓ em telas de toque, a partir de N pontos
+  gapChance: 0.32, gapMax: 2,                  // variedade: chance de uma fileira vir VAZIA e máximo de vazias seguidas
+  saveVersion: 2, saveEvery: 250,              // formato do salvamento (piano_tap:save) e intervalo mínimo entre gravações em jogo (ms)
 };
 const COLORS = {
-  seam: '#c4c8da', violet: '#9d8cff', violetSoft: '#e9e6ff', berry: '#ff4f7b', gold: '#ffc857', ink: '#120f2a',
+  neon: '#a99cff', violet: '#9d8cff', violetSoft: '#e9e6ff', berry: '#ff4f7b', gold: '#ffc857', ink: '#120f2a',
 };
 const { cols: COLS, rowHeight: ROW_H } = CONFIG;
 const VIEW_H = CONFIG.viewRows * ROW_H;
@@ -90,6 +93,7 @@ const Sound = (() => {
     },
     record() { play(() => [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.14, volume: 0.35, delay: 0.1 * i }))); },
     hit() { play(() => { tone({ type: 'sawtooth', from: 220, to: 45, duration: 0.5, volume: 0.35 }); tone({ type: 'square', from: 110, to: 38, duration: 0.3, volume: 0.22 }); }); },
+    hold() { play(() => tone({ type: 'triangle', from: 880, duration: 0.12, volume: 0.22 })); },
     click() { play(() => tone({ type: 'triangle', from: 520, to: 700, duration: 0.06, volume: 0.25 })); },
     count() { play(() => tone({ type: 'triangle', from: 440, duration: 0.09, volume: 0.25 })); },
     go() { play(() => { tone({ type: 'triangle', from: 659, duration: 0.1, volume: 0.28 }); tone({ type: 'sine', from: 988, duration: 0.2, volume: 0.35, delay: 0.07 }); }); },
@@ -99,12 +103,16 @@ const Sound = (() => {
 /* ===== 3. ESTADO ===== */
 // Cada fileira tem um índice fixo n; sua posição é rowTop = offset - n * ROW_H. Uma única variável (offset)
 // move o tabuleiro inteiro, então as fileiras nunca se desalinham entre si nem trocam de coluna.
+let sawTouch = false;   // vira true no primeiro toque de dedo: vale a partir da próxima partida
+const coarseQuery = window.matchMedia ? window.matchMedia('(pointer: coarse)') : null;
+const detectTouch = () => sawTouch || Boolean(coarseQuery && coarseQuery.matches);
+
 const game = {
   state: STATES.READY, time: 0, offset: 0, speed: 0,
   rows: [], nextN: 0, history: [],
   score: 0, startBest: 0, best: PianoTapStorage.getBest(), newRecord: false,
-  noteIndex: 0, particles: [], floats: [],
-  wrong: null, missRow: null, endReason: '', overAt: 0,
+  noteIndex: 0, particles: [], floats: [], glows: [], holds: new Map(), touchMode: false,
+  wrong: null, missRow: null, missTile: null, endReason: '', overAt: 0,
   pauseReason: 'manual', countdown: null, goFlash: 0,   // pausa: motivo · contagem em curso ({ t, shown }) · tempo restante do "GO!"
 };
 
@@ -126,14 +134,19 @@ const ctx = canvas.getContext('2d');
 let sx = 1, sy = 1;   // pixels do canvas por unidade (horizontal e vertical)
 
 /* ===== 4. LÓGICA ===== */
-const rowTop = (r) => game.offset - r.n * ROW_H;
+// Uma fileira ocupa r.len casas de altura (1 = tecla normal; 2 ou 3 = tecla LONGA, de segurar) e tem 0, 1 ou 2 teclas (r.tiles).
+// Cada tecla tem estado s: 0 = esperando · 1 = sendo segurada · 2 = cumprida. A posição vem de uma só variável (offset).
+const rowTop = (r) => game.offset - (r.n + r.len - 1) * ROW_H;
+const rowBottom = (r) => rowTop(r) + r.len * ROW_H;
+const holdNeed = (r) => r.len * ROW_H - INS * 2;   // quanto a tecla longa precisa andar, desde o toque, para encher por completo
+const unfinished = (r) => r.tiles.some((t) => t.s === 0);
 
 // Velocidade-alvo depende só da pontuação e tem teto. A velocidade real a segue suavemente (sem saltos).
 function targetSpeed() { return Math.min(CONFIG.speedMax, CONFIG.speedStart + game.score * CONFIG.speedStep); }
 
 // Sorteio ponderado: colunas usadas recentemente pesam menos, repetir a última pesa menos ainda
 // e três iguais seguidas é proibido. Equilibrado, porém imprevisível.
-function pickColumn() {
+function pickColumn(skip = -1) {
   const h = game.history, last = h.length ? h[h.length - 1] : -1;
   const twice = h.length >= 2 && h[h.length - 1] === h[h.length - 2];
   const weights = [];
@@ -141,6 +154,7 @@ function pickColumn() {
   for (let c = 0; c < COLS; c++) {
     let w = 1 / (1 + 0.7 * h.filter((x) => x === c).length);
     if (c === last) w = twice ? 0 : w * 0.4;
+    if (c === skip) w = 0;
     weights.push(w); total += w;
   }
   let r = Math.random() * total, fallback = 0;
@@ -153,10 +167,21 @@ function pickColumn() {
 }
 
 function pushRow() {
-  const n = game.nextN++;
-  const black = n < CONFIG.leadBlank ? -1 : pickColumn();
-  if (black >= 0) { game.history.push(black); if (game.history.length > CONFIG.historySize) game.history.shift(); }
-  game.rows.push({ n, black, hit: false, hitAt: 0 });
+  const n = game.nextN;
+  if (n < CONFIG.leadBlank) { game.rows.push({ n, len: 1, tiles: [] }); game.nextN = n + 1; return; }
+  let trailing = 0;                                     // fileiras vazias seguidas no topo da pilha
+  for (let i = game.rows.length - 1; i >= 0 && !game.rows[i].tiles.length; i--) trailing++;
+  if (trailing < CONFIG.gapMax && Math.random() < CONFIG.gapChance) { game.rows.push({ n, len: 1, tiles: [] }); game.nextN = n + 1; return; }
+  const hold = (CONFIG.holdsOnDesktop || game.touchMode) && game.score >= CONFIG.holdFrom && Math.random() < CONFIG.holdChance;
+  const len = !hold ? 1 : (game.score >= CONFIG.holdLongFrom && Math.random() < CONFIG.holdLongChance ? 3 : 2);
+  const two = game.touchMode && game.score >= CONFIG.doubleFrom && Math.random() < CONFIG.doubleChance;   // dupla: só no toque
+  const cols = [pickColumn()];
+  if (two) cols.push(pickColumn(cols[0]));
+  cols.sort((a, b) => a - b);
+  for (const c of cols) game.history.push(c);
+  while (game.history.length > CONFIG.historySize) game.history.shift();
+  game.rows.push({ n, len, tiles: cols.map((c) => ({ c, s: 0, hitAt: 0 })) });
+  game.nextN = n + len;
 }
 
 // Mantém fileiras suficientes para cobrir o tabuleiro até acima do topo.
@@ -168,7 +193,8 @@ function resetRound() {
   Object.assign(game, {
     offset: VIEW_H - ROW_H, speed: CONFIG.speedStart, rows: [], nextN: 0, history: [],
     score: 0, startBest: game.best, newRecord: false, noteIndex: 0,
-    particles: [], floats: [], wrong: null, missRow: null, endReason: '', countdown: null, goFlash: 0, pauseReason: 'manual',
+    particles: [], floats: [], glows: [], holds: new Map(), touchMode: detectTouch(),
+    wrong: null, missRow: null, missTile: null, endReason: '', countdown: null, goFlash: 0, pauseReason: 'manual',
   });
   fillRows();
   ui.board.classList.remove('hit', 'shake');
@@ -185,30 +211,45 @@ function startGame() {
   saveGame();
 }
 
-// Um passo de simulação (dt pequeno e fixo no máximo): mover, repor fileiras, detectar tecla perdida, descartar antigas.
+// Um passo de simulação (dt pequeno e fixo no máximo): mover, repor fileiras, detectar tecla perdida, fechar teclas longas, descartar antigas.
 function step(dt) {
   game.speed += (targetSpeed() - game.speed) * Math.min(1, dt * CONFIG.speedEase);
   game.offset += game.speed * dt;
   fillRows();
   for (const r of game.rows) {
-    if (r.black >= 0 && !r.hit && rowTop(r) + ROW_H >= VIEW_H) { endRound('miss', r); return; }
+    for (const t of r.tiles) {
+      if (t.s === 0 && rowBottom(r) >= VIEW_H) { endRound('miss', { row: r, tile: t }); return; }
+      if (t.s === 1 && game.offset - t.o0 >= holdNeed(r)) completeHold(r, t);
+    }
   }
   while (game.rows.length && rowTop(game.rows[0]) > VIEW_H + ROW_H) game.rows.shift();
 }
 
-// Todo toque (mouse, toque ou teclado) chega aqui já resolvido para uma fileira e uma coluna reais.
-function registerTap(row, col) {
-  if (game.state !== STATES.PLAYING) return;
-  if (row.black === col) { if (!row.hit) hitRow(row); return; }   // tecla preta já acertada: ignora
-  endRound('white', { row, col });
+// Centro (em unidades) da casa tocada por engano: no toque vem do ponto exato; no teclado, da casa mais baixa da fileira.
+function wrongSlotY(row, y) {
+  const top = rowTop(row);
+  const k = y === null ? row.len - 1 : Math.max(0, Math.min(row.len - 1, Math.floor((y - top) / ROW_H)));
+  return top + k * ROW_H + ROW_H / 2;
 }
 
-function hitRow(row) {
-  row.hit = true; row.hitAt = game.time;
+// Todo toque (mouse, dedo ou teclado) chega aqui já resolvido para uma fileira e uma coluna reais.
+// id identifica quem tocou (ponteiro ou tecla): é ele que precisa continuar apertado numa tecla longa.
+function registerTap(row, col, id = 'tap', y = null) {
+  if (game.state !== STATES.PLAYING) return;
+  const t = row.tiles.find((x) => x.c === col);
+  if (t) { if (t.s === 0) hitTile(row, t, id); return; }   // tecla já acertada (ou sendo segurada): ignora
+  endRound('white', { col, cy: wrongSlotY(row, y) });
+}
+
+function hitTile(row, t, id) {
+  t.hitAt = game.time;
+  t.s = row.len > 1 ? 1 : 2;
+  if (t.s === 1) { t.o0 = game.offset; game.holds.set(id, { row, tile: t }); }   // o brilho começa a encher AGORA
   game.score++;
   Sound.note(MELODY[game.noteIndex++ % MELODY.length]);
-  const cx = row.black + 0.5, cy = rowTop(row) + ROW_H / 2;
+  const cx = t.c + 0.5, cy = rowBottom(row) - ROW_H / 2;
   burst(cx, cy, 10, [COLORS.violet, '#c7bdff', COLORS.gold]);
+  game.glows.push({ c: t.c, y: cy, age: 0, life: 0.4 });
   if (!reduceMotion) game.floats.push({ x: cx, y: cy, t: 0 });
   updateScore(true);
   if (game.startBest > 0 && game.score > game.startBest) {
@@ -219,16 +260,44 @@ function hitRow(row) {
   if (game.score > game.best) { game.best = game.score; PianoTapStorage.setBest(game.best); updateBest(true); }
 }
 
+// O brilho encheu a tecla toda: segurou até o fim.
+function completeHold(row, t) {
+  t.s = 2;
+  for (const [id, h] of game.holds) if (h.tile === t) game.holds.delete(id);
+  const cy = Math.min(rowBottom(row) - ROW_H / 2, VIEW_H - 0.5);
+  burst(t.c + 0.5, cy, 8, [COLORS.gold, '#fff', COLORS.violet]);
+  game.glows.push({ c: t.c, y: cy, age: 0, life: 0.4 });
+  Sound.hold();
+}
+
+// Soltou o dedo/tecla: se a tecla longa ainda não estava cumprida, a partida acaba.
+function releaseInput(id) {
+  const h = game.holds.get(id);
+  if (!h) return;
+  game.holds.delete(id);
+  if (game.state === STATES.PLAYING && h.tile.s === 1) endRound('release', h);
+}
+
+// Pausa/reinício: ninguém está mais segurando nada, então as teclas longas em andamento contam como cumpridas.
+function releaseAllHolds() {
+  for (const r of game.rows) for (const t of r.tiles) if (t.s === 1) t.s = 2;
+  game.holds.clear();
+}
+
 function endRound(reason, info) {
   if (game.state !== STATES.PLAYING) return;   // nunca registra a derrota duas vezes
   game.endReason = reason;
+  game.holds.clear();
   let cx, cy;
-  if (reason === 'miss') {
-    const over = rowTop(info) + ROW_H - VIEW_H;
-    if (over > 0) game.offset -= over;         // recua o excesso: a tecla perdida fica inteira à vista
-    game.missRow = info; cx = info.black + 0.5; cy = rowTop(info) + ROW_H / 2;
-  } else {
-    game.wrong = info; cx = info.col + 0.5; cy = rowTop(info.row) + ROW_H / 2;
+  if (reason === 'white') {
+    game.wrong = info; cx = info.col + 0.5; cy = info.cy;
+  } else {                                      // 'miss' (tecla escapou) ou 'release' (soltou a longa cedo)
+    if (reason === 'miss') {
+      const over = rowBottom(info.row) - VIEW_H;
+      if (over > 0) game.offset -= over;        // recua o excesso: a tecla perdida fica inteira à vista
+    }
+    game.missRow = info.row; game.missTile = info.tile;
+    cx = info.tile.c + 0.5; cy = rowBottom(info.row) - ROW_H / 2;
   }
   burst(cx, cy, 20, [COLORS.berry, '#ff9bb0', COLORS.gold]);
   Sound.hit();
@@ -262,6 +331,7 @@ function backToStart() {   // da tela de pausa: descarta a partida e volta à te
 function setPaused(paused, reason = 'manual') {
   const live = game.state === STATES.PLAYING || game.state === STATES.COUNTDOWN;
   if (paused && live) {
+    releaseAllHolds();
     game.countdown = null;                       // contagem interrompida recomeça do 3
     game.goFlash = 0; ui.count.classList.remove('go');
     game.pauseReason = reason;
@@ -310,7 +380,8 @@ function snapshot() {
   return {
     v: CONFIG.saveVersion, savedAt: Date.now(),
     offset: game.offset, speed: game.speed, time: game.time, nextN: game.nextN,
-    rows: game.rows.map((r) => ({ n: r.n, black: r.black, hit: r.hit, hitAt: r.hitAt })),
+    touchMode: game.touchMode,
+    rows: game.rows.map((r) => ({ n: r.n, len: r.len, tiles: r.tiles.map((t) => ({ c: t.c, s: t.s === 1 ? 2 : t.s, hitAt: t.hitAt })) })),
     history: game.history.slice(),
     score: game.score, startBest: game.startBest, newRecord: game.newRecord, noteIndex: game.noteIndex,
     particles: game.particles.map((p) => ({ ...p })), floats: game.floats.map((f) => ({ ...f })),
@@ -333,15 +404,20 @@ function restoreGame(s) {
   const rows = [];
   for (let i = 0; i < s.rows.length; i++) {
     const r = s.rows[i];
-    if (!r || !Number.isInteger(r.n) || !Number.isInteger(r.black) || r.black < -1 || r.black >= COLS || typeof r.hit !== 'boolean' || !num(r.hitAt)) return false;
-    if (i && r.n !== s.rows[i - 1].n + 1) return false;                 // fileiras consecutivas
-    if (r.hit && r.black < 0) return false;
-    rows.push({ n: r.n, black: r.black, hit: r.hit, hitAt: Math.min(r.hitAt, s.time) });
+    if (!r || !Number.isInteger(r.n) || !Number.isInteger(r.len) || r.len < 1 || r.len > 3 || !Array.isArray(r.tiles) || r.tiles.length > 2) return false;
+    if (i && r.n !== s.rows[i - 1].n + s.rows[i - 1].len) return false;   // fileiras consecutivas
+    const seen = new Set(), tiles = [];
+    for (const t of r.tiles) {
+      if (!t || !Number.isInteger(t.c) || t.c < 0 || t.c >= COLS || seen.has(t.c) || (t.s !== 0 && t.s !== 2) || !num(t.hitAt)) return false;
+      seen.add(t.c); tiles.push({ c: t.c, s: t.s, hitAt: Math.min(t.hitAt, s.time) });
+    }
+    rows.push({ n: r.n, len: r.len, tiles });
   }
-  if (s.nextN !== rows[rows.length - 1].n + 1) return false;
-  const top = (r) => s.offset - r.n * ROW_H;
-  if (top(rows[0]) + ROW_H < VIEW_H - 1e-6) return false;               // o fundo do tabuleiro precisa estar coberto
-  if (rows.some((r) => r.black >= 0 && !r.hit && top(r) + ROW_H >= VIEW_H)) return false;   // tecla perdida já teria encerrado a partida
+  const last = rows[rows.length - 1];
+  if (s.nextN !== last.n + last.len) return false;
+  const top = (r) => s.offset - (r.n + r.len - 1) * ROW_H, bottom = (r) => top(r) + r.len * ROW_H;
+  if (bottom(rows[0]) < VIEW_H - 1e-6) return false;                    // o fundo do tabuleiro precisa estar coberto
+  if (rows.some((r) => r.tiles.some((t) => t.s === 0) && bottom(r) >= VIEW_H)) return false;   // tecla perdida já teria encerrado a partida
   if (!Array.isArray(s.history) || s.history.length > CONFIG.historySize || !s.history.every((c) => Number.isInteger(c) && c >= 0 && c < COLS)) return false;
 
   const list = (a) => (Array.isArray(a) ? a.slice(0, 200) : []);
@@ -354,7 +430,8 @@ function restoreGame(s) {
   Object.assign(game, {
     offset: s.offset, speed: s.speed, time: s.time, nextN: s.nextN, rows, history: s.history.slice(),
     score: s.score, startBest: s.startBest, newRecord: Boolean(s.newRecord), noteIndex: s.noteIndex, particles, floats,
-    wrong: null, missRow: null, endReason: '', countdown: null, goFlash: 0, pauseReason: 'restored',
+    touchMode: Boolean(s.touchMode), glows: [], holds: new Map(),
+    wrong: null, missRow: null, missTile: null, endReason: '', countdown: null, goFlash: 0, pauseReason: 'restored',
   });
   fillRows();
   game.best = Math.max(game.best, game.score);
@@ -380,79 +457,138 @@ function updateEffects(dt) {
   game.particles = game.particles.filter((p) => p.age < p.life);
   for (const f of game.floats) f.t += dt;
   game.floats = game.floats.filter((f) => f.t < 0.7);
+  for (const gl of game.glows) gl.age += dt;
+  game.glows = game.glows.filter((gl) => gl.age < gl.life);
 }
 
 /* ===== 6. RENDERIZAÇÃO ===== */
-// As teclas são pré-desenhadas em sprites (refeitos no redimensionamento): desenhar cada quadro é só drawImage.
-const sprites = {};
+// Fundo e teclas são pré-desenhados em sprites (refeitos no redimensionamento): desenhar cada quadro é só drawImage.
+// Visual: pistas sobre um gradiente violeta (como o resto do jogo); teclas escuras arredondadas com contorno neon.
+const sprites = { bg: null, tile: {} };
+const INS = 0.07, RAD = 0.15;   // recuo da tecla dentro da casa e raio dos cantos, em largura de coluna
 function rr(g, x, y, w, h, r) {
   g.beginPath(); g.moveTo(x + r, y);
   g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r);
   g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
 }
-function makeSprite(top, mid, bot, gloss) {
+function makeCanvas(w, h) {
   const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(sx)); c.height = Math.max(1, Math.round(ROW_H * sy));
-  const g = c.getContext('2d'), w = c.width, h = c.height;
-  g.fillStyle = COLORS.seam; g.fillRect(0, 0, w, h);                // fresta entre as teclas
-  const i = w * 0.035, x = i, y = i, kw = w - i * 2, kh = h - i * 2, r = w * 0.07;
-  const grad = g.createLinearGradient(0, y, 0, y + kh);
-  grad.addColorStop(0, top); grad.addColorStop(0.7, mid); grad.addColorStop(1, bot);
-  g.fillStyle = grad; rr(g, x, y, kw, kh, r); g.fill();
-  g.save(); rr(g, x, y, kw, kh, r); g.clip();
-  g.fillStyle = 'rgba(0,0,0,.2)'; g.fillRect(x, y + kh * 0.93, kw, kh * 0.07);          // borda frontal
-  g.fillStyle = `rgba(255,255,255,${gloss})`; g.fillRect(x, y, kw, kh * 0.05);          // brilho superior
-  g.fillStyle = `rgba(255,255,255,${gloss * 0.5})`; g.fillRect(x, y, kw * 0.05, kh);    // brilho lateral
+  c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h));
+  return c;
+}
+
+function buildBackground() {
+  const c = makeCanvas(canvas.width, canvas.height), g = c.getContext('2d'), w = c.width, h = c.height;
+  const base = g.createLinearGradient(0, 0, 0, h);
+  base.addColorStop(0, '#1a1448'); base.addColorStop(0.55, '#2c2370'); base.addColorStop(1, '#3d2a86');
+  g.fillStyle = base; g.fillRect(0, 0, w, h);
+  let glow = g.createRadialGradient(w * 0.5, 0, 0, w * 0.5, 0, h * 0.7);            // brilho violeta no topo
+  glow.addColorStop(0, 'rgba(157,140,255,.30)'); glow.addColorStop(1, 'rgba(157,140,255,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, w, h);
+  glow = g.createRadialGradient(w * 0.5, h, 0, w * 0.5, h, h * 0.45);               // calor rosado no fim (zona de perigo)
+  glow.addColorStop(0, 'rgba(255,79,123,.22)'); glow.addColorStop(1, 'rgba(255,79,123,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, w, h);
+  const band = (x0, bw, a) => {                                                      // faixas diagonais bem tênues
+    g.fillStyle = `rgba(255,255,255,${a})`;
+    g.beginPath(); g.moveTo(x0, 0); g.lineTo(x0 + bw, 0); g.lineTo(x0 + bw - h * 0.55, h); g.lineTo(x0 - h * 0.55, h); g.closePath(); g.fill();
+  };
+  band(w * 1.05, w * 0.45, 0.035); band(w * 0.6, w * 0.2, 0.025); band(w * 1.55, w * 0.3, 0.02);
+  g.fillStyle = 'rgba(255,255,255,.1)';                                              // divisórias das pistas
+  const line = Math.max(1, Math.round(w * 0.004));
+  for (let k = 1; k < COLS; k++) g.fillRect(Math.round(k * w / COLS) - Math.floor(line / 2), 0, line, h);
+  return c;
+}
+
+// Tecla escura com contorno neon. done = versão "já tocada": vidro translúcido, só o contorno.
+function makeTile(len, done) {
+  const c = makeCanvas(sx, len * ROW_H * sy), g = c.getContext('2d'), w = c.width, h = c.height;
+  const ins = w * INS, x = ins, y = ins, kw = w - ins * 2, kh = h - ins * 2, r = w * RAD;
+  if (done) {
+    g.fillStyle = 'rgba(157,140,255,.14)'; rr(g, x, y, kw, kh, r); g.fill();
+    g.lineWidth = Math.max(1, w * 0.014); g.strokeStyle = 'rgba(201,191,255,.45)'; rr(g, x, y, kw, kh, r); g.stroke();
+    return c;
+  }
+  g.save();
+  g.shadowColor = 'rgba(157,140,255,.85)'; g.shadowBlur = ins * 0.8;
+  const body = g.createLinearGradient(0, y, 0, y + kh);
+  body.addColorStop(0, '#0f0a26'); body.addColorStop(0.6, '#17104a'); body.addColorStop(1, '#2a1d8c');
+  g.fillStyle = body; rr(g, x, y, kw, kh, r); g.fill();
+  g.lineWidth = Math.max(1.5, w * 0.024); g.strokeStyle = COLORS.neon; rr(g, x, y, kw, kh, r); g.stroke();
   g.restore();
+  g.save(); rr(g, x, y, kw, kh, r); g.clip();                                        // brilho de vidro no topo
+  const sheen = g.createLinearGradient(0, y, 0, y + Math.min(kh, w * 0.9));
+  sheen.addColorStop(0, 'rgba(255,255,255,.14)'); sheen.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = sheen; g.fillRect(x, y, kw, kh);
+  g.restore();
+  if (len > 1) {                                                                     // tecla longa: linha no meio e anel no fim
+    const lx = w / 2, top = y + kh * 0.1, ring = y + kh - w * 0.3;
+    g.strokeStyle = 'rgba(233,230,255,.8)'; g.lineWidth = Math.max(2, w * 0.02); g.lineCap = 'round';
+    g.beginPath(); g.moveTo(lx, top); g.lineTo(lx, ring - w * 0.12); g.stroke();
+    g.beginPath(); g.arc(lx, ring, w * 0.11, 0, Math.PI * 2); g.stroke();
+  }
   return c;
 }
 function buildSprites() {
-  sprites.white = makeSprite('#ffffff', '#f1f2f9', '#dcdfec', 0.9);
-  sprites.black = makeSprite('#34364d', '#15161f', '#06070c', 0.12);
-  sprites.done = makeSprite('#f6f3ff', '#e2ddff', '#c9c1ff', 0.7);
+  sprites.bg = buildBackground();
+  sprites.tile = {};
+  for (let len = 1; len <= 3; len++) sprites.tile[len] = { idle: makeTile(len, false), done: makeTile(len, true) };
 }
 
-function keyRect(c, y, scale) {
-  const i = 0.035, w = (1 - i * 2) * scale, h = (ROW_H - i * 2) * scale;
-  return { x: c + 0.5 - w / 2, y: y + ROW_H / 2 - h / 2, w, h, r: 0.07 };
+function tileRect(c, y, len, scale = 1) {
+  const w = (1 - INS * 2) * scale, h = (len * ROW_H - INS * 2) * scale;
+  return { x: c + 0.5 - w / 2, y: y + len * ROW_H / 2 - h / 2, w, h, r: RAD };
 }
 
-function drawHit(c, y, row) {
-  ctx.drawImage(sprites.done, c, y, 1, ROW_H);
-  const t = Math.min((game.time - row.hitAt) / 0.3, 1);
-  if (t >= 1) return;
-  const k = keyRect(c, y, 1 - 0.06 * (1 - t));          // a tecla "afunda" e volta
-  ctx.globalAlpha = 1 - t; ctx.fillStyle = mix('#7d68ff', '#c9c1ff', t);
-  rr(ctx, k.x, k.y, k.w, k.h, k.r); ctx.fill(); ctx.globalAlpha = 1;
+function drawDone(r, y, t) {
+  ctx.drawImage(sprites.tile[r.len].done, t.c, y, 1, r.len * ROW_H);
+  const k = Math.min((game.time - t.hitAt) / 0.3, 1);
+  if (k >= 1) return;
+  const q = tileRect(t.c, y, r.len, 1 - 0.05 * (1 - k));                             // a tecla "afunda" e volta
+  ctx.globalAlpha = 0.9 * (1 - k); ctx.fillStyle = mix('#c9bfff', '#7d68ff', k);
+  rr(ctx, q.x, q.y, q.w, q.h, q.r); ctx.fill(); ctx.globalAlpha = 1;
 }
 
-function drawMarked(c, y, base, alpha) {                  // sobreposição vermelha de erro
-  ctx.drawImage(base, c, y, 1, ROW_H);
-  const k = keyRect(c, y, 1);
-  ctx.fillStyle = `rgba(255,79,123,${alpha})`; rr(ctx, k.x, k.y, k.w, k.h, k.r); ctx.fill();
+// Tecla longa sendo segurada: o brilho sobe a partir do fundo da tecla desde o instante do toque (d = quanto ela já andou)
+// e enche por completo quando d chega à altura da tecla; o contorno claro pulsa enquanto segura.
+function drawHolding(r, y, t) {
+  const q = tileRect(t.c, y, r.len), d = Math.max(0, Math.min(game.offset - t.o0, q.h)), bottom = q.y + q.h;
+  ctx.save(); rr(ctx, q.x, q.y, q.w, q.h, q.r); ctx.clip();
+  if (d > 0) {
+    const g = ctx.createLinearGradient(0, bottom - d, 0, bottom);
+    g.addColorStop(0, '#e9e6ff'); g.addColorStop(1, '#8f7cff');
+    ctx.globalAlpha = 0.92; ctx.fillStyle = g; ctx.fillRect(q.x, bottom - d, q.w, d); ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#e9e6ff'; ctx.lineWidth = 0.045 + 0.015 * Math.sin(game.time * 14);
+  rr(ctx, q.x, q.y, q.w, q.h, q.r); ctx.stroke();
 }
 
 function drawRow(r, y) {
-  const wrong = game.wrong && game.wrong.row === r ? game.wrong.col : -1;
-  for (let c = 0; c < COLS; c++) {
-    if (r.black === c) {
-      if (r.hit) drawHit(c, y, r);
-      else if (r === game.missRow) drawMarked(c, y, sprites.black, 0.55 + 0.25 * Math.sin(game.time * 10));
-      else ctx.drawImage(sprites.black, c, y, 1, ROW_H);
-    } else if (c === wrong) {
-      drawMarked(c, y, sprites.white, 0.9);
-      const cx = c + 0.5, cy = y + ROW_H / 2, d = 0.2;
-      ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.09; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(cx - d, cy - d); ctx.lineTo(cx + d, cy + d); ctx.moveTo(cx + d, cy - d); ctx.lineTo(cx - d, cy + d); ctx.stroke();
-    } else ctx.drawImage(sprites.white, c, y, 1, ROW_H);
+  for (const t of r.tiles) {
+    if (t.s === 2) { drawDone(r, y, t); continue; }
+    ctx.drawImage(sprites.tile[r.len].idle, t.c, y, 1, r.len * ROW_H);
+    if (t.s === 1) drawHolding(r, y, t);
+    if (t === game.missTile) {                                                       // sobreposição vermelha de erro
+      const q = tileRect(t.c, y, r.len);
+      ctx.fillStyle = `rgba(255,79,123,${0.55 + 0.25 * Math.sin(game.time * 10)})`; rr(ctx, q.x, q.y, q.w, q.h, q.r); ctx.fill();
+    }
   }
+}
+
+function drawWrong() {
+  if (!game.wrong) return;
+  const w = game.wrong, q = tileRect(w.col, w.cy - ROW_H / 2, 1);
+  ctx.fillStyle = 'rgba(255,79,123,.92)'; rr(ctx, q.x, q.y, q.w, q.h, q.r); ctx.fill();
+  const cx = w.col + 0.5, cy = w.cy, d = 0.2;
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.09; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx - d, cy - d); ctx.lineTo(cx + d, cy + d); ctx.moveTo(cx + d, cy - d); ctx.lineTo(cx - d, cy + d); ctx.stroke();
 }
 
 function drawEffects() {
   for (const p of game.particles) {
     const k = 1 - p.age / p.life;
     if (p.ring) {
-      ctx.strokeStyle = `rgba(157,140,255,${0.7 * k})`; ctx.lineWidth = 0.06;
+      ctx.strokeStyle = `rgba(169,156,255,${0.8 * k})`; ctx.lineWidth = 0.06;
       ctx.beginPath(); ctx.arc(p.x, p.y, 0.25 + (p.age / p.life) * 0.9, 0, Math.PI * 2); ctx.stroke();
     } else {
       ctx.globalAlpha = k; ctx.fillStyle = p.color;
@@ -468,17 +604,24 @@ function drawEffects() {
 }
 
 function render() {
-  if (!sprites.white) return;
+  if (!sprites.bg) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(sprites.bg, 0, 0);
   ctx.setTransform(sx, 0, 0, sy, 0, 0);
-  ctx.clearRect(0, 0, COLS, VIEW_H);
+  for (const gl of game.glows) {                                                     // a pista acende onde a tecla foi tocada
+    const k = 1 - gl.age / gl.life, g = ctx.createLinearGradient(0, gl.y - 1.8, 0, gl.y + 0.7);
+    g.addColorStop(0, 'rgba(169,156,255,0)'); g.addColorStop(0.75, `rgba(169,156,255,${0.3 * k})`); g.addColorStop(1, 'rgba(169,156,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(gl.c, gl.y - 1.8, 1, 2.5);
+  }
   for (const r of game.rows) {
     const y = rowTop(r);
-    if (y >= VIEW_H || y + ROW_H <= 0) continue;
+    if (y >= VIEW_H || y + r.len * ROW_H <= 0) continue;
     drawRow(r, y);
   }
   const g = ctx.createLinearGradient(0, VIEW_H - 0.7, 0, VIEW_H);   // faixa de perigo no limite inferior
-  g.addColorStop(0, 'rgba(255,79,123,0)'); g.addColorStop(1, 'rgba(255,79,123,.24)');
+  g.addColorStop(0, 'rgba(255,79,123,0)'); g.addColorStop(1, 'rgba(255,79,123,.3)');
   ctx.fillStyle = g; ctx.fillRect(0, VIEW_H - 0.7, COLS, 0.7);
+  drawWrong();
   drawEffects();
 }
 
@@ -495,7 +638,7 @@ function setState(s) {
     ui.pauseNote.textContent = copy.note; ui.pauseNote.hidden = !copy.note;
   }
   if (s === STATES.OVER) {
-    ui.overReason.textContent = game.endReason === 'white' ? 'Você tocou numa tecla branca.' : 'Uma tecla preta escapou.';
+    ui.overReason.textContent = game.endReason === 'white' ? 'Você tocou fora das teclas.' : game.endReason === 'release' ? 'Você soltou a tecla longa antes da hora.' : 'Uma tecla escapou.';
     ui.overScore.textContent = String(game.score);
     ui.overBest.textContent = String(game.best);
     ui.badge.hidden = !game.newRecord;
@@ -593,6 +736,7 @@ function placeHelp() {
 // Mouse e toque usam apenas Pointer Events (pointerdown), nunca click: não há comando duplicado.
 // O ponto tocado é convertido em coluna + fileira com as mesmas coordenadas usadas no desenho.
 function onPointerDown(e) {
+  if (e.pointerType === 'touch') sawTouch = true;
   Sound.unlock();
   if (game.state !== STATES.PLAYING) return;
   if (e.pointerType === 'mouse' && e.button !== 0) return;
@@ -600,22 +744,22 @@ function onPointerDown(e) {
   const rect = ui.board.getBoundingClientRect();
   const x = (e.clientX - rect.left) / rect.width * COLS, y = (e.clientY - rect.top) / rect.height * VIEW_H;
   if (x < 0 || x >= COLS || y < 0 || y >= VIEW_H) return;
-  const row = game.rows.find((r) => { const t = rowTop(r); return y >= t && y < t + ROW_H; });
-  if (row) registerTap(row, Math.floor(x));
+  const row = game.rows.find((r) => { const t = rowTop(r); return y >= t && y < t + r.len * ROW_H; });
+  if (row) registerTap(row, Math.floor(x), 'p' + e.pointerId, y);
 }
 
-// Teclado: a coluna escolhida é aplicada à fileira preta mais baixa ainda não acertada.
-function keyTap(col) {
+// Teclado: a coluna escolhida é aplicada à fileira escura mais baixa ainda não acertada. Em tecla longa, segure a tecla.
+function keyTap(col, id = 'k') {
   if (game.state !== STATES.PLAYING) return;
-  const next = game.rows.find((r) => r.black >= 0 && !r.hit);
-  if (next) registerTap(next, col);
+  const next = game.rows.find(unfinished);
+  if (next) registerTap(next, col, id, null);
 }
 
 function onKeyDown(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (helpOpen && e.code === 'Escape') { e.preventDefault(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); return; }
   Sound.unlock();
-  if (e.code in KEYS) { e.preventDefault(); if (!e.repeat) keyTap(KEYS[e.code]); }
+  if (e.code in KEYS) { e.preventDefault(); if (!e.repeat) keyTap(KEYS[e.code], 'k' + e.code); }
   else if (e.code === 'KeyM' && !e.repeat) toggleMute();
   else if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) setPaused(game.state === STATES.PLAYING || game.state === STATES.COUNTDOWN);
   else if (e.code === 'Space' || e.code === 'Enter') {
@@ -679,6 +823,10 @@ function init() {
   updateBest(false);
   syncMute();
   document.addEventListener('keydown', onKeyDown, { passive: false });
+  document.addEventListener('keyup', (e) => { if (e.code in KEYS) releaseInput('k' + e.code); });
+  // Soltar o dedo/mouse: encerra a tecla longa que ele segurava (se ainda não estava cumprida).
+  document.addEventListener('pointerup', (e) => releaseInput('p' + e.pointerId));
+  document.addEventListener('pointercancel', (e) => releaseInput('p' + e.pointerId));
   ui.board.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) onPointerDown(e); });
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
@@ -710,5 +858,5 @@ function init() {
 }
 
 init();
-window.__pianoTap = { game, CONFIG, step, registerTap, keyTap, rowTop };
+window.__pianoTap = { game, CONFIG, step, registerTap, keyTap, rowTop, rowBottom, releaseInput };
 })();
