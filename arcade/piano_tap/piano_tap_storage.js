@@ -1,29 +1,34 @@
 /* ==========================================================================
    arcade/piano_tap/piano_tap_storage.js - persistência exclusiva do Piano Tap
 
-   Script clássico (sem módulos ES). Carregue ANTES de piano_tap.js.
+   Script clássico (sem módulos ES). Carregue ANTES de piano_tap_levels.js e piano_tap.js.
    Expõe um único objeto global: PianoTapStorage.
 
    Dados guardados:
-     piano_tap:best  -> maior pontuação (inteiro >= 0)
-     piano_tap:muted -> '1' = som desligado, '0' = som ligado
-     piano_tap:save  -> instantâneo completo da partida em andamento (JSON); apagado ao reiniciar/terminar
+     piano_tap:best_inf -> recorde do modo infinito (inteiro >= 0)
+     piano_tap:levels   -> progresso das fases (JSON): { stars: [0..3 x 30], scores: [recorde x 30] }
+     piano_tap:muted    -> '1' = som desligado, '0' = som ligado
+     piano_tap:save     -> instantâneo completo da partida em andamento (JSON); apagado ao reiniciar/terminar/sair para o menu
+
+   Observação: a pontuação mudou (5/7/9 pontos por tecla), então o recorde antigo (1 ponto por tecla) NÃO é migrado:
+   ele ficaria baixo demais em relação à nova escala. A chave antiga "piano_tap:best" fica sem uso.
 
    Garantias:
      - nunca lança exceção (modo privado, cookies bloqueados, cota cheia...);
      - sem armazenamento persistente, os valores ficam em memória na sessão;
-     - dado ausente ou inválido vira o padrão seguro (recorde 0, som ligado);
-     - o recorde salvo nunca diminui por engano;
+     - dado ausente ou inválido vira o padrão seguro (recorde 0, nenhuma estrela, som ligado);
+     - recordes e estrelas salvos nunca diminuem por engano;
      - o salvamento da partida é opaco aqui: quem valida o conteúdo é piano_tap.js (dado corrompido => null);
-     - migra uma vez o recorde/som salvos antes (chaves antigas "piano-tap:*" e o registro do game_storage.js), se existirem.
+     - migra uma vez o som salvo antes (chave antiga "piano-tap:muted"), se existir.
    ========================================================================== */
 (() => {
   'use strict';
 
-  const MAX_BEST = 1e9;
+  const MAX_SCORE = 1e9;
+  const LEVEL_COUNT = 30;                                   // precisa bater com PianoTapLevels.COUNT
   const DEFAULTS = Object.freeze({ best: 0, muted: false });
-  const KEYS = Object.freeze({ best: 'piano_tap:best', muted: 'piano_tap:muted', save: 'piano_tap:save' });
-  const LEGACY = Object.freeze({ best: 'piano-tap:best', muted: 'piano-tap:muted' });   // chaves que o jogo já usou
+  const KEYS = Object.freeze({ best: 'piano_tap:best_inf', levels: 'piano_tap:levels', muted: 'piano_tap:muted', save: 'piano_tap:save' });
+  const LEGACY = Object.freeze({ muted: 'piano-tap:muted' });   // chave que o jogo já usou
   const memory = {};
 
   function readRaw(key) {
@@ -43,40 +48,17 @@
 
   const asScore = (value) => {
     const n = Math.floor(Number(value));
-    return Number.isFinite(n) && n >= 0 ? Math.min(n, MAX_BEST) : null;
+    return Number.isFinite(n) && n >= 0 ? Math.min(n, MAX_SCORE) : null;
   };
 
-  /* ---- migração (roda só se ainda não há dado novo) ---- */
-  function legacyBest() {
-    let best = asScore(readRaw(LEGACY.best));
-    try {
-      for (let i = 0; i < window.localStorage.length; i++) {
-        const key = window.localStorage.key(i);
-        if (!key || key.indexOf('piano_tap') === -1 || key.indexOf('piano_tap:') === 0) continue;
-        const raw = window.localStorage.getItem(key);
-        let found = null;
-        if (/best$/.test(key)) {                           // chave solta: "...best" = número
-          try { found = asScore(JSON.parse(raw)); } catch (error) { found = asScore(raw); }
-        } else {                                           // registro único em JSON: { best: n, ... }
-          try { const obj = JSON.parse(raw); if (obj && typeof obj === 'object') found = asScore(obj.best); } catch (error) { /* não é JSON */ }
-        }
-        if (found !== null && (best === null || found > best)) best = found;
-      }
-    } catch (error) { /* sem acesso: nada a migrar */ }
-    return best;
-  }
-
   function migrate() {
-    if (readRaw(KEYS.best) === null) {
-      const old = legacyBest();
-      if (old) writeRaw(KEYS.best, old);
-    }
     if (readRaw(KEYS.muted) === null) {
       const old = readRaw(LEGACY.muted);
       if (old === '1' || old === '0') writeRaw(KEYS.muted, old);
     }
   }
 
+  /* ---- modo infinito ---- */
   function getBest() {
     const n = asScore(readRaw(KEYS.best));
     return n === null ? DEFAULTS.best : n;
@@ -90,6 +72,43 @@
     return n;
   }
 
+  /* ---- fases ---- */
+  function emptyLevels() {
+    return { stars: new Array(LEVEL_COUNT).fill(0), scores: new Array(LEVEL_COUNT).fill(0) };
+  }
+
+  // Devolve sempre { stars, scores } com LEVEL_COUNT itens válidos (estrelas 0..3, recordes inteiros >= 0).
+  function getLevels() {
+    const out = emptyLevels();
+    const raw = readRaw(KEYS.levels);
+    if (raw === null) return out;
+    try {
+      const data = JSON.parse(raw);
+      if (data && typeof data === 'object') {
+        for (let i = 0; i < LEVEL_COUNT; i++) {
+          const st = Math.floor(Number(Array.isArray(data.stars) ? data.stars[i] : 0));
+          out.stars[i] = Number.isFinite(st) ? Math.max(0, Math.min(3, st)) : 0;
+          const sc = asScore(Array.isArray(data.scores) ? data.scores[i] : 0);
+          out.scores[i] = sc === null ? 0 : sc;
+        }
+      }
+    } catch (error) { /* JSON ruim: começa do zero */ }
+    return out;
+  }
+
+  // Grava o resultado de uma fase (level = 1..LEVEL_COUNT). Só sobe: estrelas e pontuação nunca diminuem. Devolve o progresso atualizado.
+  function setLevelResult(level, stars, score) {
+    const data = getLevels(), i = Math.floor(Number(level)) - 1;
+    if (!(i >= 0 && i < LEVEL_COUNT)) return data;
+    const st = Math.max(0, Math.min(3, Math.floor(Number(stars)) || 0)), sc = asScore(score) || 0;
+    if (st <= data.stars[i] && sc <= data.scores[i]) return data;
+    data.stars[i] = Math.max(data.stars[i], st);
+    data.scores[i] = Math.max(data.scores[i], sc);
+    writeRaw(KEYS.levels, JSON.stringify(data));
+    return data;
+  }
+
+  /* ---- som ---- */
   function isMuted() {
     const raw = readRaw(KEYS.muted);
     if (raw === '1') return true;
@@ -108,7 +127,8 @@
     try { window.localStorage.removeItem(key); } catch (error) { /* nada a remover */ }
   }
 
-  // Partida em andamento: objeto simples serializável. Devolve true se gravou de fato no navegador.
+  /* ---- partida em andamento ---- */
+  // Objeto simples serializável. Devolve true se gravou de fato no navegador.
   function saveGame(data) {
     try { return writeRaw(KEYS.save, JSON.stringify(data)); }
     catch (error) { return false; }
@@ -130,5 +150,5 @@
 
   migrate();
 
-  window.PianoTapStorage = Object.freeze({ KEYS, DEFAULTS, getBest, setBest, isMuted, setMuted, saveGame, loadGame, clearGame });
+  window.PianoTapStorage = Object.freeze({ KEYS, DEFAULTS, LEVEL_COUNT, getBest, setBest, getLevels, setLevelResult, isMuted, setMuted, saveGame, loadGame, clearGame });
 })();

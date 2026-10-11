@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Piano Tap · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="piano_tap.css?v=4">
+  <link rel="stylesheet" href="piano_tap.css?v=8">
 </head>
 <body>
   <header class="topbar">
@@ -24,48 +24,30 @@
         <rect x="16.5" y="7" width="4.5" height="18" rx="1.6" fill="#e9e6ff"/>
         <rect x="22" y="7" width="4.5" height="18" rx="1.6" fill="#e9e6ff"/>
       </svg>
-      <div class="game-text"><strong>Piano Tap</strong></div>
+      <div class="game-text"><strong>Piano Tap</strong><span id="mode-label">Escolha a fase</span></div>
     </div>
   </header>
 
   <main id="arena" class="arena">
-    <section class="hud" aria-label="Placar">
-      <div class="stat stat-score">
-        <span class="stat-label">PONTOS</span>
-        <strong id="score" class="stat-value">0</strong>
-      </div>
-      <div id="best-card" class="stat stat-best">
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-          <path d="M4 2h8v4a4 4 0 0 1-8 0zM4 3H1.5v1.5A2.5 2.5 0 0 0 4 7M12 3h2.5v1.5A2.5 2.5 0 0 1 12 7M8 10v3M5 14h6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        <span class="stat-label">RECORDE</span>
-        <strong id="best" class="stat-value">0</strong>
-      </div>
-      <div class="hud-actions">
-        <button id="mute-button" class="tool" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Silenciar" data-key="M">
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
-            <path class="icon-waves" d="M10.5 6a3 3 0 0 1 0 4M12.3 4.2a5.5 5.5 0 0 1 0 7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-            <path class="icon-cross" d="M10.5 6l4 4M14.5 6l-4 4" fill="none" stroke="#ff4f7b" stroke-width="1.6" stroke-linecap="round"/>
-          </svg>
-        </button>
-        <button id="pause-button" class="tool" type="button" aria-label="Pausar" data-tip="Pausar" data-key="P" disabled>
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/>
-          </svg>
-        </button>
-      </div>
-    </section>
-
     <div id="play" class="play">
       <!-- frame = tabuleiro + botão "?" lateral (controle externo à área do jogo) -->
       <div id="frame" class="frame" data-help-pos="side">
-      <div id="board" class="board is-ready" aria-label="Teclado do Piano Tap">
+      <div id="board" class="board is-menu" aria-label="Teclado do Piano Tap">
         <canvas id="game-canvas" aria-label="Área do jogo"></canvas>
         <p id="toast" class="toast" role="status"></p>
 
-        <!-- Tela inicial: o jogo fica parado até tocar/clicar ou apertar Space -->
-        <button id="start-button" class="start" type="button" aria-label="Iniciar partida">
+        <!-- Barra de progresso da fase (só nas fases): as estrelas são criadas pelo JS a partir de PianoTapLevels.STAR_AT -->
+        <div id="progress" class="progress" aria-hidden="true">
+          <div class="progress-rail"><div id="progress-fill" class="progress-fill"></div></div>
+        </div>
+        <!-- Feedback no topo: pontuação atual, e logo abaixo a mensagem de acerto (Legal / Ótimo / Perfeito) com o combo de Perfeitos ao lado -->
+        <div id="feedback" class="feedback" aria-hidden="true">
+          <p id="score-live" class="score-live">0</p>
+          <div class="fb-row"><p id="rating" class="rating"></p><span id="combo" class="combo"></span></div>
+        </div>
+
+        <!-- Tela inicial: toque/clique ou Space leva à escolha do modo -->
+        <button id="start-button" class="start" type="button" aria-label="Iniciar: escolher o modo de jogo">
           <span class="start-card">
             <svg class="start-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
               <rect width="32" height="32" rx="9" fill="#17152b"/>
@@ -74,7 +56,7 @@
               <rect x="16.5" y="7" width="4.5" height="18" rx="1.6" fill="#e9e6ff"/>
               <rect x="22" y="7" width="4.5" height="18" rx="1.6" fill="#e9e6ff"/>
             </svg>
-            <span class="start-title">Piano Tap</span>
+            <span id="start-title" class="start-title">Piano Tap</span>
             <span class="start-rule" aria-hidden="true"></span>
             <span class="start-text">Toque para iniciar</span>
             <span class="start-or">ou</span>
@@ -82,26 +64,79 @@
           </span>
         </button>
 
+        <!-- Escolha do modo: Fases ou Infinito -->
+        <section id="mode-screen" class="screen screen-mode" role="dialog" aria-labelledby="mode-title">
+          <button id="mode-back" class="back-chip" type="button" aria-label="Voltar para a tela inicial">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Voltar</span>
+          </button>
+          <div class="screen-body">
+            <h2 id="mode-title" class="menu-title">Como quer jogar?</h2>
+            <button id="mode-levels" class="mode-card mode-levels" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.2 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+              <span class="mode-text"><strong>Fases</strong><small id="mode-levels-info">0 de 90 estrelas</small></span>
+            </button>
+            <button id="mode-infinite" class="mode-card mode-inf" type="button">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7.5 8.5c-2.2 0-3.5 1.6-3.5 3.5s1.3 3.5 3.5 3.5c3.5 0 5-7 9-7 2.2 0 3.5 1.6 3.5 3.5s-1.3 3.5-3.5 3.5c-4 0-5.5-7-9-7z" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span class="mode-text"><strong>Infinito</strong><small id="mode-inf-info">Recorde 0</small></span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Menu de fases (paginado) -->
+        <section id="menu-screen" class="screen screen-menu" role="dialog" aria-labelledby="menu-title">
+          <button id="menu-back" class="back-chip" type="button" aria-label="Voltar para a escolha de modo">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Voltar</span>
+          </button>
+          <div class="screen-body">
+            <h2 id="menu-title" class="menu-title">Escolha a fase</h2>
+            <div id="menu-grid" class="menu-grid"></div>
+            <div class="menu-pager">
+              <button id="menu-prev" class="pager-btn" type="button" aria-label="Página anterior">
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <span id="menu-page" class="pager-label">1 / 2</span>
+              <button id="menu-next" class="pager-btn" type="button" aria-label="Próxima página">
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
         <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
           <h2 id="pause-title" class="over-title">Pausado</h2>
           <p id="pause-note" class="pause-note" hidden></p>
+          <p class="pause-stats"><span id="pause-score-row">Pontos <b id="pause-score">0</b></span><span id="pause-best-row">Recorde <b id="pause-best">0</b></span></p>
           <div class="actions">
             <button id="resume-button" class="btn" type="button">
               <span>Continuar</span>
             </button>
             <button id="restart-pause-button" class="btn btn-ghost" type="button">
-                  <span>Reiniciar</span>
+              <span>Reiniciar</span>
             </button>
+            <div class="actions-row">
+              <button id="menu-pause-button" class="btn btn-ghost" type="button"><span>Fases</span></button>
+              <button id="home-pause-button" class="btn btn-ghost btn-home" type="button" aria-label="Voltar para a tela inicial"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M2 7.6L8 2.8l6 4.8M3.8 6.6V13h3V9.6h2.4V13h3V6.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="home-label">Início</span></button>
+            </div>
           </div>
         </section>
 
-        <section class="screen screen-over" role="dialog" aria-labelledby="over-title">
+        <section id="over-screen" class="screen screen-over" role="dialog" aria-labelledby="over-title">
           <h2 id="over-title" class="over-title">Fim de jogo</h2>
           <p id="over-reason" class="reason">Uma tecla escapou.</p>
-          <p class="final"><span id="over-score">0</span><small>pontos</small></p>
+          <div id="over-stars" class="stars stars-lg" role="img" hidden></div>
+          <p id="over-final" class="final"><span id="over-score">0</span><small>pontos</small></p>
           <p id="record-badge" class="badge" hidden>Novo recorde!</p>
-          <p class="over-best">Recorde <strong id="over-best">0</strong></p>
-          <button id="restart-button" class="btn" type="button">Jogar novamente</button>
+          <p id="over-best-row" class="over-best"><span class="over-best-label">Recorde</span><strong id="over-best">0</strong></p>
+          <div class="actions">
+            <button id="restart-button" class="btn" type="button">Jogar novamente</button>
+            <button id="replay-button" class="btn btn-ghost" type="button" hidden>Repetir</button>
+            <div class="actions-row">
+              <button id="menu-over-button" class="btn btn-ghost" type="button"><span>Fases</span></button>
+              <button id="home-over-button" class="btn btn-ghost btn-home" type="button" aria-label="Voltar para a tela inicial"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M2 7.6L8 2.8l6 4.8M3.8 6.6V13h3V9.6h2.4V13h3V6.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="home-label">Início</span></button>
+            </div>
+          </div>
         </section>
 
         <!-- Contagem 3 · 2 · 1 · GO! ao retomar (tudo congelado até o GO!) -->
@@ -110,6 +145,19 @@
         </section>
       </div>
 
+<div class="side-tools" role="group" aria-label="Controles">
+<button id="pause-button" class="tool" type="button" aria-label="Pausar" data-tip="Pausar" data-key="P" disabled>
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/>
+          </svg>
+        </button>
+<button id="mute-button" class="tool" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Silenciar" data-key="M">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
+            <path class="icon-waves" d="M10.5 6a3 3 0 0 1 0 4M12.3 4.2a5.5 5.5 0 0 1 0 7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            <path class="icon-cross" d="M10.5 6l4 4M14.5 6l-4 4" fill="none" stroke="#ff4f7b" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </button>
       <button id="help-button" class="help-btn" type="button"
               aria-haspopup="dialog" aria-expanded="false" aria-controls="help-popover"
               aria-label="Como jogar" data-tip="Como jogar">
@@ -119,6 +167,7 @@
           <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
         </svg>
       </button>
+</div>
       </div>
     </div>
   </main>
@@ -129,9 +178,10 @@
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
     </button>
     <h2 id="help-title" class="help-title">Como jogar</h2>
-    <p class="help-text"><b>Objetivo:</b> tocar o maior número de teclas escuras possível. Cada tecla vale 1 ponto e toca uma nota da melodia.</p>
-    <p class="help-text">As teclas descem pelas pistas. Toque nelas, da mais baixa para a mais alta, antes que cheguem à linha vermelha no fim da tela. A velocidade aumenta a cada ponto, até um limite.</p>
-    <p class="help-text"><b>Tecla longa</b> (com uma linha no meio): toque e <b>segure</b> até o brilho encher a tecla toda. Soltar antes encerra a partida. No celular, mais adiante aparecem <b>duas teclas na mesma fileira</b>: toque nas duas.</p>
+    <p class="help-text"><b>Objetivo:</b> tocar as teclas escuras que descem pelas pistas, da mais baixa para a mais alta, antes que cheguem à linha vermelha no fim da tela. Cada tecla toca uma nota da melodia.</p>
+    <p class="help-text"><b>Fases:</b> cada fase tem uma meta de teclas. A barra no topo enche a cada tecla e as <b>3 estrelas</b> são conquistadas em 40%, 70% e 100% da barra. Ao chegar ao fim a fase é concluída. Com 1 estrela ou mais, a próxima fase é liberada. O <b>modo infinito</b> não tem fim: a velocidade só aumenta.</p>
+    <p class="help-text"><b>Pontos:</b> quanto mais perto do fim da tela você tocar a tecla, mais ela vale: <b>Legal</b> 5 · <b>Ótimo</b> 7 · <b>Perfeito</b> 9. Acertos <b>Perfeitos</b> em sequência formam um <b>combo</b> (x2, x3...) mostrado ao lado da mensagem; qualquer outro acerto zera.</p>
+    <p class="help-text"><b>Tecla longa</b> (com uma linha no meio): toque e <b>segure</b>: o brilho começa a encher na hora. Pode soltar quando quiser, mas a tecla fica incompleta. Quanto mais encher, mais pontos extras (até +10 na longa e +16 na muito longa). Cada fileira tem uma tecla. No <b>modo infinito do celular</b>, bem mais adiante, pode surgir raramente uma fileira com <b>duas teclas</b>: toque nas duas.</p>
     <h3 class="help-sub">Controles</h3>
     <ul class="ctl-list">
       <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Tecla (segure a longa)</span></li>
@@ -141,12 +191,13 @@
       <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
     </ul>
     <h3 class="help-sub">Fim de jogo</h3>
-    <p class="help-text">A partida acaba se você tocar fora das teclas (fica marcado com um X), soltar uma tecla longa antes da hora ou deixar uma tecla escapar pelo fim da tela.</p>
-    <p class="help-note">O recorde fica salvo neste aparelho. Abrir esta ajuda durante a partida pausa o jogo.</p>
+    <p class="help-text">A partida acaba se você tocar fora das teclas (fica marcado com um X) ou deixar uma tecla escapar pelo fim da tela. As estrelas já conquistadas na fase continuam valendo.</p>
+    <p class="help-note">Estrelas e o recorde do modo infinito ficam salvos neste aparelho. Abrir esta ajuda durante a partida pausa o jogo.</p>
   </div>
 
   <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
-  <script src="piano_tap_storage.js?v=4"></script>
-  <script src="piano_tap.js?v=4"></script>
+  <script src="piano_tap_storage.js?v=7"></script>
+  <script src="piano_tap_levels.js?v=7"></script>
+  <script src="piano_tap.js?v=7"></script>
 </body>
 </html>

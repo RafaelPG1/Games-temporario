@@ -1,8 +1,11 @@
 /* ==========================================================================
 arcade/piano_tap/piano_tap.js - Jogo de reflexos com teclas de piano em HTML5 Canvas + JavaScript puro.
 Índice: 1 Configuração · 2 Áudio · 3 Estado · 4 Lógica (4b Pausa, contagem e salvamento) · 5 Efeitos
-· 6 Renderização · 7 Interface · 8 Entrada · 9 Redimensionamento · 10 Loop
+· 6 Renderização · 7 Interface (7b Estrelas, progresso, acertos e menu) · 8 Entrada · 9 Redimensionamento · 10 Loop
 Unidades do mundo: 1 = largura de uma coluna. O tabuleiro tem 4 x 6 unidades.
+Arquivos: piano_tap_storage.js (persistência) · piano_tap_levels.js (fases, estrelas e pontuação) · este arquivo (jogo e interface).
+Fluxo: HOME (Toque para iniciar) -> MODE (Fases ou Infinito) -> MENU (escolha da fase, só em Fases) -> partida.
+Dois modos: 'level' (fases 1..30, com meta, barra de progresso e estrelas) e 'infinite' (sem fim).
 ========================================================================== */
 (() => {
 'use strict';
@@ -11,15 +14,16 @@ Unidades do mundo: 1 = largura de uma coluna. O tabuleiro tem 4 x 6 unidades.
 const CONFIG = {
   cols: 4, viewRows: 4, rowHeight: 1.5,         // 4 fileiras visíveis, cada uma com 1,5 unidade de altura
   leadBlank: 2,                                  // fileiras brancas iniciais (a 1ª preta chega com folga)
-  speedStart: 2.4, speedMax: 8.4, speedStep: 0.07, speedEase: 3,   // unidades/s; +0,07 por ponto até o teto
+  speedEase: 3,                                  // suavidade com que a velocidade real segue a velocidade-alvo (a curva vem de piano_tap_levels.js)
   maxStep: 0.02, maxFrame: 0.1,                  // passo fixo máximo da simulação e limite de dt por quadro (s)
   historySize: 6, maxCol: 100, minCol: 24, margin: 14, restartLock: 500,
   volume: 0.3,
   countFrom: 3, countStep: 0.7, goFlash: 0.6,   // contagem 3·2·1 (s por número) e quanto tempo o "GO!" fica na tela
-  holdFrom: 5, holdChance: 0.2, holdLongFrom: 30, holdLongChance: 0.3, holdsOnDesktop: true,   // tecla longa (segurar): a partir de N pontos; len 2 (padrão) ou 3 (rara)
-  doubleFrom: 25, doubleChance: 0.22,          // duas teclas na mesma fileira: SÓ em telas de toque, a partir de N pontos
-  gapChance: 0.32, gapMax: 2,                  // variedade: chance de uma fileira vir VAZIA e máximo de vazias seguidas
-  saveVersion: 2, saveEvery: 250,              // formato do salvamento (piano_tap:save) e intervalo mínimo entre gravações em jogo (ms)
+  holdsOnDesktop: true,                          // tecla longa (segurar) também no teclado/mouse (chances e fases vêm de piano_tap_levels.js)
+  holdMinMs: 0,                                  // tecla longa: 0 = soltar cedo nunca encerra a partida (>0 = ms mínimos segurando)
+  // (sem fileiras vazias no meio: leadBlank é só a folga inicial)
+  winDelay: 0.6,                                 // pausa (s) entre tocar a última tecla da fase e mostrar a tela de fase concluída
+  saveVersion: 3, saveEvery: 250,              // formato do salvamento (piano_tap:save) e intervalo mínimo entre gravações em jogo (ms)
 };
 const COLORS = {
   neon: '#a99cff', violet: '#9d8cff', violetSoft: '#e9e6ff', berry: '#ff4f7b', gold: '#ffc857', ink: '#120f2a',
@@ -27,7 +31,10 @@ const COLORS = {
 const { cols: COLS, rowHeight: ROW_H } = CONFIG;
 const VIEW_H = CONFIG.viewRows * ROW_H;
 const KEYS = { KeyD: 0, KeyF: 1, KeyJ: 2, KeyK: 3 };
-const STATES = { READY: 'ready', PLAYING: 'playing', PAUSED: 'paused', COUNTDOWN: 'countdown', OVER: 'over' };
+const STATES = { HOME: 'home', MODE: 'mode', MENU: 'menu', PLAYING: 'playing', PAUSED: 'paused', COUNTDOWN: 'countdown', OVER: 'over' };
+const Levels = PianoTapLevels;
+const STAR_PATH = 'M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.2 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z';
+const starSvg = (cls) => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="${STAR_PATH}"/></svg>`;
 // Quatro formas de pausar: manual (botão/P/Esc), help (abrir "Como jogar"), auto (aba oculta) e restored (recarregou a página).
 const PAUSE_COPY = {
   manual:   { title: 'Pausado', note: '' },
@@ -94,6 +101,8 @@ const Sound = (() => {
     record() { play(() => [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.14, volume: 0.35, delay: 0.1 * i }))); },
     hit() { play(() => { tone({ type: 'sawtooth', from: 220, to: 45, duration: 0.5, volume: 0.35 }); tone({ type: 'square', from: 110, to: 38, duration: 0.3, volume: 0.22 }); }); },
     hold() { play(() => tone({ type: 'triangle', from: 880, duration: 0.12, volume: 0.22 })); },
+    star() { play(() => [784, 1175, 1568].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.16, volume: 0.3, delay: 0.07 * i }))); },
+    win() { play(() => [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.22, volume: 0.35, delay: 0.1 * i }))); },
     click() { play(() => tone({ type: 'triangle', from: 520, to: 700, duration: 0.06, volume: 0.25 })); },
     count() { play(() => tone({ type: 'triangle', from: 440, duration: 0.09, volume: 0.25 })); },
     go() { play(() => { tone({ type: 'triangle', from: 659, duration: 0.1, volume: 0.28 }); tone({ type: 'sine', from: 988, duration: 0.2, volume: 0.35, delay: 0.07 }); }); },
@@ -108,17 +117,22 @@ const coarseQuery = window.matchMedia ? window.matchMedia('(pointer: coarse)') :
 const detectTouch = () => sawTouch || Boolean(coarseQuery && coarseQuery.matches);
 
 const game = {
-  state: STATES.READY, time: 0, offset: 0, speed: 0,
+  state: STATES.HOME, time: 0, offset: 0, speed: 0,
+  mode: 'infinite', level: 0, cfg: Levels.infinite(), progress: PianoTapStorage.getLevels(),   // modo ('level' | 'infinite') · fase · parâmetros da partida · estrelas e recordes salvos
+  done: 0, spawned: 0, stars: 0, finishLeft: null,   // teclas tocadas · teclas geradas · estrelas conquistadas · contagem até a tela de vitória
   rows: [], nextN: 0, history: [],
   score: 0, startBest: 0, best: PianoTapStorage.getBest(), newRecord: false,
-  noteIndex: 0, particles: [], floats: [], glows: [], holds: new Map(), touchMode: false,
+  noteIndex: 0, combo: 0, particles: [], glows: [], holds: new Map(), touchMode: false,
   wrong: null, missRow: null, missTile: null, endReason: '', overAt: 0,
   pauseReason: 'manual', countdown: null, goFlash: 0,   // pausa: motivo · contagem em curso ({ t, shown }) · tempo restante do "GO!"
 };
 
 const ui = {
   play: document.getElementById('play'), arena: document.getElementById('arena'), board: document.getElementById('board'),
-  score: document.getElementById('score'), best: document.getElementById('best'), bestCard: document.getElementById('best-card'),
+  scoreLive: document.getElementById('score-live'), combo: document.getElementById('combo'),
+  pauseScore: document.getElementById('pause-score'), pauseBest: document.getElementById('pause-best'),
+  pauseScoreRow: document.getElementById('pause-score-row'), pauseBestRow: document.getElementById('pause-best-row'),
+  overFinal: document.getElementById('over-final'), overBestRow: document.getElementById('over-best-row'),
   pause: document.getElementById('pause-button'), mute: document.getElementById('mute-button'),
   start: document.getElementById('start-button'), resume: document.getElementById('resume-button'), restart: document.getElementById('restart-button'),
   overTitle: document.getElementById('over-title'), overReason: document.getElementById('over-reason'),
@@ -128,6 +142,15 @@ const ui = {
   helpPopover: document.getElementById('help-popover'), helpClose: document.getElementById('help-close'),
   restartPause: document.getElementById('restart-pause-button'), pauseTitle: document.getElementById('pause-title'), pauseNote: document.getElementById('pause-note'),
   count: document.getElementById('count-screen'), countNum: document.getElementById('count-num'),
+  modeLabel: document.getElementById('mode-label'), rating: document.getElementById('rating'),
+  progressFill: document.getElementById('progress-fill'), progressRail: document.querySelector('#progress .progress-rail'),
+    overScreen: document.getElementById('over-screen'), overStars: document.getElementById('over-stars'), replay: document.getElementById('replay-button'),
+  menuOver: document.getElementById('menu-over-button'), menuPause: document.getElementById('menu-pause-button'),
+  menuGrid: document.getElementById('menu-grid'), menuPrev: document.getElementById('menu-prev'), menuNext: document.getElementById('menu-next'),
+  menuPage: document.getElementById('menu-page'), menuBack: document.getElementById('menu-back'),
+  modeBack: document.getElementById('mode-back'), modeLevels: document.getElementById('mode-levels'), modeInfinite: document.getElementById('mode-infinite'),
+  modeLevelsInfo: document.getElementById('mode-levels-info'), modeInfInfo: document.getElementById('mode-inf-info'),
+  homePause: document.getElementById('home-pause-button'), homeOver: document.getElementById('home-over-button'),
 };
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
@@ -141,8 +164,9 @@ const rowBottom = (r) => rowTop(r) + r.len * ROW_H;
 const holdNeed = (r) => r.len * ROW_H - INS * 2;   // quanto a tecla longa precisa andar, desde o toque, para encher por completo
 const unfinished = (r) => r.tiles.some((t) => t.s === 0);
 
-// Velocidade-alvo depende só da pontuação e tem teto. A velocidade real a segue suavemente (sem saltos).
-function targetSpeed() { return Math.min(CONFIG.speedMax, CONFIG.speedStart + game.score * CONFIG.speedStep); }
+// Velocidade-alvo depende só de quantas teclas já foram tocadas (curva da fase ou do modo infinito, em piano_tap_levels.js).
+// A velocidade real a segue suavemente (sem saltos).
+function targetSpeed() { return game.cfg.speedAt(game.done); }
 
 // Sorteio ponderado: colunas usadas recentemente pesam menos, repetir a última pesa menos ainda
 // e três iguais seguidas é proibido. Equilibrado, porém imprevisível.
@@ -166,15 +190,17 @@ function pickColumn(skip = -1) {
   return fallback;
 }
 
+function pushBlank(n) { game.rows.push({ n, len: 1, tiles: [] }); game.nextN = n + 1; }
+
+// Gera a próxima fileira. Numa fase, depois de gerar a meta inteira (cfg.goal), só saem fileiras vazias.
 function pushRow() {
-  const n = game.nextN;
-  if (n < CONFIG.leadBlank) { game.rows.push({ n, len: 1, tiles: [] }); game.nextN = n + 1; return; }
-  let trailing = 0;                                     // fileiras vazias seguidas no topo da pilha
-  for (let i = game.rows.length - 1; i >= 0 && !game.rows[i].tiles.length; i--) trailing++;
-  if (trailing < CONFIG.gapMax && Math.random() < CONFIG.gapChance) { game.rows.push({ n, len: 1, tiles: [] }); game.nextN = n + 1; return; }
-  const hold = (CONFIG.holdsOnDesktop || game.touchMode) && game.score >= CONFIG.holdFrom && Math.random() < CONFIG.holdChance;
-  const len = !hold ? 1 : (game.score >= CONFIG.holdLongFrom && Math.random() < CONFIG.holdLongChance ? 3 : 2);
-  const two = game.touchMode && game.score >= CONFIG.doubleFrom && Math.random() < CONFIG.doubleChance;   // dupla: só no toque
+  const n = game.nextN, cfg = game.cfg, left = cfg.goal - game.spawned;
+  if (left <= 0 || n < CONFIG.leadBlank) return pushBlank(n);
+  // Toda fileira depois das fileiras brancas iniciais (leadBlank) tem exatamente 1 tecla: sem espaços vazios no meio.
+  // Regra: 1 tecla por fileira. (Duplas só existiriam no CELULAR/infinito se cfg.doubleChance > 0; hoje é 0 em piano_tap_levels.js.)
+  const two = game.mode === 'infinite' && game.touchMode && game.spawned >= cfg.doubleFrom && Math.random() < cfg.doubleChance;
+  const hold = !two && (CONFIG.holdsOnDesktop || game.touchMode) && game.spawned >= cfg.holdFrom && Math.random() < cfg.holdChance;
+  const len = !hold ? 1 : (game.spawned >= cfg.holdLongFrom && Math.random() < cfg.holdLongChance ? 3 : 2);
   const cols = [pickColumn()];
   if (two) cols.push(pickColumn(cols[0]));
   cols.sort((a, b) => a - b);
@@ -182,6 +208,7 @@ function pushRow() {
   while (game.history.length > CONFIG.historySize) game.history.shift();
   game.rows.push({ n, len, tiles: cols.map((c) => ({ c, s: 0, hitAt: 0 })) });
   game.nextN = n + len;
+  game.spawned += cols.length;
 }
 
 // Mantém fileiras suficientes para cobrir o tabuleiro até acima do topo.
@@ -189,23 +216,31 @@ function fillRows() {
   while (!game.rows.length || rowTop(game.rows[game.rows.length - 1]) > -ROW_H) pushRow();
 }
 
-function resetRound() {
+// Recorde mostrado no placar: da fase (salvo em game.progress) ou do modo infinito.
+const bestFor = (mode, level) => (mode === 'level' ? game.progress.scores[level - 1] || 0 : PianoTapStorage.getBest());
+// Dificuldade por dispositivo: no teclado/mouse (sem toque) o jogo é um pouco mais lento e com mais respiros.
+const cfgFor = (mode, level, touch = detectTouch()) => (mode === 'level' ? Levels.get(level, !touch) : Levels.infinite(!touch));
+
+// Prepara uma partida nova (da fase/modo indicados; sem argumentos repete a atual). Quem chama decide o que vem depois (startGame).
+function resetRound(mode = game.mode, level = game.level) {
+  const lv = mode === 'level' ? Math.max(1, Math.min(Levels.COUNT, level || 1)) : 0;
+  const touch = detectTouch(), cfg = cfgFor(mode, lv, touch), best = bestFor(mode, lv);
   Object.assign(game, {
-    offset: VIEW_H - ROW_H, speed: CONFIG.speedStart, rows: [], nextN: 0, history: [],
-    score: 0, startBest: game.best, newRecord: false, noteIndex: 0,
-    particles: [], floats: [], glows: [], holds: new Map(), touchMode: detectTouch(),
+    mode, level: lv, cfg, best, done: 0, spawned: 0, stars: 0, finishLeft: null,
+    offset: VIEW_H - ROW_H, speed: cfg.speedAt(0), rows: [], nextN: 0, history: [],
+    score: 0, startBest: best, newRecord: false, noteIndex: 0, combo: 0,
+    particles: [], glows: [], holds: new Map(), touchMode: touch,
     wrong: null, missRow: null, missTile: null, endReason: '', countdown: null, goFlash: 0, pauseReason: 'manual',
   });
   fillRows();
   ui.board.classList.remove('hit', 'shake');
   ui.count.classList.remove('go');
-  PianoTapStorage.clearGame();            // tela inicial = nenhuma partida a recuperar
+  PianoTapStorage.clearGame();            // partida nova = nenhuma partida antiga a recuperar
   updateScore(false);
-  setState(STATES.READY);
+  syncRunUI();
 }
 
 function startGame() {
-  if (game.state !== STATES.READY) return;
   Sound.unlock();
   setState(STATES.PLAYING);
   saveGame();
@@ -223,6 +258,12 @@ function step(dt) {
     }
   }
   while (game.rows.length && rowTop(game.rows[0]) > VIEW_H + ROW_H) game.rows.shift();
+  // Fase: meta cumprida (e nenhuma tecla longa ainda sendo segurada) => fase concluída, após uma pequena pausa.
+  if (game.mode === 'level' && game.done >= game.cfg.goal && !game.rows.some((r) => r.tiles.some((t) => t.s === 1))) {
+    if (game.finishLeft === null) game.finishLeft = CONFIG.winDelay;
+    game.finishLeft -= dt;
+    if (game.finishLeft <= 0) winRound();
+  }
 }
 
 // Centro (em unidades) da casa tocada por engano: no toque vem do ponto exato; no teclado, da casa mais baixa da fileira.
@@ -241,46 +282,74 @@ function registerTap(row, col, id = 'tap', y = null) {
   endRound('white', { col, cy: wrongSlotY(row, y) });
 }
 
-function hitTile(row, t, id) {
-  t.hitAt = game.time;
-  t.s = row.len > 1 ? 1 : 2;
-  if (t.s === 1) { t.o0 = game.offset; game.holds.set(id, { row, tile: t }); }   // o brilho começa a encher AGORA
-  game.score++;
-  Sound.note(MELODY[game.noteIndex++ % MELODY.length]);
-  const cx = t.c + 0.5, cy = rowBottom(row) - ROW_H / 2;
-  burst(cx, cy, 10, [COLORS.violet, '#c7bdff', COLORS.gold]);
-  game.glows.push({ c: t.c, y: cy, age: 0, life: 0.4 });
-  if (!reduceMotion) game.floats.push({ x: cx, y: cy, t: 0 });
+// Soma pontos, atualiza o placar e trata o recorde (usado pelo toque e pelos extras da tecla longa).
+function gainPoints(n) {
+  game.score += n;
   updateScore(true);
-  if (game.startBest > 0 && game.score > game.startBest) {
+  if (game.mode === 'infinite' && game.startBest > 0 && game.score > game.startBest) {   // "recorde" só existe no modo infinito
     const first = !game.newRecord;
     game.newRecord = true;
     if (first) { showToast('Novo recorde!'); Sound.record(); }
   }
-  if (game.score > game.best) { game.best = game.score; PianoTapStorage.setBest(game.best); updateBest(true); }
+  if (game.score > game.best) {
+    game.best = game.score;
+    if (game.mode === 'infinite') PianoTapStorage.setBest(game.best);   // nas fases o recorde é gravado ao conquistar estrela / terminar (commitLevel)
+  }
 }
 
-// O brilho encheu a tecla toda: segurou até o fim.
+function hitTile(row, t, id) {
+  t.hitAt = game.time;
+  t.s = row.len > 1 ? 1 : 2;
+  if (t.s === 1) { t.o0 = game.offset; t.pressMs = performance.now(); game.holds.set(id, { row, tile: t }); }   // o brilho começa a encher AGORA
+  // Avaliação: quanto mais baixa (mais perto da linha vermelha) a borda de baixo da tecla na hora do toque, mais pontos.
+  const rating = Levels.rate(rowBottom(row) / VIEW_H), pts = Levels.points(rating);
+  Sound.note(MELODY[game.noteIndex++ % MELODY.length]);
+  const cx = t.c + 0.5, cy = rowBottom(row) - ROW_H / 2;
+  burst(cx, cy, rating === 'perfect' ? 14 : 10, [COLORS.violet, '#c7bdff', COLORS.gold]);
+  game.glows.push({ c: t.c, y: cy, age: 0, life: 0.4 });
+  game.combo = rating === 'perfect' ? game.combo + 1 : 0;   // combo: sequência de acertos Perfeitos; qualquer outro acerto zera
+  showRating(rating);
+  game.done++;
+  gainPoints(pts);
+  updateProgress(true);
+}
+
+// Tecla longa que encheu até o fim: bônus máximo (depende do tamanho da tecla).
 function completeHold(row, t) {
-  t.s = 2;
+  t.s = 2; t.f = 1;
   for (const [id, h] of game.holds) if (h.tile === t) game.holds.delete(id);
-  const cy = Math.min(rowBottom(row) - ROW_H / 2, VIEW_H - 0.5);
-  burst(t.c + 0.5, cy, 8, [COLORS.gold, '#fff', COLORS.violet]);
+  const cx = t.c + 0.5, cy = Math.min(rowBottom(row) - ROW_H / 2, VIEW_H - 0.5), pts = Levels.holdBonus(row.len);
+  burst(cx, cy, 8, [COLORS.gold, '#fff', COLORS.violet]);
   game.glows.push({ c: t.c, y: cy, age: 0, life: 0.4 });
   Sound.hold();
+  gainPoints(pts);
 }
 
-// Soltou o dedo/tecla: se a tecla longa ainda não estava cumprida, a partida acaba.
+// Soltou o dedo/tecla antes de encher: a tecla fica INCOMPLETA (s = 3, com o enchimento congelado) e os pontos extras
+// são proporcionais ao que encheu (bônus máximo x fração enchida, arredondado para baixo). Só encerra a partida se holdMinMs > 0.
+function dropHold(row, t) {
+  const frac = Math.max(0, Math.min((game.offset - t.o0) / holdNeed(row), 1));
+  t.s = 3; t.f = frac;
+  const pts = Math.floor(frac * Levels.holdBonus(row.len));
+  if (pts > 0) {
+    const cx = t.c + 0.5, cy = Math.min(rowBottom(row) - ROW_H / 2, VIEW_H - 0.5);
+    Sound.hold();
+    gainPoints(pts);
+  }
+}
+
 function releaseInput(id) {
   const h = game.holds.get(id);
   if (!h) return;
   game.holds.delete(id);
-  if (game.state === STATES.PLAYING && h.tile.s === 1) endRound('release', h);
+  if (game.state !== STATES.PLAYING || h.tile.s !== 1) return;
+  if (CONFIG.holdMinMs > 0 && performance.now() - h.tile.pressMs < CONFIG.holdMinMs) endRound('release', h);
+  else dropHold(h.row, h.tile);
 }
 
-// Pausa/reinício: ninguém está mais segurando nada, então as teclas longas em andamento contam como cumpridas.
+// Pausa/reinício: ninguém está mais segurando nada, então é como soltar: as teclas longas em andamento ficam incompletas.
 function releaseAllHolds() {
-  for (const r of game.rows) for (const t of r.tiles) if (t.s === 1) t.s = 2;
+  for (const r of game.rows) for (const t of r.tiles) if (t.s === 1) dropHold(r, t);
   game.holds.clear();
 }
 
@@ -307,22 +376,91 @@ function endRound(reason, info) {
   game.overAt = performance.now();
   game.goFlash = 0; ui.count.classList.remove('go');
   PianoTapStorage.clearGame();            // partida encerrada: nada para retomar
+  commitLevel();
   setState(STATES.OVER);
 }
 
+// Fase concluída: a barra chegou a 100% (3 estrelas). Comemora e mostra a tela de vitória.
+function winRound() {
+  if (game.state !== STATES.PLAYING) return;
+  game.endReason = 'win';
+  game.holds.clear();
+  game.stars = 3;
+  for (let i = 0; i < 4; i++) burst(0.6 + Math.random() * 2.8, 1 + Math.random() * 3.5, 14, [COLORS.gold, '#fff', COLORS.violet, COLORS.berry]);
+  Sound.win();
+  game.overAt = performance.now();
+  game.goFlash = 0; ui.count.classList.remove('go');
+  PianoTapStorage.clearGame();
+  commitLevel();
+  setState(STATES.OVER);
+}
+
+// Grava no storage as estrelas e o recorde da fase atual (só sobem). No modo infinito não faz nada (o recorde já é gravado na hora).
+function commitLevel() {
+  if (game.mode !== 'level') return;
+  game.progress = PianoTapStorage.setLevelResult(game.level, game.stars, game.score);
+}
+
+// Pequena trava após a derrota para um toque acidental de jogo rápido não acionar um botão da tela de fim.
+function overLocked() { return game.state === STATES.OVER && performance.now() - game.overAt < CONFIG.restartLock; }
+
 function restart() {
-  // Pequena trava após a derrota para um toque acidental de jogo rápido não reiniciar a partida.
-  if (game.state === STATES.OVER && performance.now() - game.overAt < CONFIG.restartLock) return;
+  if (overLocked()) return;
   Sound.unlock(); Sound.click();
   resetRound();
   startGame();
 }
 
-function backToStart() {   // da tela de pausa: descarta a partida e volta à tela inicial
+// Botão principal da tela de fim: "Próxima fase" (após vencer) ou "Jogar novamente".
+function overPrimary() {
+  if (overLocked()) return;
+  if (game.endReason === 'win' && game.mode === 'level' && game.level < Levels.COUNT) launch('level', game.level + 1);   // próxima fase, direto
+  else restart();
+}
+
+// Escolheu uma fase (ou o infinito): vai direto para o jogo.
+function launch(mode, level) {
   Sound.unlock(); Sound.click();
-  closeHelp();
-  resetRound();
+  resetRound(mode, level);
+  startGame();
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+}
+
+// Sai da partida em andamento (as estrelas já conquistadas ficam salvas).
+function leaveRun() {
+  closeHelp();
+  game.holds.clear(); game.countdown = null; game.goFlash = 0; game.finishLeft = null;
+  ui.count.classList.remove('go');
+  PianoTapStorage.clearGame();
+}
+function blurActive() { if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); }
+
+// Da pausa ou do fim de jogo: lista de fases (só existe no modo Fases).
+function goMenu() {
+  if (overLocked()) return;
+  Sound.unlock(); Sound.click();
+  leaveRun();
+  openMenu();
+  blurActive();
+}
+
+// Da pausa ou do fim de jogo (fases e infinito): volta para a tela inicial ("Toque para iniciar").
+function goHome() {
+  if (overLocked()) return;
+  Sound.unlock(); Sound.click();
+  leaveRun();
+  showHome();
+  blurActive();
+}
+
+// Navegação das telas de abertura: HOME -> MODE -> MENU (e de volta).
+function showHome() { setState(STATES.HOME); }
+function openMode() {
+  game.progress = PianoTapStorage.getLevels();
+  const total = game.progress.stars.reduce((a, b) => a + b, 0);
+  ui.modeLevelsInfo.textContent = `${total} de ${Levels.COUNT * 3} estrelas`;
+  ui.modeInfInfo.textContent = `Recorde ${PianoTapStorage.getBest()}`;
+  setState(STATES.MODE);
 }
 
 /* ===== 4b. PAUSA, CONTAGEM E SALVAMENTO =====
@@ -379,12 +517,13 @@ function updateCountdown(dt) {
 function snapshot() {
   return {
     v: CONFIG.saveVersion, savedAt: Date.now(),
+    mode: game.mode, level: game.level, done: game.done, spawned: game.spawned,
     offset: game.offset, speed: game.speed, time: game.time, nextN: game.nextN,
     touchMode: game.touchMode,
-    rows: game.rows.map((r) => ({ n: r.n, len: r.len, tiles: r.tiles.map((t) => ({ c: t.c, s: t.s === 1 ? 2 : t.s, hitAt: t.hitAt })) })),
+    rows: game.rows.map((r) => ({ n: r.n, len: r.len, tiles: r.tiles.map((t) => ({ c: t.c, s: t.s === 1 ? 3 : t.s, hitAt: t.hitAt, f: t.s === 1 ? Math.max(0, Math.min((game.offset - t.o0) / holdNeed(r), 1)) : (t.f || 0) })) })),
     history: game.history.slice(),
     score: game.score, startBest: game.startBest, newRecord: game.newRecord, noteIndex: game.noteIndex,
-    particles: game.particles.map((p) => ({ ...p })), floats: game.floats.map((f) => ({ ...f })),
+    particles: game.particles.map((p) => ({ ...p })), combo: game.combo,
   };
 }
 
@@ -398,8 +537,12 @@ function restoreGame(s) {
   if (!s || typeof s !== 'object' || s.v !== CONFIG.saveVersion) return false;
   const num = (v) => typeof v === 'number' && Number.isFinite(v);
   const nat = (v) => Number.isInteger(v) && v >= 0;
-  if (![s.offset, s.speed, s.time].every(num) || s.time < 0 || s.speed < 0 || s.speed > CONFIG.speedMax * 2) return false;
-  if (![s.score, s.startBest, s.noteIndex].every(nat) || !Number.isInteger(s.nextN)) return false;
+  if (![s.offset, s.speed, s.time].every(num) || s.time < 0 || s.speed < 0 || s.speed > 20) return false;
+  if (![s.score, s.startBest, s.noteIndex, s.done, s.spawned].every(nat) || !Number.isInteger(s.nextN)) return false;
+  if (s.mode !== 'level' && s.mode !== 'infinite') return false;
+  if (s.mode === 'level' && !(Number.isInteger(s.level) && s.level >= 1 && s.level <= Levels.COUNT)) return false;
+  const cfg = cfgFor(s.mode, s.mode === 'level' ? s.level : 0, Boolean(s.touchMode));
+  if (s.done > s.spawned || s.spawned > cfg.goal) return false;
   if (!Array.isArray(s.rows) || !s.rows.length || s.rows.length > 60) return false;
   const rows = [];
   for (let i = 0; i < s.rows.length; i++) {
@@ -408,8 +551,8 @@ function restoreGame(s) {
     if (i && r.n !== s.rows[i - 1].n + s.rows[i - 1].len) return false;   // fileiras consecutivas
     const seen = new Set(), tiles = [];
     for (const t of r.tiles) {
-      if (!t || !Number.isInteger(t.c) || t.c < 0 || t.c >= COLS || seen.has(t.c) || (t.s !== 0 && t.s !== 2) || !num(t.hitAt)) return false;
-      seen.add(t.c); tiles.push({ c: t.c, s: t.s, hitAt: Math.min(t.hitAt, s.time) });
+      if (!t || !Number.isInteger(t.c) || t.c < 0 || t.c >= COLS || seen.has(t.c) || (t.s !== 0 && t.s !== 2 && t.s !== 3) || !num(t.hitAt)) return false;
+      seen.add(t.c); tiles.push({ c: t.c, s: t.s, hitAt: Math.min(t.hitAt, s.time), f: t.s === 3 ? Math.max(0, Math.min(Number(t.f) || 0, 1)) : (t.s === 2 ? 1 : 0) });
     }
     rows.push({ n: r.n, len: r.len, tiles });
   }
@@ -425,19 +568,22 @@ function restoreGame(s) {
     ? { ring: true, x: p.x, y: p.y, age: p.age, life: p.life }
     : [p.vx, p.vy, p.r].every(num) && typeof p.color === 'string' && p.color.length < 40
       ? { x: p.x, y: p.y, vx: p.vx, vy: p.vy, age: p.age, life: p.life, r: p.r, color: p.color } : null)).filter(Boolean);
-  const floats = list(s.floats).filter((f) => f && [f.x, f.y, f.t].every(num)).map((f) => ({ x: f.x, y: f.y, t: f.t }));
 
+  const level = s.mode === 'level' ? s.level : 0;
   Object.assign(game, {
+    mode: s.mode, level, cfg, done: s.done, spawned: s.spawned, finishLeft: null,
+    stars: Levels.starsAt(Math.min(1, s.done / cfg.goal)),     // recalculado a partir do progresso (no infinito a meta é infinita: 0)
     offset: s.offset, speed: s.speed, time: s.time, nextN: s.nextN, rows, history: s.history.slice(),
-    score: s.score, startBest: s.startBest, newRecord: Boolean(s.newRecord), noteIndex: s.noteIndex, particles, floats,
+    score: s.score, startBest: s.startBest, newRecord: Boolean(s.newRecord), noteIndex: s.noteIndex, combo: nat(s.combo) ? s.combo : 0, particles,
     touchMode: Boolean(s.touchMode), glows: [], holds: new Map(),
     wrong: null, missRow: null, missTile: null, endReason: '', countdown: null, goFlash: 0, pauseReason: 'restored',
   });
   fillRows();
-  game.best = Math.max(game.best, game.score);
+  game.best = Math.max(bestFor(s.mode, level), game.score);
   ui.board.classList.remove('hit', 'shake');
   ui.count.classList.remove('go');
   updateScore(false);
+  syncRunUI();
   setState(STATES.PAUSED);                       // aguarda o jogador: "Continuar" (ou Space) dispara o 3·2·1·GO!
   return true;
 }
@@ -455,8 +601,6 @@ function burst(x, y, n, colors) {
 function updateEffects(dt) {
   for (const p of game.particles) { p.age += dt; if (!p.ring) { p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.93; p.vy *= 0.93; } }
   game.particles = game.particles.filter((p) => p.age < p.life);
-  for (const f of game.floats) f.t += dt;
-  game.floats = game.floats.filter((f) => f.t < 0.7);
   for (const gl of game.glows) gl.age += dt;
   game.glows = game.glows.filter((gl) => gl.age < gl.life);
 }
@@ -548,18 +692,22 @@ function drawDone(r, y, t) {
   rr(ctx, q.x, q.y, q.w, q.h, q.r); ctx.fill(); ctx.globalAlpha = 1;
 }
 
-// Tecla longa sendo segurada: o brilho sobe a partir do fundo da tecla desde o instante do toque (d = quanto ela já andou)
-// e enche por completo quando d chega à altura da tecla; o contorno claro pulsa enquanto segura.
+// Tecla longa: o brilho sobe a partir do fundo da tecla desde o instante do toque (d = quanto ela já andou) e enche por
+// completo quando d chega à altura da tecla. Segurando: brilho forte e contorno pulsando (dourado = já passou da metade).
+// Solta antes de encher (s = 3): o enchimento fica congelado, mais apagado, mostrando que ficou incompleta.
 function drawHolding(r, y, t) {
-  const q = tileRect(t.c, y, r.len), d = Math.max(0, Math.min(game.offset - t.o0, q.h)), bottom = q.y + q.h;
+  const q = tileRect(t.c, y, r.len), held = t.s === 1, bottom = q.y + q.h;
+  const frac = held ? Math.max(0, Math.min((game.offset - t.o0) / q.h, 1)) : t.f, d = frac * q.h;
   ctx.save(); rr(ctx, q.x, q.y, q.w, q.h, q.r); ctx.clip();
   if (d > 0) {
     const g = ctx.createLinearGradient(0, bottom - d, 0, bottom);
-    g.addColorStop(0, '#e9e6ff'); g.addColorStop(1, '#8f7cff');
-    ctx.globalAlpha = 0.92; ctx.fillStyle = g; ctx.fillRect(q.x, bottom - d, q.w, d); ctx.globalAlpha = 1;
+    g.addColorStop(0, held ? '#e9e6ff' : '#b7aef0'); g.addColorStop(1, held ? '#8f7cff' : '#6a5bd0');
+    ctx.globalAlpha = held ? 0.92 : 0.75; ctx.fillStyle = g; ctx.fillRect(q.x, bottom - d, q.w, d); ctx.globalAlpha = 1;
   }
   ctx.restore();
-  ctx.strokeStyle = '#e9e6ff'; ctx.lineWidth = 0.045 + 0.015 * Math.sin(game.time * 14);
+  if (!held) return;
+  ctx.strokeStyle = frac >= 0.5 ? COLORS.gold : '#e9e6ff';
+  ctx.lineWidth = 0.045 + 0.015 * Math.sin(game.time * 14);
   rr(ctx, q.x, q.y, q.w, q.h, q.r); ctx.stroke();
 }
 
@@ -567,7 +715,7 @@ function drawRow(r, y) {
   for (const t of r.tiles) {
     if (t.s === 2) { drawDone(r, y, t); continue; }
     ctx.drawImage(sprites.tile[r.len].idle, t.c, y, 1, r.len * ROW_H);
-    if (t.s === 1) drawHolding(r, y, t);
+    if (t.s === 1 || t.s === 3) drawHolding(r, y, t);
     if (t === game.missTile) {                                                       // sobreposição vermelha de erro
       const q = tileRect(t.c, y, r.len);
       ctx.fillStyle = `rgba(255,79,123,${0.55 + 0.25 * Math.sin(game.time * 10)})`; rr(ctx, q.x, q.y, q.w, q.h, q.r); ctx.fill();
@@ -594,12 +742,6 @@ function drawEffects() {
       ctx.globalAlpha = k; ctx.fillStyle = p.color;
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.5 + k), 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
     }
-  }
-  ctx.font = '800 0.5px system-ui, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  for (const f of game.floats) {
-    const k = f.t / 0.7;
-    ctx.globalAlpha = 1 - k * k; ctx.lineWidth = 0.12; ctx.strokeStyle = COLORS.ink; ctx.fillStyle = '#fff';
-    ctx.strokeText('+1', f.x, f.y - k * 0.8); ctx.fillText('+1', f.x, f.y - k * 0.8); ctx.globalAlpha = 1;
   }
 }
 
@@ -629,27 +771,146 @@ function render() {
 function setState(s) {
   game.state = s;
   const b = ui.board.classList;
-  b.toggle('is-ready', s === STATES.READY); b.toggle('is-playing', s === STATES.PLAYING);
+  b.toggle('is-home', s === STATES.HOME); b.toggle('is-mode', s === STATES.MODE); b.toggle('is-playing', s === STATES.PLAYING);
   b.toggle('is-paused', s === STATES.PAUSED); b.toggle('is-countdown', s === STATES.COUNTDOWN); b.toggle('is-over', s === STATES.OVER);
+  b.toggle('is-menu', s === STATES.MENU); b.toggle('is-infinite', game.mode === 'infinite'); b.toggle('is-level', game.mode === 'level' && ![STATES.HOME, STATES.MODE, STATES.MENU].includes(s));
+  if (s === STATES.HOME || s === STATES.MODE || s === STATES.MENU) b.remove('hit', 'shake');   // nada de borda vermelha do fim de jogo nos menus
+  updateModeLabel();
   ui.pause.disabled = s !== STATES.PLAYING && s !== STATES.COUNTDOWN;
+  if (s === STATES.PAUSED || s === STATES.OVER) {   // "Fases" só existe no modo Fases; no infinito o botão de início ocupa a linha toda
+    const lv = game.mode === 'level', label = lv ? 'Início' : 'Tela inicial';
+    ui.menuPause.hidden = ui.menuOver.hidden = !lv;
+    for (const b of [ui.homePause, ui.homeOver]) b.querySelector('.home-label').textContent = label;
+  }
   if (s === STATES.PAUSED) {
     const copy = PAUSE_COPY[game.pauseReason] || PAUSE_COPY.manual;
+    // Fases: só "Pontos" (não há recorde). Infinito: só "Recorde".
+    ui.pauseScore.textContent = String(game.score); ui.pauseBest.textContent = String(game.best);
+    ui.pauseScoreRow.hidden = game.mode !== 'level'; ui.pauseBestRow.hidden = game.mode !== 'infinite';
     ui.pauseTitle.textContent = copy.title;
     ui.pauseNote.textContent = copy.note; ui.pauseNote.hidden = !copy.note;
   }
   if (s === STATES.OVER) {
-    ui.overReason.textContent = game.endReason === 'white' ? 'Você tocou fora das teclas.' : game.endReason === 'release' ? 'Você soltou a tecla longa antes da hora.' : 'Uma tecla escapou.';
+    const win = game.endReason === 'win', isLevel = game.mode === 'level', next = win && isLevel && game.level < Levels.COUNT;
+    ui.overScreen.classList.toggle('is-win', win);
+    ui.overTitle.textContent = win ? 'Fase concluída!' : 'Fim de jogo';
+    ui.overReason.textContent = win ? 'Você tocou todas as teclas!' : game.endReason === 'white' ? 'Você tocou fora das teclas.' : game.endReason === 'release' ? 'Você soltou a tecla longa cedo demais. Segure um pouco mais.' : 'Uma tecla escapou.';
+    ui.overStars.hidden = !isLevel;
+    if (isLevel) fillStars(ui.overStars, game.stars);
+    ui.restart.textContent = next ? 'Próxima fase' : 'Jogar novamente';
+    ui.replay.hidden = !next;
     ui.overScore.textContent = String(game.score);
     ui.overBest.textContent = String(game.best);
-    ui.badge.hidden = !game.newRecord;
+    ui.badge.hidden = !(game.mode === 'infinite' && game.newRecord);
+    ui.overFinal.hidden = game.mode !== 'level'; ui.overBestRow.hidden = game.mode !== 'infinite';   // fases: pontos · infinito: recorde
     ui.restart.focus({ preventScroll: true });
   }
   if (s === STATES.PAUSED) ui.resume.focus({ preventScroll: true });
 }
 
+/* ===== 7b. ESTRELAS, PROGRESSO, ACERTOS E MENU ===== */
+function updateModeLabel() {
+  const s = game.state;
+  ui.modeLabel.textContent = s === STATES.HOME ? 'Tela inicial' : s === STATES.MODE ? 'Escolha o modo' : s === STATES.MENU ? 'Escolha a fase' : game.mode === 'level' ? `Fase ${game.level}` : 'Modo infinito';
+}
+
+// Linha de 3 estrelas (as n primeiras acesas).
+function fillStars(el, n) {
+  el.innerHTML = [0, 1, 2].map((i) => starSvg('star' + (i < n ? ' on' : ''))).join('');
+  el.setAttribute('role', 'img');
+  el.setAttribute('aria-label', `${n} de 3 estrelas`);
+}
+
+// Estrelas da barra de progresso: uma por item de PianoTapLevels.STAR_AT, posicionadas ao longo do trilho.
+const barStars = [];
+function buildProgressStars() {
+  Levels.STAR_AT.forEach((at) => {
+    const el = document.createElement('span');
+    el.className = 'pstar'; el.style.left = `${at * 100}%`; el.innerHTML = starSvg('pstar-svg');
+    ui.progressRail.append(el); barStars.push(el);
+  });
+}
+
+// Enche a barra e acende as estrelas conforme as teclas tocadas / meta. Conquistar uma estrela toca o som e grava o progresso.
+function updateProgress(animate) {
+  if (game.mode !== 'level') return;
+  const ratio = Math.min(1, game.done / game.cfg.goal);
+  ui.progressFill.style.width = `${ratio * 100}%`;
+  const stars = Levels.starsAt(ratio);
+  barStars.forEach((el, i) => el.classList.toggle('on', i < stars));
+  if (stars > game.stars) {
+    game.stars = stars;
+    if (animate) {
+      if (!reduceMotion) pop(barStars[stars - 1], 'pop');
+      Sound.star();
+      commitLevel();
+    }
+  }
+}
+
+// Mensagem de acerto no topo: Legal / Ótimo / Perfeito (+ combo).
+function showRating(key) {
+  ui.rating.className = 'rating r-' + key;
+  ui.rating.textContent = Levels.LABELS[key];
+  pop(ui.rating, 'show');
+  ui.combo.textContent = game.combo >= 2 ? `x${game.combo}` : '';   // combo ao lado da mensagem (só a partir de 2 Perfeitos seguidos)
+  if (game.combo >= 2) pop(ui.combo, 'show'); else ui.combo.classList.remove('show');
+}
+
+// Atualiza tudo que depende da fase/modo atual (tela inicial, barra, placar, título).
+function syncRunUI() {
+  ui.rating.className = 'rating'; ui.combo.className = 'combo'; ui.combo.textContent = '';
+  ui.progressFill.style.width = '0%';
+  barStars.forEach((el) => el.classList.remove('on', 'pop'));
+  updateProgress(false);
+  updateModeLabel();
+}
+
+// Menu de fases (2 páginas de 15).
+const MENU = { perPage: 15, page: 0 };
+const LOCK_SVG = '<svg class="lv-lock" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="5" y="10.5" width="14" height="10" rx="2.5" fill="currentColor"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+
+// Fase mais avançada já liberada (a fronteira do progresso): é nela que o menu abre e que ganha destaque.
+function frontierLevel() {
+  const st = game.progress.stars;
+  let n = 1;
+  while (n < Levels.COUNT && Levels.isUnlocked(n + 1, st)) n++;
+  return n;
+}
+
+function buildMenu() {
+  const st = game.progress.stars, total = Levels.COUNT, pages = Math.ceil(total / MENU.perPage), next = frontierLevel();
+  MENU.page = Math.max(0, Math.min(MENU.page, pages - 1));
+  const from = MENU.page * MENU.perPage, to = Math.min(total, from + MENU.perPage);
+  ui.menuGrid.textContent = '';
+  for (let n = from + 1; n <= to; n++) {
+    const open = Levels.isUnlocked(n, st), got = st[n - 1] || 0;
+    const b = document.createElement('button');
+    b.type = 'button'; b.disabled = !open; b.dataset.level = String(n);
+    b.className = 'lv' + (open ? '' : ' is-locked') + (n === next ? ' is-next' : '');
+    b.setAttribute('aria-label', open ? `Fase ${n}, ${got} de 3 estrelas` : `Fase ${n}, bloqueada`);
+    const num = document.createElement('span');
+    num.className = 'lv-n';
+    if (open) num.textContent = String(n); else num.innerHTML = LOCK_SVG;
+    b.append(num);
+    if (open) { const s = document.createElement('span'); s.className = 'stars'; fillStars(s, got); b.append(s); }
+    ui.menuGrid.append(b);
+  }
+  ui.menuPage.textContent = `${MENU.page + 1} / ${pages}`;
+  ui.menuPrev.disabled = MENU.page <= 0;
+  ui.menuNext.disabled = MENU.page >= pages - 1;
+}
+
+function openMenu() {
+  game.progress = PianoTapStorage.getLevels();
+  MENU.page = Math.floor((frontierLevel() - 1) / MENU.perPage);   // abre na página da fase mais avançada
+  buildMenu();
+  setState(STATES.MENU);
+}
+
 function pop(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
-function updateScore(animate) { ui.score.textContent = String(game.score); if (animate && !reduceMotion) pop(ui.score, 'bump'); }
-function updateBest(animate) { ui.best.textContent = String(game.best); if (animate && !reduceMotion) pop(ui.bestCard, 'glow'); }
+// Pontuação ao vivo: aparece no topo do tabuleiro, logo acima da mensagem de acerto. O recorde só é mostrado na pausa e no fim de jogo.
+function updateScore(animate) { ui.scoreLive.textContent = String(game.score); if (animate && !reduceMotion) pop(ui.scoreLive, 'bump'); }
 function showToast(text) { ui.toast.textContent = text; pop(ui.toast, 'show'); }
 
 function syncMute() {
@@ -692,7 +953,7 @@ function initTips() {
 
 /* Ajuda "Como jogar": popover ancorado ABAIXO do botão "?", fora da área do jogo.
    Se abrir no meio da partida, o jogo pausa; ao fechar, a pausa continua até "Continuar". */
-const HELP = { gap: 12, edge: 8, maxWidth: 270, button: 40, side: 18 };
+const HELP = { gap: 12, edge: 8, maxWidth: 270, button: 40, side: 22, below: 22, ring: 14 };   // side/below = afastamento dos botões; ring = folga da moldura do tabuleiro
 let helpOpen = false;
 function openHelp() {
   if (helpOpen) return;
@@ -759,15 +1020,20 @@ function onKeyDown(e) {
   if (e.ctrlKey || e.metaKey || e.altKey) return;
   if (helpOpen && e.code === 'Escape') { e.preventDefault(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); return; }
   Sound.unlock();
+  if (e.code === 'Escape' && !e.repeat && (game.state === STATES.MENU || game.state === STATES.MODE)) {   // Esc volta uma tela
+    e.preventDefault(); Sound.click();
+    if (game.state === STATES.MENU) openMode(); else showHome();
+    return;
+  }
   if (e.code in KEYS) { e.preventDefault(); if (!e.repeat) keyTap(KEYS[e.code], 'k' + e.code); }
   else if (e.code === 'KeyM' && !e.repeat) toggleMute();
   else if ((e.code === 'KeyP' || e.code === 'Escape') && !e.repeat) setPaused(game.state === STATES.PLAYING || game.state === STATES.COUNTDOWN);
   else if (e.code === 'Space' || e.code === 'Enter') {
     if (e.target.closest && e.target.closest('button')) return;   // deixa o botão focado agir (início, continuar, jogar de novo, "?")
     e.preventDefault();
-    if (game.state === STATES.READY) startGame();
+    if (game.state === STATES.HOME) { Sound.click(); openMode(); }
     else if (game.state === STATES.PAUSED) setPaused(false);
-    else if (game.state === STATES.OVER) restart();
+    else if (game.state === STATES.OVER) overPrimary();
   }
 }
 
@@ -775,11 +1041,12 @@ function onKeyDown(e) {
 // O botão "?" fica fora do jogo: ao lado (reserva dos dois lados, para o jogo seguir centralizado) ou, se faltar
 // largura, logo abaixo. Escolhe o formato que permite o maior tabuleiro.
 function resize() {
-  const m = CONFIG.margin, help = HELP.button + HELP.side;
+  const m = CONFIG.margin, btn = ui.helpButton.offsetWidth || HELP.button;   // botões: 40px (36px em telas pequenas)
+  const help = btn + HELP.side, below = btn + HELP.below + HELP.ring;
   const pw = ui.play.clientWidth - m * 2, ph = ui.play.clientHeight - m * 2;
   let best = null;
   for (const pos of ['side', 'below']) {
-    const aw = pw - (pos === 'side' ? help * 2 : 0), ah = ph - (pos === 'below' ? help : 0);
+    const aw = pw - (pos === 'side' ? help * 2 : 0), ah = ph - (pos === 'below' ? below : 0);
     const col = Math.max(CONFIG.minCol, Math.min(CONFIG.maxCol, Math.floor(Math.min(aw / COLS, ah / VIEW_H))));   // coluna em px inteiros
     if (!best || col > best.col) best = { col, pos };
   }
@@ -818,9 +1085,9 @@ function frame(now) {
 
 function init() {
   initTips();
+  buildProgressStars();
   const saved = PianoTapStorage.loadGame();
-  if (!(saved && restoreGame(saved))) resetRound();   // sem salvamento válido: tela inicial (e descarta o lixo)
-  updateBest(false);
+  if (!(saved && restoreGame(saved))) showHome();   // sem salvamento válido: tela inicial (e descarta o lixo)
   syncMute();
   document.addEventListener('keydown', onKeyDown, { passive: false });
   document.addEventListener('keyup', (e) => { if (e.code in KEYS) releaseInput('k' + e.code); });
@@ -831,7 +1098,7 @@ function init() {
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
   ui.pause.addEventListener('click', () => { setPaused(true, 'manual'); ui.pause.blur(); });
-  ui.start.addEventListener('click', startGame);
+  ui.start.addEventListener('click', () => { Sound.unlock(); Sound.click(); openMode(); });
   ui.helpButton.addEventListener('click', (e) => {
     e.stopPropagation();
     if (helpOpen) closeHelp(); else openHelp();
@@ -843,8 +1110,20 @@ function init() {
     if (helpOpen && !(e.target.closest && e.target.closest('#help-popover, #help-button'))) closeHelp();
   }, true);
   ui.resume.addEventListener('click', () => setPaused(false));
-  ui.restartPause.addEventListener('click', backToStart);
-  ui.restart.addEventListener('click', restart);
+  ui.restartPause.addEventListener('click', restart);
+  ui.restart.addEventListener('click', overPrimary);
+  ui.replay.addEventListener('click', restart);
+  ui.menuOver.addEventListener('click', goMenu);
+  ui.menuPause.addEventListener('click', goMenu);
+  ui.homeOver.addEventListener('click', goHome);
+  ui.homePause.addEventListener('click', goHome);
+  ui.menuBack.addEventListener('click', () => { Sound.click(); openMode(); });
+  ui.modeBack.addEventListener('click', () => { Sound.click(); showHome(); });
+  ui.modeLevels.addEventListener('click', () => { Sound.click(); openMenu(); });
+  ui.modeInfinite.addEventListener('click', () => launch('infinite', 0));
+  ui.menuGrid.addEventListener('click', (e) => { const b = e.target.closest('.lv'); if (b && !b.disabled) launch('level', Number(b.dataset.level)); });
+  ui.menuPrev.addEventListener('click', () => { MENU.page--; Sound.click(); buildMenu(); });
+  ui.menuNext.addEventListener('click', () => { MENU.page++; Sound.click(); buildMenu(); });
   // Pausa automática ao sair da aba/minimizar; ao voltar o jogo segue pausado até o jogador continuar.
   document.addEventListener('visibilitychange', () => { lastTime = null; if (document.hidden) { setPaused(true, 'auto'); saveGame(); } });
   // F5/fechar/trocar de página: grava o estado exato para o init() recuperar.
@@ -858,5 +1137,5 @@ function init() {
 }
 
 init();
-window.__pianoTap = { game, CONFIG, step, registerTap, keyTap, rowTop, rowBottom, releaseInput };
+window.__pianoTap = { game, CONFIG, Levels, step, registerTap, keyTap, rowTop, rowBottom, releaseInput, resetRound, startGame, openMenu, openMode, launch };
 })();
