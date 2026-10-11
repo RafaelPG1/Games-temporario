@@ -11,15 +11,18 @@ const $ = (id) => document.getElementById(id);
 const ui = {
   arena: $('arena'), stage: $('stage'), grid: $('grid'), moves: $('moves'), time: $('time'), best: $('best'),
   status: $('status'), mute: $('mute-button'), pause: $('pause-button'), confirmText: $('confirm-text'),
-  levels: [...document.querySelectorAll('.levels button')],
-  frame: $('frame'), helpButton: $('help-button'), helpPopover: $('help-popover'), helpClose: $('help-close'),
+  levels: [...document.querySelectorAll('.levels button')], countNum: $('count-num'), pauseNote: $('pause-note'),
+  frame: $('frame'), helpBody: $('help-body'), helpButton: $('help-button'), helpPopover: $('help-popover'), helpClose: $('help-close'),
 };
 
 const S = {
   level: 'medium', n: 4, board: [], initial: [], moves: 0,
-  status: 'ready',            // ready (aguardando o toque inicial) | playing | paused | won
-  elapsed: 0, t0: 0, readyAt: 0, pending: null, resumeAfter: false, muted: false, isRecord: false, tiles: new Map(),
+  status: 'ready',            // ready (tela inicial) | playing | paused | countdown (3-2-1-GO!) | won
+  elapsed: 0, t0: 0, readyAt: 0, pending: null, muted: false, isRecord: false, tiles: new Map(),
+  resumeNote: false,          // mostra "Partida retomada" na tela de pausa (após F5 ou ao voltar à aba)
+  go: false, cd: null, goT: null,
 };
+let booted = false;           // só persiste depois da inicialização/recuperação
 
 /* ===== Armazenamento (nunca pode quebrar o jogo) ===== */
 // Persistência: tudo passa por slide_puzzle_storage.js (SlidePuzzleStorage): level, muted e melhor resultado por dificuldade.
@@ -57,6 +60,8 @@ const Sound = (() => {
     unlock() { if (!S.muted) { try { ensure(); } catch (e) {} } },
     move() { tone(330, 460, 0.07); },
     blocked() { tone(150, 120, 0.09, 'square', 0.18); },
+    tick() { tone(440, 440, 0.09, 'triangle', 0.35); },
+    go() { tone(660, 990, 0.2, 'square', 0.3); },
     win() { [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.16, 'square', 0.3, i * 0.11)); },
   };
 })();
@@ -95,8 +100,37 @@ function shuffled(level, avoid = []) { // avoid: configurações (arrays) que n�
 /* ===== Tempo ===== */
 const elapsedNow = () => (S.status === 'playing' ? S.elapsed + performance.now() - S.t0 : S.elapsed);
 const fmt = (ms) => { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
-function pauseTimer() { if (S.status === 'playing') { S.elapsed = elapsedNow(); S.status = 'paused'; } }
-function resumeTimer() { if (S.status === 'paused') { S.t0 = performance.now(); S.status = 'playing'; } }
+function cancelCountdown() { clearTimeout(S.cd); clearTimeout(S.goT); S.cd = S.goT = null; S.go = false; }
+/* Congela a partida: o tempo para e qualquer contagem regressiva em curso é cancelada */
+function pauseTimer() {
+  if (S.status === 'playing') { S.elapsed = elapsedNow(); S.status = 'paused'; }
+  else if (S.status === 'countdown') S.status = 'paused';
+  cancelCountdown();
+}
+function showCount(text) {
+  ui.countNum.textContent = text; ui.countNum.style.animation = 'none'; void ui.countNum.offsetWidth; ui.countNum.style.animation = '';
+}
+/* Retomada: 3 → 2 → 1 → GO!. Durante a contagem ninguém joga e o tempo continua congelado */
+function startCountdown() {
+  if (S.status !== 'paused' || S.pending) return;
+  S.status = 'countdown'; S.resumeNote = false; let i = 0;
+  const seq = ['3', '2', '1'];
+  const step = () => {
+    if (S.status !== 'countdown') return;
+    if (i < seq.length) { showCount(seq[i++]); Sound.tick(); S.cd = setTimeout(step, 800); return; }
+    S.status = 'playing'; S.t0 = performance.now(); S.go = true; showCount('GO!'); Sound.go();
+    S.goT = setTimeout(() => { S.go = false; render(); }, 650);
+    render();
+  };
+  step(); render();
+}
+/* Persistência da partida em andamento (um único objeto em SlidePuzzleStorage) */
+function persist() {
+  if (!booted) return;
+  if (S.status === 'ready') { SlidePuzzleStorage.clearGame(); return; }
+  SlidePuzzleStorage.setGame({ level: S.level, board: S.board, initial: S.initial, moves: S.moves, elapsed: elapsedNow(),
+    status: S.status === 'countdown' ? 'paused' : S.status, isRecord: S.isRecord });
+}
 
 /* ===== Ações ===== */
 function moveAt(i) {
@@ -117,12 +151,10 @@ function beginPlay() {
   Sound.unlock(); render();
 }
 function win() {
-  S.elapsed = elapsedNow(); S.status = 'won';
+  cancelCountdown(); S.elapsed = elapsedNow(); S.status = 'won';
   const result = { moves: S.moves, time: Math.round(S.elapsed) };
   S.isRecord = isBetter(result, loadBest(S.level));
   if (S.isRecord) SlidePuzzleStorage.setBest(S.level, result);
-  $('won-moves').textContent = S.moves; $('won-time').textContent = fmt(S.elapsed);
-  $('won-record').hidden = !S.isRecord;
   Sound.win();
 }
 function buildBoard() {
@@ -138,39 +170,41 @@ function buildBoard() {
     ui.grid.appendChild(t); S.tiles.set(v, t);
   }
 }
-/* Reiniciar: volta à configuração inicial da partida atual (S.initial, guardada em beginPlay) e já começa a contar */
+/* Reiniciar: volta à configuração inicial da partida atual (S.initial, guardada em beginPlay) e já começa a contar.
+   Funciona em qualquer momento da partida (jogando, pausado, em contagem ou após vencer), mesmo sem nenhum movimento. */
 function restartGame() {
   if (!S.initial.length || S.status === 'ready') return;
+  cancelCountdown(); S.resumeNote = false;
   S.board = S.initial.slice(); S.moves = 0; S.elapsed = 0; S.t0 = performance.now();
-  S.status = 'playing'; S.pending = null; S.resumeAfter = false; S.isRecord = false;
+  S.status = 'playing'; S.pending = null; S.isRecord = false;
   render();
 }
 function startGame(level) {
   if (!LEVELS[level]) level = 'medium';
   const resize = level !== S.level || !S.tiles.size;
-  S.level = level; S.n = LEVELS[level].n; S.pending = null; S.resumeAfter = false;
+  cancelCountdown(); S.resumeNote = false;
+  S.level = level; S.n = LEVELS[level].n; S.pending = null;
   S.initial = shuffled(level, [S.board, S.initial]);
   S.board = S.initial.slice(); S.moves = 0; S.elapsed = 0; S.status = 'ready'; S.isRecord = false; S.readyAt = performance.now();
   if (resize) buildBoard();
   SlidePuzzleStorage.setLevel(level);
   render();
 }
-/* Pede confirmação quando há progresso a perder */
+/* Pede confirmação quando há progresso a perder. A partida fica pausada; ao cancelar, volta à tela de pausa
+   (retomar sempre exige uma ação explícita e a contagem 3-2-1) */
 function ask(text, action) {
   if (S.moves === 0 || S.status === 'won') { action(); return; }
-  S.resumeAfter = S.status === 'playing'; pauseTimer();
-  S.pending = action; ui.confirmText.textContent = text; render();
+  pauseTimer(); S.pending = action; ui.confirmText.textContent = text; render();
 }
 function answer(yes) {
   const action = S.pending; S.pending = null;
-  if (yes && action) action(); else if (S.resumeAfter) resumeTimer();
-  S.resumeAfter = false; render();
+  if (yes && action) action();
+  render();
 }
 function togglePause(wantPause) {
   if (S.pending) return;
-  if (wantPause && S.status === 'playing') pauseTimer();
-  else if (!wantPause && S.status === 'paused') resumeTimer();
-  render();
+  if (wantPause && (S.status === 'playing' || S.status === 'countdown')) { pauseTimer(); render(); }
+  else if (!wantPause && S.status === 'paused') startCountdown();
 }
 
 /* ===== Renderização ===== */
@@ -186,13 +220,18 @@ function render() {
   ui.moves.textContent = S.moves; ui.time.textContent = fmt(elapsedNow());
   const b = loadBest(S.level); ui.best.textContent = b ? `${b.moves} · ${fmt(b.time)}` : '—';
   ui.levels.forEach((el) => { const on = el.dataset.level === S.level; el.setAttribute('aria-checked', on); el.tabIndex = on ? 0 : -1; });
-  ui.status.textContent = S.status === 'ready' ? 'O tempo começa quando você tocar no tabuleiro ou apertar Space' : `Ordene de 1 a ${n * n - 1}, com o espaço no canto`;
+  $('won-moves').textContent = S.moves; $('won-time').textContent = fmt(S.elapsed); $('won-record').hidden = !S.isRecord;
+  ui.pauseNote.hidden = !S.resumeNote;
+  ui.status.textContent = S.status === 'ready' ? 'O tempo começa quando você iniciar a partida' : `Ordene de 1 a ${n * n - 1}, com o espaço no canto`;
   const c = ui.stage.classList;
   c.toggle('is-ready', S.status === 'ready'); c.toggle('is-playing', S.status === 'playing');
   c.toggle('is-paused', S.status === 'paused' && !S.pending); c.toggle('is-confirm', Boolean(S.pending)); c.toggle('is-won', S.status === 'won');
+  c.toggle('is-countdown', S.status === 'countdown'); c.toggle('is-go', S.go);
   $('reset-button').disabled = S.status === 'ready'; // ainda não há partida iniciada para restaurar
   ui.mute.classList.toggle('is-muted', S.muted); ui.mute.setAttribute('aria-pressed', S.muted);
   ui.mute.setAttribute('aria-label', S.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
+  ui.mute.dataset.tip = S.muted ? 'Ativar efeitos' : 'Silenciar efeitos';
+  persist();
 }
 function toggleMute() { S.muted = !S.muted; SlidePuzzleStorage.setMuted(S.muted); if (!S.muted) Sound.unlock(); render(); }
 /* O botão "?" fica fora do jogo: ao lado (reserva dos dois lados, para o jogo seguir centralizado) ou, se faltar
@@ -214,15 +253,16 @@ function resizeStage() {
   placeHelp();     // reposiciona o painel de ajuda, se estiver aberto
 }
 
-/* ===== Ajuda "Como jogar": popover ancorado ABAIXO do botão "?", fora da área do jogo =====
-   Se abrir no meio da partida, o jogo pausa (o tempo não corre); ao fechar, a pausa continua até "Continuar". */
+/* ===== Ajuda "Como jogar": botão "?" escuro fora do palco; popover ancorado abaixo dele, com cabeçalho fixo e corpo rolável =====
+   Abrir a ajuda pausa a partida; fechar NÃO retoma: a pausa continua até o jogador tocar em "Continuar" (e vem a contagem 3-2-1). */
 let helpOpen = false;
 function openHelp() {
   if (helpOpen) return;
   helpOpen = true;
   ui.helpPopover.hidden = false;
   ui.helpButton.setAttribute('aria-expanded', 'true');
-  togglePause(true);                        // só tem efeito durante a partida
+  ui.helpBody.scrollTop = 0;
+  togglePause(true);                        // só tem efeito durante a partida ou a contagem
   placeHelp();
 }
 function closeHelp() {
@@ -233,10 +273,11 @@ function closeHelp() {
 }
 // Abre sempre ABAIXO do botão (com rolagem interna se faltar altura). Só inverte para cima quando o botão
 // está sob o jogo (celular), onde pode não sobrar espaço embaixo.
+function updateHelpMore() { const b = ui.helpBody; b.classList.toggle('has-more', b.scrollHeight - b.scrollTop - b.clientHeight > 2); }
 function placeHelp() {
   if (!helpOpen) return;
   const pop = ui.helpPopover;
-  for (const v of ['max-height', 'overflow-y']) pop.style.removeProperty(v);
+  pop.style.removeProperty('max-height');
   const arena = ui.arena.getBoundingClientRect();
   const btn = ui.helpButton.getBoundingClientRect();
   const width = Math.floor(Math.min(HELP.maxWidth, arena.width - HELP.edge * 2));
@@ -250,11 +291,59 @@ function placeHelp() {
   let placement = 'below';
   if (ui.frame.dataset.helpPos !== 'side' && height > roomBelow && roomAbove > roomBelow) placement = 'above';
   const room = placement === 'below' ? roomBelow : roomAbove;
-  if (height > room) { pop.style.maxHeight = `${Math.max(96, Math.floor(room))}px`; pop.style.overflowY = 'auto'; }
+  if (height > room) pop.style.maxHeight = `${Math.max(120, Math.floor(room))}px`;   // só o corpo rola; título e fechar ficam fixos
   const finalHeight = pop.offsetHeight;
   pop.style.top = `${Math.round(placement === 'below' ? btn.bottom + HELP.gap : btn.top - HELP.gap - finalHeight)}px`;
   pop.dataset.placement = placement;
+  updateHelpMore();
 }
+
+/* ===== Tooltips: sistema único. Qualquer elemento com data-tip (e data-tip-key opcional) ganha dica.
+   Mouse: aparece após var(--tip-delay) de hover e some ao sair/clicar. Teclado (:focus-visible): aparece na hora.
+   Toque: nunca aparece (não depende de hover, nada fica preso). O elemento #tip fica no body e é posicionado
+   com limites da janela, então nunca é cortado pelo palco. ===== */
+const Tip = (() => {
+  const el = document.createElement('div'); el.id = 'tip'; el.className = 'tip'; el.setAttribute('role', 'tooltip'); document.body.appendChild(el);
+  let cur = null, timer = 0, quiet = null;   // quiet: alvo clicado; só volta a mostrar depois que o ponteiro sair dele
+  const delay = () => {
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--tip-delay').trim(), n = parseFloat(v);
+    return Number.isFinite(n) ? (/ms$/.test(v) ? n : n * 1000) : 300;
+  };
+  function hide() { clearTimeout(timer); timer = 0; cur = null; el.classList.remove('is-on'); }
+  function show(t) {
+    const r = t.getBoundingClientRect(); if (!t.isConnected || !r.width || !r.height) return;
+    el.textContent = ''; const span = document.createElement('span'); span.textContent = t.dataset.tip; el.appendChild(span);
+    if (t.dataset.tipKey) { const k = document.createElement('kbd'); k.textContent = t.dataset.tipKey; el.appendChild(k); }
+    const w = el.offsetWidth, h = el.offsetHeight, m = 8, gap = 10;
+    const left = Math.min(Math.max(r.left + r.width / 2 - w / 2, m), Math.max(m, window.innerWidth - m - w));
+    let place = t.dataset.tipPos === 'bottom' ? 'bottom' : 'top';
+    if (place === 'top' && r.top - gap - h < m) place = 'bottom';
+    else if (place === 'bottom' && r.bottom + gap + h > window.innerHeight - m && r.top - gap - h >= m) place = 'top';
+    el.style.left = `${Math.round(left)}px`; el.style.top = `${Math.round(place === 'top' ? r.top - gap - h : r.bottom + gap)}px`;
+    el.style.setProperty('--arrow-x', `${Math.round(Math.min(Math.max(r.left + r.width / 2 - left, 12), w - 12))}px`);
+    el.dataset.place = place; cur = t; el.classList.add('is-on');
+  }
+  const target = (e) => (e.target && e.target.closest ? e.target.closest('[data-tip]') : null);
+  document.addEventListener('pointerover', (e) => {
+    if (e.pointerType !== 'mouse') return;                 // toque/caneta: sem hover
+    const t = target(e); if (t && t === cur) return;
+    if (t && t === quiet) return;                           // o navegador redispara pointerover quando o layout muda
+    hide(); if (!t) return;
+    cur = t; timer = setTimeout(() => { timer = 0; show(t); }, delay());
+  });
+  document.addEventListener('pointerout', (e) => {
+    const t = target(e); if (!t || t.contains(e.relatedTarget)) return;
+    if (t === quiet) quiet = null; if (t === cur) hide();
+  });
+  document.addEventListener('pointerdown', (e) => { if (e.pointerType === 'mouse') quiet = target(e); hide(); }, true);
+  document.addEventListener('click', hide, true);          // inclui ativação por teclado (Enter/Space)
+  document.addEventListener('focusin', (e) => { const t = target(e); if (t && t.matches(':focus-visible')) { hide(); show(t); } });
+  document.addEventListener('focusout', hide);
+  document.addEventListener('keydown', (e) => { if (e.code === 'Escape') hide(); }, true);
+  window.addEventListener('scroll', hide, true); window.addEventListener('resize', hide); window.addEventListener('blur', hide);
+  document.addEventListener('visibilitychange', hide);
+  return { hide, show, el };
+})();
 
 /* ===== Entradas ===== */
 /* Teclado: Space inicia a partida; M som; P/Esc pausa. As peças se movem apenas por clique/toque. */
@@ -266,16 +355,28 @@ function onKeyDown(e) {
     if (e.target.closest && e.target.closest('#help-button, #help-close')) return;   // deixa o botão focado agir
     e.preventDefault();
     if (S.status === 'ready') beginPlay();
+    else if (S.status === 'paused' && !helpOpen) togglePause(false);      // Space também continua (com contagem)
   }
   else if (e.code === 'KeyM') toggleMute();
-  else if (e.code === 'KeyP') { togglePause(S.status === 'playing'); }
-  else if (e.code === 'Escape') { if (S.pending) answer(false); else togglePause(S.status === 'playing'); }
+  else if (e.code === 'KeyP') togglePause(S.status === 'playing' || S.status === 'countdown');
+  else if (e.code === 'Escape') { if (S.pending) answer(false); else togglePause(S.status === 'playing' || S.status === 'countdown'); }
+}
+/* Recupera a partida salva (F5): mesmo tabuleiro, mesmos movimentos e tempo; volta PAUSADA, sem embaralhar */
+function restoreGame() {
+  const g = SlidePuzzleStorage.getGame();
+  if (!g || !LEVELS[g.level] || isSolved(g.board) !== (g.status === 'won')) return false;
+  S.level = g.level; S.n = LEVELS[g.level].n; S.board = g.board.slice(); S.initial = g.initial.slice();
+  S.moves = g.moves; S.elapsed = g.elapsed; S.isRecord = g.isRecord; S.pending = null;
+  S.status = g.status === 'won' ? 'won' : 'paused'; S.resumeNote = S.status === 'paused';
+  buildBoard(); SlidePuzzleStorage.setLevel(g.level);
+  return true;
 }
 function init() {
   const saved = SlidePuzzleStorage.getLevel();
   S.level = '';  // força a construção inicial do tabuleiro
-  startGame(LEVELS[saved] ? saved : 'medium');
+  if (!restoreGame()) startGame(LEVELS[saved] ? saved : 'medium');
   S.readyAt = -START_GUARD_MS; // a proteção contra toque duplo vale só depois de reiniciar/novo jogo, não ao abrir a página
+  booted = true; render();
   resizeStage();
   ui.grid.addEventListener('click', (e) => {
     const t = e.target.closest('.tile'); if (!t || e.detail === 0) return; // detail 0 = clique gerado por teclado
@@ -286,12 +387,14 @@ function init() {
   });
   ui.levels.forEach((el) => el.addEventListener('click', () => {
     const lv = el.dataset.level; if (lv === S.level) return;
-    ask('Trocar a dificuldade encerra a partida atual. Continuar?', () => startGame(lv));
+    const wasReady = S.status === 'ready';   // trocar o nível na tela inicial não deve atrasar o botão Iniciar
+    ask('Trocar a dificuldade encerra a partida atual. Continuar?', () => { startGame(lv); if (wasReady) S.readyAt = -START_GUARD_MS; });
   }));
   $('new-button').addEventListener('click', () => ask('Iniciar um novo jogo encerra a partida atual. Continuar?', () => startGame(S.level)));
   $('reset-button').addEventListener('click', () => ask('Reiniciar volta o tabuleiro à ordem inicial e zera movimentos e tempo. Continuar?', restartGame));
   $('again-button').addEventListener('click', () => startGame(S.level));
   $('resume-button').addEventListener('click', () => togglePause(false));
+  $('pause-restart').addEventListener('click', () => ask('Reiniciar volta o tabuleiro à ordem inicial e zera movimentos e tempo. Continuar?', restartGame));
   $('confirm-yes').addEventListener('click', () => answer(true));
   $('confirm-no').addEventListener('click', () => answer(false));
   ui.helpButton.addEventListener('click', (e) => {
@@ -299,6 +402,7 @@ function init() {
     if (helpOpen) closeHelp(); else openHelp();
     if (e.detail > 0) ui.helpButton.blur();   // clique/toque: Space não deve acionar o botão depois
   });
+  ui.helpBody.addEventListener('scroll', updateHelpMore, { passive: true });
   ui.helpClose.addEventListener('click', (e) => { e.stopPropagation(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); });
   // Um toque fora do popover só o fecha.
   document.addEventListener('pointerdown', (e) => {
@@ -312,12 +416,20 @@ function init() {
   document.addEventListener('pointerdown', () => Sound.unlock());
   document.addEventListener('contextmenu', (e) => e.preventDefault());
   window.addEventListener('blur', () => togglePause(true));
-  document.addEventListener('visibilitychange', () => { if (document.hidden) togglePause(true); });
+  // Sair da aba/minimizar pausa e salva; ao voltar, a tela de pausa mostra "Partida retomada" e espera o jogador
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      if (S.status === 'playing' || S.status === 'countdown' || S.status === 'paused') S.resumeNote = true;
+      togglePause(true); render();
+    }
+  });
+  window.addEventListener('pagehide', persist); window.addEventListener('beforeunload', persist);
   window.addEventListener('resize', resizeStage);
   window.addEventListener('orientationchange', resizeStage);
   if (window.visualViewport) window.visualViewport.addEventListener('resize', resizeStage);
-  setInterval(() => { if (S.status === 'playing') ui.time.textContent = fmt(elapsedNow()); }, 250);
+  let beat = 0;
+  setInterval(() => { if (S.status === 'playing') { ui.time.textContent = fmt(elapsedNow()); if (++beat % 20 === 0) persist(); } }, 250);
 }
 init();
 
-window.__slide = { S, shuffled, isSolved, moveAt, startGame, neighbors, beginPlay };
+window.__slide = { S, shuffled, isSolved, moveAt, startGame, neighbors, beginPlay, startCountdown, togglePause, restartGame };

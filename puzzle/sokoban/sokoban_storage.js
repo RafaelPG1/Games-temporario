@@ -49,7 +49,18 @@
       if (Number.isInteger(i) && i >= 0 && i < total && Number.isInteger(v) && v > 0) best[i] = v;
     });
     const last = Number.isInteger(raw && raw.last) && raw.last >= 0 && raw.last < total ? raw.last : null;
-    return { progress: { unlocked, best }, last, muted: !!(raw && raw.muted === true) };
+    return { progress: { unlocked, best }, last, muted: !!(raw && raw.muted === true), game: cleanGame(raw && raw.game, total) };
+  }
+  // Partida em andamento: só confere o formato; as regras (paredes, caixas, histórico) são validadas pelo jogo ao restaurar.
+  function cleanGame(g, total) {
+    const cell = (p) => p && Number.isInteger(p.r) && Number.isInteger(p.c);
+    if (!g || !Number.isInteger(g.index) || g.index < 0 || g.index >= total) return null;
+    if (!cell(g.player) || !Array.isArray(g.boxes) || !g.boxes.every(cell) || !Array.isArray(g.history) || g.history.length > 20000) return null;
+    return {
+      index: g.index, face: typeof g.face === 'string' ? g.face : 'down', player: { r: g.player.r, c: g.player.c },
+      boxes: g.boxes.map((b) => ({ r: b.r, c: b.c })),
+      history: g.history.map((h) => ({ dir: h && h.dir, box: h && h.box })),
+    };
   }
   function flush() {
     try { const s = ls(); if (s && data) s.setItem(KEY, JSON.stringify({ v: 1, ...data })); } catch (e) { /* sem espaço ou bloqueado */ }
@@ -60,7 +71,7 @@
       data = clean(saved && saved.v === 1 ? saved : migrate(), total);
       if (!saved) flush();
     }
-    return { progress: data.progress, last: data.last, muted: data.muted };
+    return { progress: data.progress, last: data.last, muted: data.muted, game: data.game };
   }
   function ensure() { if (!data) load(Infinity); return data; }
 
@@ -69,5 +80,8 @@
     saveProgress(progress) { ensure().progress = { unlocked: progress.unlocked, best: { ...progress.best } }; flush(); },
     saveLast(i) { if (Number.isInteger(i) && i >= 0) { ensure().last = i; flush(); } },
     saveMuted(on) { ensure().muted = !!on; flush(); },
+    // Partida em andamento (fase, jogador, caixas, histórico de passos). Sokoban não tem temporizadores a salvar.
+    saveGame(game) { ensure().game = cleanGame(game, Infinity); flush(); },
+    clearGame() { const d = ensure(); if (d.game) { d.game = null; flush(); } },
   };
 })(window);

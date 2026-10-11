@@ -5,10 +5,13 @@
   --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
   --closed: #5b7a8c; --closed-hi: #86a2b2; --closed-lo: #3a5160;
   --open: #161c29; --open-line: #232c40; --coral: #ff5a4e; --focus: #4ec0e8;
+  --tip-delay: 0.3s;
   --cell: 34px; --cols: 9; --gap: 2px; --bevel: 2px; --fs: .54; --chrome: 40px;
+  --screen-bg: linear-gradient(180deg, #151925, #10131c);
   --cpad: 14px; --fpad: 9px; --apad-y: 14px; --apad-x: clamp(8px, 2vw, 20px);
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body {
   margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--shell-bg);
   -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
@@ -53,10 +56,12 @@ body {
 }
 /* Container do jogo: envolve níveis, placar, botões e tabuleiro (o botão "?" fica fora, ao lado) */
 .game {
-  width: 100%; display: flex; flex-direction: column; gap: 10px; padding: var(--cpad);
+  position: relative; width: 100%; padding: var(--cpad);
   background: linear-gradient(180deg, #151925, #10131c); border: 1px solid var(--shell-line); border-radius: 18px;
   box-shadow: 0 10px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.05);
 }
+
+.game-body { display: flex; flex-direction: column; gap: 10px; }
 
 /* Dificuldade */
 .levels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -77,7 +82,7 @@ body {
 }
 .stat span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
 .stat strong { font-size: 26px; line-height: 1; font-weight: 800; font-variant-numeric: tabular-nums; }
-.tools { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tools { display: grid; grid-template-columns: 1fr repeat(3, 46px); gap: 8px; }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 0 16px; font: inherit;
   font-size: 15px; font-weight: 700; color: #161c29; background: var(--shell-accent); border: 2px solid var(--shell-accent);
@@ -88,7 +93,9 @@ body {
 .btn-alt { color: var(--shell-text); background: transparent; border-color: var(--shell-line); }
 .btn-alt:hover { background: rgba(255,255,255,.06); border-color: var(--closed); }
 .btn-alt[aria-pressed="true"] { background: rgba(255,200,87,.14); border-color: var(--shell-accent); }
-.btn:focus-visible, .levels button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn-icon { padding: 0; } .btn-icon svg { width: 20px; height: 20px; }
+.btn:disabled { opacity: .4; cursor: default; pointer-events: none; }
+.btn:focus-visible, .levels button:focus-visible, .cta:focus-visible, .link:focus-visible, .help-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 /* Tabuleiro */
 .frame {
@@ -121,34 +128,32 @@ body {
 @keyframes pop { from { transform: scale(.72); opacity: .5; } to { transform: scale(1); opacity: 1; } }
 @keyframes boom { 0% { transform: scale(.8); } 55% { transform: scale(1.18); } 100% { transform: scale(1); } }
 
-.status { margin: 0; min-height: 18px; font-size: 13px; line-height: 1.35; text-align: center; color: var(--shell-muted); }
+.status { margin: 0; min-height: 36px;   /* reserva 2 linhas: o container não pula de altura entre estados */
+  font-size: 13px; line-height: 1.35; text-align: center; color: var(--shell-muted); }
 
-/* Tela de vitória / derrota (sobre o tabuleiro) */
-.end {
-  position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-  padding: 16px; text-align: center; border-radius: inherit; background: rgba(8,10,16,.82); animation: fade .25s ease-out;
+/* ===== TELAS: camadas que cobrem 100% do container .game (nada do tabuleiro aparece atrás, exceto no fim de jogo) ===== */
+.screen {
+  position: absolute; inset: 0; z-index: 5; display: flex; padding: 16px; overflow-y: auto; overscroll-behavior: contain; text-align: center;
+  background: var(--screen-bg); border-radius: inherit; opacity: 0; visibility: hidden; transition: opacity .22s ease, visibility 0s linear .22s;
 }
-.end[hidden] { display: none; }
-.end .btn { width: min(220px, 100%); }
-.end-title { margin: 0; font-size: clamp(24px, 6vw, 32px); font-weight: 800; }
-.end.is-won .end-title { color: var(--shell-accent); } .end.is-lost .end-title { color: var(--coral); }
-.end-text { margin: 0 0 6px; font-size: 15px; font-variant-numeric: tabular-nums; }
-@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+.screen.is-open { opacity: 1; visibility: visible; transition-delay: 0s; }
+.screen-help { z-index: 6; }
+.screen-inner { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 340px; }
+.screen.is-open .screen-inner { animation: rise .35s cubic-bezier(.2,1.2,.4,1); }
+@keyframes rise { from { transform: translateY(12px); opacity: 0; } }
+.screen-title { margin: 0; font-size: 26px; font-weight: 800; line-height: 1.1; color: var(--shell-accent); }
+.screen-note { margin: 0; font-size: 15px; line-height: 1.4; color: var(--shell-muted); }
+.screen .levels { width: 100%; }
 
-/* Tela inicial (sobre o tabuleiro parado): casas fechadas escurecidas + título + dica */
-.start {
-  position: absolute; inset: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 8px; padding: 16px; text-align: center; border-radius: inherit; cursor: pointer; touch-action: manipulation;
-  --tile: calc(var(--cell) + var(--gap));
+/* Início: peças fechadas escurecidas ao fundo, marca, título, dificuldade, melhor tempo e convite */
+.screen-start {
   background:
-    radial-gradient(ellipse at center, rgba(8,10,16,.82) 0 38%, rgba(8,10,16,.5) 100%),
-    linear-gradient(90deg, transparent calc(100% - var(--gap)), #0b0e15 0) var(--fpad) var(--fpad) / var(--tile) var(--tile),
-    linear-gradient(transparent calc(100% - var(--gap)), #0b0e15 0) var(--fpad) var(--fpad) / var(--tile) var(--tile),
+    radial-gradient(ellipse at center, rgba(16,19,28,.92) 0 40%, rgba(16,19,28,.55) 100%),
+    linear-gradient(90deg, transparent calc(100% - 2px), #0b0e15 0) 0 0 / 28px 28px,
+    linear-gradient(transparent calc(100% - 2px), #0b0e15 0) 0 0 / 28px 28px,
     var(--closed-lo);
-  animation: fade .25s ease-out;
+  cursor: pointer;
 }
-.start[hidden] { display: none; }
-.start:focus-visible { outline: 2px solid var(--focus); outline-offset: -4px; }
 .start-mark { width: 44px; height: 44px; color: var(--coral); filter: drop-shadow(0 0 14px rgba(255,90,78,.45)); }
 .start-title {
   margin: 0; display: flex; flex-direction: column; align-items: center; line-height: .98; text-transform: uppercase;
@@ -157,13 +162,16 @@ body {
 .start-title span:first-child { font-size: clamp(30px, 9vw, 44px); color: var(--shell-accent); }
 .start-title span:last-child { font-size: clamp(22px, 6.5vw, 32px); color: var(--shell-text); }
 .start-best { margin: 0; font-size: 13px; color: var(--shell-muted); font-variant-numeric: tabular-nums; }
-.start-best[hidden] { display: none; }
 .start-best strong { color: var(--shell-accent); }
-.start-hint {
-  margin: 8px 0 0; display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 14px; font-weight: 700;
-  text-transform: uppercase; letter-spacing: .04em; animation: blink 1.4s ease-in-out infinite;
+.cta {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; width: 100%; margin-top: 4px; padding: 14px 0 6px; font: inherit; font-size: 14px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .04em; color: var(--shell-text); background: none; border: 0; border-top: 1px dashed var(--shell-line); cursor: pointer;
 }
-.hint-or { font-size: 11px; font-weight: 600; letter-spacing: .1em; color: var(--shell-muted); }
+.cta-text { animation: blink 1.4s ease-in-out infinite; }
+.cta-or { font-size: 11px; font-weight: 600; letter-spacing: .1em; color: var(--shell-muted); }
+@media (hover: none) { .cta-or, .cta .cap { display: none; } }
+.link { min-height: 44px; padding: 0 12px; font: inherit; font-size: 14px; font-weight: 600; color: var(--shell-muted); background: none; border: 0; border-radius: 8px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.link:hover { color: var(--shell-accent); }
 .cap {
   display: inline-grid; place-items: center; height: 26px; min-width: 26px; padding: 0 8px; font-family: inherit; font-size: 12px;
   font-weight: 800; line-height: 1; letter-spacing: .03em; text-transform: uppercase; color: var(--shell-bg); background: var(--shell-text);
@@ -172,56 +180,59 @@ body {
 .cap-wide { min-width: 64px; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
 
-/* Ajuda: botão só com ícone ao lado do jogo; popover (fixo, posicionado pelo JS) abre abaixo do botão */
-.help { position: absolute; top: 0; left: calc(100% + 16px); z-index: 20; width: 44px; height: 44px; }
-/* Sem espaço lateral (celular em pé): o botão desce para uma faixa sob o jogo */
-.arena.help-bottom .game-wrap { padding-bottom: 56px; }
-.arena.help-bottom .help { top: auto; bottom: 6px; left: auto; right: 0; }
-.help-btn {
-  display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: var(--shell-text); background: var(--shell-surface);
-  border: 1px solid var(--shell-line); border-radius: 50%; cursor: pointer; touch-action: manipulation;
-  transition: border-color .2s, background .2s, box-shadow .25s, transform .1s;
-}
-.help-btn svg { transition: color .2s; }
-.help-btn:hover, .help-btn[aria-expanded="true"] { background: #141722; border-color: rgba(255,200,87,.6); box-shadow: 0 0 0 4px rgba(255,200,87,.08); }
-.help-btn:hover svg, .help-btn[aria-expanded="true"] svg { color: var(--shell-accent); }
-.help-btn:active { transform: scale(.95); }
-.help-btn:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+/* Pausa */
+.chip { margin: 0; padding: 4px 12px; font-size: 13px; font-weight: 700; color: var(--focus); background: rgba(78,192,232,.1); border: 1px solid rgba(78,192,232,.45); border-radius: 999px; animation: badge .5s cubic-bezier(.2,1.6,.4,1) both; }
+@keyframes badge { from { transform: scale(.5); opacity: 0; } }
+.summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; margin: 4px 0; }
+.summary div { padding: 8px 6px; background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 10px; }
+.summary dt { font-size: 12px; color: var(--shell-muted); }
+.summary dd { margin: 4px 0 0; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; width: 100%; }
+.actions .btn { flex: 1 1 130px; }
 
-.help-popover {
-  --arrow-x: 22px;
-  position: fixed; z-index: 40; width: 264px; padding: 14px 16px 12px; text-align: left; overflow-y: auto; overscroll-behavior: contain;
-  color: var(--shell-text); background: var(--shell-surface); border: 1px solid rgba(255,200,87,.55); border-radius: 12px;
-  box-shadow: 0 12px 32px rgba(0,0,0,.6); transform-origin: var(--arrow-x) top; animation: help-in .16s ease-out;
-}
-.help-popover[hidden] { display: none; }
-.help-popover[data-placement="above"] { transform-origin: var(--arrow-x) bottom; }
-.help-popover::before {
-  content: ""; position: absolute; left: calc(var(--arrow-x) - 6px); width: 12px; height: 12px; background: var(--shell-surface);
-  border: 1px solid rgba(255,200,87,.55); transform: rotate(45deg);
-}
-.help-popover[data-placement="below"]::before { top: -7px; border-right: 0; border-bottom: 0; }
-.help-popover[data-placement="above"]::before { bottom: -7px; border-left: 0; border-top: 0; }
-.help-title { margin: 0 30px 8px 0; font-size: 17px; font-weight: 800; text-transform: uppercase; letter-spacing: .02em; color: var(--shell-accent); }
-.help-text { margin: 0 0 10px; font-size: 13px; line-height: 1.4; }
+/* Contagem 3 → 2 → 1 → GO!: opaca, para o tabuleiro não ser estudado com o relógio parado */
+.screen-count { pointer-events: none; }
+.count-label { margin: 0; font-size: 14px; font-weight: 600; color: var(--shell-muted); }
+.count-num { margin: 0; font-size: clamp(84px, 24vw, 128px); font-weight: 900; line-height: 1; color: var(--shell-accent); font-variant-numeric: tabular-nums; }
+.count-num.is-go { color: #5fd07a; }
+.count-num.tick { animation: tick .5s cubic-bezier(.2,1.4,.4,1); }
+@keyframes tick { from { transform: scale(.55); opacity: 0; } }
+
+/* Vitória / derrota: cobre o container, com o tabuleiro ao fundo (botão "Ver tabuleiro" fecha a tela) */
+.screen-end { background: rgba(8,10,16,.86); }
+.screen-end .btn { width: min(220px, 100%); }
+.end-title { margin: 0; font-size: clamp(24px, 6vw, 32px); font-weight: 800; }
+.screen-end.is-won .end-title { color: var(--shell-accent); } .screen-end.is-lost .end-title { color: var(--coral); }
+.end-text { margin: 0 0 6px; font-size: 15px; font-variant-numeric: tabular-nums; }
+
+/* Como jogar (camada interna do container) */
+.help-card { max-width: 380px; align-items: stretch; gap: 8px; text-align: left; }
+.help-card .screen-title { margin-right: 44px; font-size: 22px; }
+.help-card .btn { align-self: center; margin-top: 6px; }
+.help-text { margin: 0 0 4px; font-size: 14px; line-height: 1.45; }
 .help-text b { color: var(--shell-accent); }
-.help-sub {
-  margin: 0 0 6px; padding-top: 10px; font-size: 11px; line-height: 1; letter-spacing: .08em; text-transform: uppercase;
-  color: var(--shell-muted); border-top: 1px dashed var(--shell-line);
-}
-.ctl-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.help-sub { margin: 6px 0 2px; padding-top: 10px; font-size: 12px; font-weight: 700; line-height: 1; color: var(--focus); border-top: 1px dashed var(--shell-line); }
+.ctl-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 7px; }
 .ctl-list li { display: flex; align-items: center; gap: 12px; }
-.ctl-keys { flex: none; display: inline-flex; gap: 5px; min-width: 70px; }
-.ctl-label { font-size: 13px; }
-.help-note { margin: 12px 0 0; font-size: 12px; line-height: 1.35; color: var(--shell-muted); }
+.ctl-keys { flex: none; display: inline-flex; gap: 5px; min-width: 72px; }
+.ctl-label { font-size: 14px; }
+.help-note { margin: 4px 0 0; font-size: 12px; line-height: 1.4; color: var(--shell-muted); }
 .help-close {
-  position: absolute; top: 4px; right: 4px; display: grid; place-items: center; width: 34px; height: 34px; padding: 0;
-  color: var(--shell-muted); background: transparent; border: 0; border-radius: 8px; cursor: pointer; touch-action: manipulation;
+  position: absolute; top: 8px; right: 8px; z-index: 1; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  color: var(--shell-muted); background: transparent; border: 0; border-radius: 10px; cursor: pointer; touch-action: manipulation;
 }
-.help-close svg { width: 12px; height: 12px; }
+.help-close svg { width: 14px; height: 14px; }
 .help-close:hover { color: var(--shell-text); background: rgba(255,255,255,.06); }
-.help-close:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: -2px; }
-@keyframes help-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+
+/* Tooltip dos controles: um único #tip posicionado pelo JS; --tip-delay = atraso do mouse */
+.tip { --arrow-x: 50%; position: fixed; z-index: 60; left: 0; top: 0; display: flex; align-items: center; gap: 8px; max-width: min(260px, calc(100vw - 16px)); padding: 7px 11px; font-size: 13px; font-weight: 600; line-height: 1.25; color: var(--shell-text); background: var(--shell-surface); border: 1px solid rgba(255,200,87,.55); border-radius: 10px; box-shadow: 0 8px 22px rgba(0,0,0,.55); pointer-events: none; opacity: 0; visibility: hidden; translate: 0 4px; }
+.tip[data-placement="above"] { translate: 0 -4px; }
+.tip.is-on { opacity: 1; visibility: visible; translate: 0 0; transition: opacity .14s ease, translate .14s ease; }
+.tip::before { content: ""; position: absolute; left: calc(var(--arrow-x) - 5px); width: 10px; height: 10px; background: var(--shell-surface); border: 1px solid rgba(255,200,87,.55); transform: rotate(45deg); }
+.tip[data-placement="below"]::before { top: -6px; border-right: 0; border-bottom: 0; }
+.tip[data-placement="above"]::before { bottom: -6px; border-left: 0; border-top: 0; }
+.tip .cap { height: 20px; min-width: 20px; padding: 0 5px; font-size: 11px; border-radius: 4px; box-shadow: 0 2px 0 #4a5068; }
+.tip .cap[hidden] { display: none; }
 
 @media (max-width: 640px) { .topbar { height: 52px; } }
 /* Celular: menos folga lateral e menos altura nos controles, para sobrar largura/altura ao tabuleiro */
@@ -233,7 +244,14 @@ body {
   .levels button { min-height: 42px; }
   .stat { padding: 6px 10px; gap: 2px; } .stat strong { font-size: 22px; }
   .btn { min-height: 42px; font-size: 14px; }
+  .tools { grid-template-columns: 1fr repeat(3, 42px); gap: 6px; }
+  .screen { padding: 12px; }
   .start-title span:first-child { font-size: clamp(26px, 9vw, 38px); } .start-title span:last-child { font-size: clamp(20px, 6.5vw, 28px); }
 }
 @media (max-height: 480px) { :root { --apad-y: 8px; } .stat strong { font-size: 22px; } }
-@media (prefers-reduced-motion: reduce) { .cell.open, .cell.boom, .end, .start, .start-hint, .help-popover { animation: none; } .help-btn { transition: none; } .back, .back svg, .btn { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .cell.open, .cell.boom, .cta-text, .count-num.tick, .chip, .screen.is-open .screen-inner { animation: none; }
+  .screen { transition: none; }
+  .tip.is-on { transition: none; translate: 0 0; }
+  .back, .back svg, .btn { transition: none; }
+}

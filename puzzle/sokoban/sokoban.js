@@ -74,7 +74,15 @@ const ui = {
   undo: $('undo-button'), mute: $('mute-button'), restart: $('restart-button'), grid: $('level-grid'), next: $('next-button'), group: $('group-name'),
   wrap: $('stage-wrap'), levelsScreen: document.querySelector('.screen-levels'), prev: $('page-prev'), pnext: $('page-next'), plabel: $('page-label'), lprog: $('levels-progress'),
   help: $('help-button'), pop: $('help-pop'), start: $('start-screen'), startLevel: $('start-level'), startProg: $('start-progress'),
+  pauseBtn: $('pause-button'), resume: $('resume-button'), pauseText: $('pause-text'), cnum: $('count-num'), toast: $('toast'),
 };
+const PAUSE_TEXT = {
+  manual: 'Partida salva. Toque em Continuar para voltar.',
+  hidden: 'Pausado ao sair da aba. Partida salva.',
+  recovered: 'Partida recuperada de onde você parou.',
+  help: 'Feche a ajuda e toque em Continuar para voltar.',
+};
+const COUNT_SEQ = ['3', '2', '1', 'GO!'], COUNT_MS = 750, GO_MS = 450;
 
 /* Personagem: operário de depósito com capacete amarelo, camisa creme e macacão azul. Três vistas desenhadas (frente, costas, perfil);
    o perfil é espelhado para a esquerda. Tudo dentro da casa (viewBox 32 × 32), com a mesma sombra e contorno das caixas. */
@@ -117,7 +125,8 @@ const S = {
   index: 0, rows: 0, cols: 0, wall: [], goal: [], start: null,   // estático + configuração inicial
   player: { r: 0, c: 0 }, boxes: [], history: [],                // dinâmico
   status: 'playing',                                             // playing | won
-  menu: false, started: false, muted: false, lastStep: -1e9, progress: { unlocked: 1, best: {} }, page: 0, first: 0, size: 20,
+  menu: false, started: false, paused: false, pauseReason: 'manual', counting: false, countLabel: '', cdId: 0, cdTick: 0,
+  muted: false, lastStep: -1e9, progress: { unlocked: 1, best: {} }, page: 0, first: 0, size: 20,
   face: 'down', anim: 'idle', animN: 0,                          // só visual: direção do personagem e animação do último passo
   boxEls: [], playerEl: null,
 };
@@ -184,10 +193,12 @@ const boxAt = (r, c) => S.boxes.findIndex((b) => b.r === r && b.c === c);
 const inside = (r, c) => r >= 0 && c >= 0 && r < S.rows && c < S.cols;
 const blocked = (r, c) => !inside(r, c) || S.wall[r][c];
 const solved = () => S.boxes.every((b) => S.goal[b.r][b.c]);
+// O gameplay só avança com a partida iniciada, sem menu, sem pausa e sem contagem regressiva.
+const playable = () => S.status === 'playing' && !S.menu && S.started && !S.paused && !S.counting;
 
 /* Tenta um passo. Devolve true só se o estado mudou (movimento válido). Nada aqui depende de animação. */
 function tryMove(dir) {
-  if (S.status !== 'playing' || S.menu || !S.started) return false;
+  if (!playable()) return false;
   const [dr, dc] = DIRS[dir], nr = S.player.r + dr, nc = S.player.c + dc;
   S.face = dir;   // o personagem sempre olha para onde tentou ir (visual)
   let pushed = -1, landed = false;
@@ -205,24 +216,24 @@ function tryMove(dir) {
   else if (pushed < 0) Sound.step();
   else if (landed) Sound.goal();
   else Sound.push();
-  render();
+  persist(); render();
   return true;
 }
 function bump() { S.anim = 'idle'; Sound.blocked(); render(); return false; }   // movimento inválido: só vira o personagem, sem mexer no estado
 function undo() {
-  if (S.status !== 'playing' || S.menu || !S.started || !S.history.length) return;
+  if (!playable() || !S.history.length) return;
   const { dir, box } = S.history.pop(), [dr, dc] = DIRS[dir];
   S.player.r -= dr; S.player.c -= dc;
   if (box >= 0) { S.boxes[box].r -= dr; S.boxes[box].c -= dc; }
   S.anim = 'idle'; Sound.undo();
-  render();
+  persist(); render();
 }
 function win() {
   S.status = 'won';
   const n = S.history.length, prev = S.progress.best[S.index], record = !prev || n < prev;
   if (record) S.progress.best[S.index] = n;
   S.progress.unlocked = Math.max(S.progress.unlocked, Math.min(S.index + 2, LEVELS.length));
-  saveProgress();
+  saveProgress(); persist();   // fase vencida: a partida salva deixa de existir
   $('won-moves').textContent = n; $('won-record').hidden = !record;
   const last = S.index >= LEVELS.length - 1;
   ui.next.hidden = last; $('won-end').hidden = !last;
@@ -230,12 +241,78 @@ function win() {
 }
 function loadLevel(i, persist = true) {
   if (!Number.isInteger(i) || i < 0 || i >= LEVELS.length || i >= S.progress.unlocked) return false;   // fase bloqueada: recusa
-  Object.assign(S, parseLevel(i), { index: i, status: 'playing', menu: false, history: [], face: 'down', anim: 'idle' });
-  S.player = { ...S.start.player }; S.boxes = S.start.boxes.map((b) => ({ ...b })); 
+  cancelCountdown();   // invalida contagem pendente: nenhum callback antigo mexe na nova partida
+  Object.assign(S, parseLevel(i), { index: i, status: 'playing', menu: false, paused: false, pauseReason: 'manual', history: [], face: 'down', anim: 'idle' });
+  S.player = { ...S.start.player }; S.boxes = S.start.boxes.map((b) => ({ ...b }));
   buildBoard(); resizeStage(); render(); if (persist) store.saveLast(i);
+  saveGame();   // partida nova (se já iniciada) substitui a salva
   return true;
 }
-const restart = () => { if (S.status === 'playing' && !S.menu && S.started && S.history.length) { Sound.restart(); loadLevel(S.index); } };
+// Reiniciar funciona também sem nenhum movimento feito e a partir da pausa; recordes, desbloqueios e som ficam intactos.
+const restart = () => { if (S.status === 'playing' && !S.menu && S.started && !S.counting) { Sound.restart(); stopPads(); loadLevel(S.index); } };
+
+/* ===== Partida salva, pausa e retomada ===== */
+function saveGame() {
+  if (!S.started) return;   // na tela inicial não mexe no que já está salvo
+  if (S.status !== 'playing') { store.clearGame(); return; }
+  store.saveGame({ index: S.index, face: S.face, player: { ...S.player }, boxes: S.boxes.map((b) => ({ r: b.r, c: b.c })), history: S.history.map((h) => ({ dir: h.dir, box: h.box })) });
+}
+const persist = saveGame;
+/* Restaura uma partida salva sobre a fase já carregada. Confere tudo: se algo não bater (dado corrompido), recusa e a fase abre do começo. */
+function restoreGame(g) {
+  const st = S.start;
+  if (g.boxes.length !== st.boxes.length) return false;
+  const okCell = (p) => inside(p.r, p.c) && !S.wall[p.r][p.c];
+  if (!okCell(g.player) || !g.boxes.every(okCell)) return false;
+  const used = new Set(g.boxes.map((b) => `${b.r},${b.c}`));
+  if (used.size !== g.boxes.length || used.has(`${g.player.r},${g.player.c}`)) return false;
+  if (!g.history.every((h) => DIRS[h.dir] && Number.isInteger(h.box) && h.box >= -1 && h.box < g.boxes.length)) return false;
+  const p = { ...g.player }, bs = g.boxes.map((b) => ({ ...b }));   // desfaz o histórico inteiro: tem de voltar exatamente ao início da fase
+  for (let i = g.history.length - 1; i >= 0; i--) {
+    const [dr, dc] = DIRS[g.history[i].dir], bx = g.history[i].box;
+    p.r -= dr; p.c -= dc; if (bx >= 0) { bs[bx].r -= dr; bs[bx].c -= dc; }
+  }
+  if (p.r !== st.player.r || p.c !== st.player.c || bs.some((b, i) => b.r !== st.boxes[i].r || b.c !== st.boxes[i].c)) return false;
+  S.player = { ...g.player }; S.boxes = g.boxes.map((b) => ({ ...b })); S.history = g.history.map((h) => ({ dir: h.dir, box: h.box }));
+  S.face = DIRS[g.face] ? g.face : 'down'; S.anim = 'idle';
+  if (solved()) return false;
+  S.started = true; render();
+  return true;
+}
+let cdTimer = null, toastTimer = null, stopPads = () => {};
+function cancelCountdown() { S.cdId++; clearTimeout(cdTimer); cdTimer = null; S.counting = false; S.countLabel = ''; }
+function pause(reason = 'manual', focus = true) {
+  if (!S.started || S.status !== 'playing') return;
+  const wasCounting = S.counting;
+  cancelCountdown(); stopPads();
+  if (!S.paused || wasCounting) { S.paused = true; S.pauseReason = reason; }
+  saveGame(); render();
+  if (focus && reason !== 'hidden' && !S.menu) ui.resume.focus({ preventScroll: true });
+}
+// Continuar: só inicia a contagem 3 → 2 → 1 → GO!; o gameplay é liberado depois do GO!.
+function resume() {
+  if (!S.paused || S.counting || S.status !== 'playing' || S.menu) return;
+  setHelp(false, true);
+  const id = ++S.cdId; S.counting = true; let i = 0;
+  const step = () => {
+    if (id !== S.cdId || !S.counting) return;
+    S.countLabel = COUNT_SEQ[i]; S.cdTick++; Sound.click(); render();
+    cdTimer = setTimeout(() => {
+      if (id !== S.cdId || !S.counting) return;
+      if (++i < COUNT_SEQ.length) step();
+      else { S.counting = false; S.paused = false; S.countLabel = ''; S.lastStep = -1e9; saveGame(); render(); }
+    }, i === COUNT_SEQ.length - 1 ? GO_MS : COUNT_MS);
+  };
+  step();
+}
+function togglePause() {
+  if (!S.started || S.status !== 'playing') return;
+  if (S.counting || !S.paused) pause('manual'); else resume();
+}
+function showToast(msg) {
+  ui.toast.textContent = msg; ui.toast.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => { ui.toast.hidden = true; }, 2400);
+}
 const nextLevel = () => { if (S.status === 'won') loadLevel(S.index + 1); };
 
 /* ===== Renderização ===== */
@@ -263,10 +340,14 @@ function render() {
   ui.moves.textContent = S.history.length;
   ui.level.textContent = `${S.index + 1}/${LEVELS.length}`;
   const b = S.progress.best[S.index]; ui.best.textContent = b ? `${b} mov.` : '—';
-  ui.undo.disabled = !S.history.length || S.status !== 'playing'; ui.restart.disabled = !S.history.length || S.status !== 'playing';
+  ui.undo.disabled = !S.history.length || S.status !== 'playing'; ui.restart.disabled = S.status !== 'playing' || !S.started;
+  ui.pauseBtn.disabled = !S.started || S.status !== 'playing';
+  ui.pauseText.textContent = PAUSE_TEXT[S.pauseReason] || PAUSE_TEXT.manual;
+  ui.cnum.textContent = S.countLabel; ui.cnum.className = S.cdTick % 2 ? 'a' : 'b';   // classe alternada reinicia a animação a cada número
   const done = S.boxes.filter((x) => S.goal[x.r][x.c]).length;
   ui.status.textContent = S.status === 'won' ? 'Fase concluída' : (HINTS[S.index] || `${GROUPS[groupOf(S.index)].name} · ${done} de ${S.boxes.length} caixas nos destinos`);
   const c = ui.stage.classList; c.toggle('is-won', S.status === 'won'); c.toggle('is-levels', S.menu); c.toggle('is-ready', !S.started);
+  c.toggle('is-paused', S.started && S.status === 'playing' && S.paused && !S.counting); c.toggle('is-counting', S.counting);
 }
 /* Catálogo: grade paginada. Colunas e linhas se adaptam ao espaço real da tela (alvo mínimo de 44 px); a página mostra de S.first até S.first + S.size. */
 const MIN_CELL = 44, MAX_COLS = 5, pad2 = (n) => String(n).padStart(2, '0');
@@ -333,7 +414,11 @@ function resizeStage() {
   ui.wrap.style.width = `${cw}px`; ui.wrap.style.height = `${ch}px`; ui.wrap.style.setProperty('--u', `${cw / W}px`);
   ui.wrap.dataset.help = mode; ui.wrap.style.transform = shift ? `translateX(${-shift}px)` : '';
 }
-function setHelp(on) { ui.pop.hidden = !on; ui.help.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+// Abrir a ajuda pausa a partida; fechar só fecha (quem retoma é o jogador, em Continuar, com a contagem). quiet = fechar sem mexer na pausa.
+function setHelp(on, quiet = false) {
+  ui.pop.hidden = !on; ui.help.setAttribute('aria-expanded', on ? 'true' : 'false');
+  if (on && !quiet) pause('help', false);
+}
 
 /* Tela inicial: o jogo fica parado até o primeiro toque/clique ou SPACE. Só então a fase conta como iniciada. */
 function refreshStart() {
@@ -343,7 +428,7 @@ function refreshStart() {
 }
 function begin() {
   if (S.started || !ui.pop.hidden) return;   // com a ajuda aberta, o toque só fecha a ajuda
-  S.started = true; Sound.unlock(); store.saveLast(S.index); render();
+  S.started = true; S.paused = false; Sound.unlock(); store.saveLast(S.index); saveGame(); render();
 }
 const completedCount = () => Object.keys(S.progress.best).length;
 // Fase sugerida: a última aberta, se ainda não foi concluída; senão, a próxima fase liberada.
@@ -361,20 +446,28 @@ function input(dir) {
 }
 function init() {
   S.progress = SAVED.progress; renderMute();
-  if (!loadLevel(resumeTarget(), false)) loadLevel(0, false);   // abre parado e sem gravar nada: só o primeiro toque/SPACE inicia
+  // F5: se há partida salva e válida, volta pausada (o jogador decide quando continuar); senão abre parado na tela inicial.
+  const g = SAVED.game; let recovered = false;
+  if (g && g.index < S.progress.unlocked && loadLevel(g.index, false)) recovered = restoreGame(g);
+  if (recovered) { S.paused = true; S.pauseReason = 'recovered'; render(); showToast('Partida retomada'); }
+  else {
+    if (g) store.clearGame();
+    if (!loadLevel(resumeTarget(), false)) loadLevel(0, false);   // abre parado e sem gravar nada: só o primeiro toque/SPACE inicia
+  }
   refreshStart();
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (e.code === 'Escape') { if (!ui.pop.hidden) { setHelp(false); ui.help.blur(); } else if (S.menu) openMenu(false); return; }
+    if (e.code === 'Escape') { if (!ui.pop.hidden) { setHelp(false); ui.help.blur(); } else if (S.menu) openMenu(false); else pause('manual'); return; }
     const onBtn = e.target && e.target.closest && e.target.closest('button');
-    if (e.code === 'Space' && !onBtn) { if (!S.started && !S.menu) { e.preventDefault(); begin(); } return; }
+    if (e.code === 'Space' && !onBtn) { if (!S.started && !S.menu) { e.preventDefault(); begin(); } else if (S.paused && !S.counting) { e.preventDefault(); resume(); } return; }
     if (e.code === 'Enter' && e.target === ui.start) { e.preventDefault(); begin(); return; }
     const dir = KEYS[e.code];
     if (dir) { e.preventDefault(); input(dir); return; }            // setas não rolam a página
     if (e.repeat) return;
     if (e.code === 'KeyZ' || e.code === 'KeyU') undo();
     else if (e.code === 'KeyR') restart();
-    else if (e.code === 'KeyL') { Sound.click(); openMenu(!S.menu); }
+    else if (e.code === 'KeyP') togglePause();
+    else if (e.code === 'KeyL') { if (!S.counting) { Sound.click(); openMenu(!S.menu); } }
     else if (e.code === 'KeyM') toggleMute();
   });
   let timer = null;
@@ -388,7 +481,23 @@ function init() {
     p.addEventListener('click', (e) => { if (e.detail === 0) input(p.dataset.dir); });          // detail 0 = ativado pelo teclado
     p.addEventListener('contextmenu', (e) => e.preventDefault());
   });
+  stopPads = stop;
   window.addEventListener('blur', stop);
+  ui.pauseBtn.addEventListener('click', () => { togglePause(); ui.pauseBtn.blur(); });
+  ui.resume.addEventListener('click', resume);
+  $('pause-restart').addEventListener('click', restart);
+  // Sair da aba ou minimizar pausa e salva; ao voltar, continua pausado até o jogador pedir.
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) pause('hidden', false);
+    else if (S.paused && S.pauseReason === 'hidden') showToast('Partida retomada');
+  });
+  window.addEventListener('pagehide', saveGame);
+  // Tooltips: sai do hover ou clica/ativa → some na hora; só volta com nova entrada do mouse ou novo foco.
+  document.querySelectorAll('[data-tip]').forEach((el) => {
+    const off = () => el.classList.add('tip-off'), on = () => el.classList.remove('tip-off');
+    el.addEventListener('pointerdown', off); el.addEventListener('click', off);
+    el.addEventListener('pointerleave', on); el.addEventListener('focusout', () => { if (!el.matches(':hover')) on(); });
+  });
   ui.undo.addEventListener('click', () => { undo(); ui.undo.blur(); });
   ui.restart.addEventListener('click', () => { restart(); ui.restart.blur(); });
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
@@ -416,4 +525,4 @@ function init() {
 }
 init();
 
-window.__soko = { S, LEVELS, GROUPS, tryMove, undo, restart, loadLevel, input, solved, begin };
+window.__soko = { S, LEVELS, GROUPS, tryMove, undo, restart, loadLevel, input, solved, begin, pause, resume, togglePause };

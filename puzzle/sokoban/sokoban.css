@@ -4,7 +4,7 @@
   --muted: #9aa6c9; --good: #5ac26a; --line: #3a4466;
   --floor: #2a3350; --floor-alt: #2e3757; --wall: #66729a; --wall-hi: #8793bb; --wall-lo: #3f4a6e;
   --wood: #d29a4c; --wood-edge: #6b3f1a; --done: #86d494; --done-edge: #2f6b3a;
-  --u: 1.5px;
+  --u: 1.5px; --tip-delay: 0.3s;
   --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
   --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
 }
@@ -61,11 +61,14 @@ body {
   border-radius: calc(var(--u) * 4); box-shadow: 0 calc(var(--u) * 2) 0 #b5ab8c; opacity: .92; cursor: pointer; touch-action: manipulation;
 }
 #mute-button { right: calc(var(--u) * 12 + var(--btn)); }
+#pause-button { right: calc(var(--u) * 16 + var(--btn) * 2); }
+.icon-button:disabled { opacity: .4; cursor: default; }
 .icon-button .icon-cross { display: none; }
 .icon-button.is-muted .icon-waves { display: none; }
 .icon-button.is-muted .icon-cross { display: inline; }
 .icon-button:hover, .icon-button:focus-visible { opacity: 1; }
-.icon-button:focus-visible, .btn:focus-visible, .pad:focus-visible, .lv:focus-visible, .pager-btn:focus-visible, .help-button:focus-visible, .start:focus-visible .start-card { outline: calc(var(--u) * 2) solid #4ec0e8; outline-offset: calc(var(--u) * 1); }
+.icon-button:focus-visible, .btn:focus-visible, .pad:focus-visible, .lv:focus-visible, .pager-btn:focus-visible, .help-button:focus-visible { outline: calc(var(--u) * 2) solid #4ec0e8; outline-offset: calc(var(--u) * 1); }
+.start:focus-visible { outline: calc(var(--u) * 2) solid #4ec0e8; outline-offset: calc(var(--u) * -4); }
 .icon-button svg { width: 62%; height: 62%; }
 
 /* Painel */
@@ -183,6 +186,8 @@ body {
   border: calc(var(--u) * 2) solid var(--line); border-radius: calc(var(--u) * 7); box-shadow: 0 calc(var(--u) * 2.5) 0 rgba(0,0,0,.4);
   transition: background .08s, transform .08s;
 }
+.dpad { display: none; }   /* setas na tela só em dispositivos de toque; no desktop o jogo usa o teclado */
+@media (hover: none), (pointer: coarse) { .dpad { display: grid; } }
 .pad svg { width: 50%; height: 50%; }
 .pad:active, .pad.is-down { background: rgba(255,200,87,.25); border-color: var(--amber); transform: translateY(calc(var(--u) * 2)); }
 .pad-up { grid-column: 2; grid-row: 1; } .pad-left { grid-column: 1; grid-row: 2; } .pad-down { grid-column: 2; grid-row: 2; } .pad-right { grid-column: 3; grid-row: 2; }
@@ -192,7 +197,7 @@ body {
 .stage-wrap[data-help="side"] .help { left: calc(100% + 10px); top: 0; }
 .stage-wrap[data-help="top"] .help { right: 0; bottom: calc(100% + 8px); }
 .help-button {
-  display: grid; place-items: center; width: 42px; height: 42px; padding: 0; color: var(--shell-text); background: var(--shell-surface);
+  position: relative; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; color: var(--shell-text); background: var(--shell-surface);
   border: 1px solid var(--shell-line); border-radius: 50%; cursor: pointer; touch-action: manipulation; transition: border-color .2s, background .2s, color .2s, transform .1s;
 }
 .help-button svg { width: 58%; height: 58%; }
@@ -215,17 +220,38 @@ body {
 }
 @keyframes pop-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 
-/* Tela inicial: painel integrado ao palco, sem escurecer o tabuleiro */
+/* Tooltips dos controles só com ícone: um único sistema (data-tip). Mouse: 300 ms de hover; teclado (:focus-visible): imediato;
+   saindo ou clicando: some na hora (.tip-off, via JS); touch: sem hover, nada fica preso. Ancorado à direita, abre para baixo. */
+[data-tip]::after {
+  content: attr(data-tip); position: absolute; top: calc(100% + var(--u) * 6); right: 0; z-index: 30; padding: calc(var(--u) * 4) calc(var(--u) * 7);
+  font-family: "Arial Black", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif; font-weight: 900; font-size: max(11px, calc(var(--u) * 9)); line-height: 1.2;
+  text-transform: none; white-space: nowrap; color: var(--ink); background: var(--cream); border: calc(var(--u) * 2) solid var(--ink);
+  border-radius: calc(var(--u) * 4); box-shadow: 0 calc(var(--u) * 2) 0 #b5ab8c; opacity: 0; visibility: hidden; pointer-events: none; transition: none;
+}
+.stage-wrap[data-help="top"] .help-button::after { top: 50%; right: calc(100% + 8px); transform: translateY(-50%); }
+/* Botões do palco: tooltip embaixo do botão, com seta (triângulo) apontando para ele. O balão do último botão alinha à borda direita
+   para não ser cortado pelo palco; a seta continua centralizada no botão. */
+.icon-button[data-tip]::after { top: calc(100% + var(--u) * 8); left: 50%; right: auto; transform: translateX(-50%); }
+#levels-button::after { left: auto; right: 0; transform: none; }
+.icon-button[data-tip]::before {
+  content: ""; position: absolute; top: calc(100% + var(--u) * 8); left: 50%; z-index: 31; width: calc(var(--u) * 7); height: calc(var(--u) * 7);
+  transform: translate(-50%, -50%) rotate(45deg); background: var(--cream); border: solid var(--ink); border-width: calc(var(--u) * 2) 0 0 calc(var(--u) * 2);
+  opacity: 0; visibility: hidden; pointer-events: none; transition: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  [data-tip]:hover::after, [data-tip]:hover::before { opacity: 1; visibility: visible; transition: opacity .12s ease var(--tip-delay), visibility 0s linear var(--tip-delay); }
+}
+[data-tip]:focus-visible::after, [data-tip]:focus-visible::before { opacity: 1; visibility: visible; transition: none; }
+[data-tip].tip-off::after, [data-tip].tip-off::before, [data-tip].tip-off:focus-visible::after, [data-tip].tip-off:focus-visible::before { opacity: 0 !important; visibility: hidden !important; transition: none !important; }
+
+/* Tela inicial: ocupa 100% do palco e cobre o tabuleiro (nada do gameplay aparece atrás) */
 .start {
   position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; padding: 0 calc(var(--u) * 14); cursor: pointer; outline: none;
+  background: repeating-linear-gradient(45deg, rgba(255,255,255,.02) 0 calc(var(--u) * 2), transparent 0 calc(var(--u) * 5)), var(--felt);
   opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .25s ease, visibility 0s linear .25s;
 }
 .is-ready .start { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
-.start-card {
-  width: 100%; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 6); padding: calc(var(--u) * 14) calc(var(--u) * 12) calc(var(--u) * 16);
-  text-align: center; background: linear-gradient(180deg, rgba(36,45,72,.97), rgba(20,26,44,.97)); border: calc(var(--u) * 2.5) solid var(--ink); border-radius: calc(var(--u) * 8);
-  box-shadow: inset 0 0 0 calc(var(--u) * 1.5) var(--line), 0 calc(var(--u) * 4) 0 #05060a, 0 calc(var(--u) * 8) calc(var(--u) * 18) rgba(0,0,0,.45);
-}
+.start-card { width: 100%; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 6); text-align: center; }
 .start p, .start h2 { margin: 0; }
 .start-mark { width: calc(var(--u) * 34); height: calc(var(--u) * 34); filter: drop-shadow(0 calc(var(--u) * 2) 0 rgba(0,0,0,.4)); }
 .start-title { font-size: calc(var(--u) * 28); line-height: 1; text-transform: uppercase; color: var(--amber); }
@@ -250,8 +276,30 @@ body {
 }
 .screen .btn { flex: none; width: 100%; max-width: calc(var(--u) * 170); }
 .screen .row { flex-direction: column; width: 100%; align-items: center; }
-.is-levels .screen-levels, .is-won .screen-won { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+.is-levels .screen-levels, .is-won .screen-won, .is-paused .screen-pause { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
 .is-won .screen-won { transition-delay: .45s; }
+.screen-pause .screen-text { max-width: calc(var(--u) * 200); font-size: max(11px, calc(var(--u) * 11)); color: var(--muted); }
+
+/* Contagem 3 → 2 → 1 → GO! (cobre o palco; o jogo fica congelado por baixo) */
+.countdown {
+  position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(14,19,33,.82);
+  opacity: 0; visibility: hidden; pointer-events: none;
+}
+.is-counting .countdown { opacity: 1; visibility: visible; pointer-events: auto; }
+.countdown span { font-size: calc(var(--u) * 84); line-height: 1; text-transform: uppercase; color: var(--amber); text-shadow: 0 calc(var(--u) * 4) 0 #05060a; }
+.countdown span.a { animation: cd-a .7s ease-out; }
+.countdown span.b { animation: cd-b .7s ease-out; }
+@keyframes cd-a { from { transform: scale(1.35); opacity: .2; } to { transform: none; opacity: 1; } }
+@keyframes cd-b { from { transform: scale(1.35); opacity: .2; } to { transform: none; opacity: 1; } }
+
+/* Aviso discreto de "Partida retomada" */
+.toast {
+  position: absolute; left: 50%; bottom: calc(var(--u) * 12); z-index: 10; margin: 0; padding: calc(var(--u) * 4) calc(var(--u) * 10); transform: translateX(-50%);
+  font-size: max(10px, calc(var(--u) * 9)); text-transform: uppercase; white-space: nowrap; color: var(--ink); background: var(--cream);
+  border-radius: 999px; pointer-events: none; animation: toast-in .2s ease-out;
+}
+.toast[hidden] { display: none; }
+@keyframes toast-in { from { opacity: 0; } to { opacity: 1; } }
 .screen-title { margin: 0; font-size: calc(var(--u) * 30); line-height: 1; text-transform: uppercase; color: var(--amber); }
 .screen-text { margin: 0; font-size: max(13px, calc(var(--u) * 14)); line-height: 1.35; font-variant-numeric: tabular-nums; }
 .record { margin: 0; padding: calc(var(--u) * 3) calc(var(--u) * 9); font-size: max(11px, calc(var(--u) * 10)); text-transform: uppercase; color: var(--ink); background: var(--good); border-radius: 999px; }
@@ -290,6 +338,8 @@ body {
 @media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }
 @media (prefers-reduced-motion: reduce) {
   .e, .box .face, .screen, .start, .pad, .back, .back svg, .help-button { transition: none; }
-  .start-touch, .spacebar, .help-pop { animation: none; }
+  .start-touch, .spacebar, .help-pop, .toast, .countdown span { animation: none; }
+  [data-tip]:hover::after, [data-tip]:hover::before { transition: opacity 0s linear var(--tip-delay), visibility 0s linear var(--tip-delay); }
+  [data-tip]:focus-visible::after, [data-tip]:focus-visible::before { transition: none; }
   .player .pl, .player .ft1, .player .ft2, .player .arm, .player .arm-l, .player .arm-r { animation: none !important; }
 }

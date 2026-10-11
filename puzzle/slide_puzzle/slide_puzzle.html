@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Quebra-Cabeça Deslizante · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="slide_puzzle.css?v=3">
+  <link rel="stylesheet" href="slide_puzzle.css?v=5">
 </head>
 <body>
   <header class="topbar">
@@ -30,19 +30,22 @@
   </header>
 
   <div id="arena" class="arena">
-    <!-- frame = jogo (#stage) + botão "?" lateral (controle externo à área do jogo) -->
+    <!-- frame = jogo (#stage) + botão "?" escuro do lado de fora da área do jogo -->
     <div id="frame" class="frame" data-help-pos="side">
     <main id="stage" class="stage is-ready" aria-label="Quebra-Cabeça Deslizante">
-      <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
-        <svg viewBox="0 0 16 16" fill="none" stroke="#543847" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-          <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="#543847"/>
-          <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
-          <g class="icon-cross" stroke="#c9372a"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
-        </svg>
-      </button>
-      <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" title="Pausar (P)">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/></svg>
-      </button>
+      <!-- Controles do jogo: pausa e som (o "?" fica fora do palco) -->
+      <div class="controls" role="group" aria-label="Controles">
+        <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" data-tip="Pausar" data-tip-key="P">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/></svg>
+        </button>
+        <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Silenciar efeitos" data-tip-key="M">
+          <svg viewBox="0 0 16 16" fill="none" stroke="#543847" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="#543847"/>
+            <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
+            <g class="icon-cross" stroke="#c9372a"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
+          </svg>
+        </button>
+      </div>
 
       <h1 class="game-title">
         <svg class="title-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
@@ -57,47 +60,57 @@
       </h1>
 
       <section class="hud" aria-label="Partida">
-        <div class="stat"><span>Movimentos</span><strong id="moves">0</strong></div>
+        <div class="stat stat-main"><span>Movimentos</span><strong id="moves">0</strong></div>
         <div class="stat"><span>Tempo</span><strong id="time">0:00</strong></div>
         <div class="stat stat-best"><span>Recorde</span><strong id="best">—</strong></div>
       </section>
 
-      <div class="levels" role="radiogroup" aria-label="Dificuldade">
-        <button type="button" role="radio" data-level="easy"><b>Fácil</b><i>3×3</i></button>
-        <button type="button" role="radio" data-level="medium"><b>Médio</b><i>4×4</i></button>
-        <button type="button" role="radio" data-level="hard"><b>Difícil</b><i>5×5</i></button>
-      </div>
-
       <div class="board">
         <div id="grid" class="grid" role="group" aria-label="Tabuleiro"></div>
-        <button id="start-button" class="start" type="button" aria-label="Iniciar partida">
-          <span class="start-card">
-            <svg class="start-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-              <rect width="32" height="32" rx="8" fill="#10303a"/>
-              <g fill="#f3e8c3" stroke="#543847" stroke-width="1.5">
-                <rect x="5" y="5" width="9" height="9" rx="1.5"/><rect x="16" y="5" width="9" height="9" rx="1.5"/>
-                <rect x="5" y="16" width="9" height="9" rx="1.5"/>
-              </g>
-              <rect x="16" y="16" width="9" height="9" rx="1.5" fill="#f0a62a" stroke="#543847" stroke-width="1.5"/>
-            </svg>
-            <span class="start-title"><span class="start-title-top">Quebra-Cabeça</span><span class="start-title-main">Deslizante</span></span>
-            <span class="start-rule" aria-hidden="true"></span>
-            <span class="start-text">Toque para iniciar</span>
-            <span class="start-or">ou</span>
-            <kbd class="cap cap-wide">Space</kbd>
-          </span>
-        </button>
       </div>
       <p id="status" class="status" aria-live="polite"></p>
 
       <div class="actions">
-        <button id="new-button" class="btn" type="button">Novo jogo</button>
-        <button id="reset-button" class="btn btn-alt" type="button">Reiniciar</button>
+        <button id="new-button" class="btn" type="button" data-tip="Novo embaralhamento">Novo jogo</button>
+        <button id="reset-button" class="btn btn-alt" type="button" data-tip="Voltar ao tabuleiro inicial">Reiniciar</button>
       </div>
+
+      <!-- Tela inicial: camada que cobre 100% do palco (nada do jogo aparece por trás) -->
+      <section id="start-screen" class="start" aria-label="Tela inicial">
+        <div class="start-card">
+          <svg class="start-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+            <rect width="32" height="32" rx="8" fill="#10303a"/>
+            <g fill="#f3e8c3" stroke="#543847" stroke-width="1.5">
+              <rect x="5" y="5" width="9" height="9" rx="1.5"/><rect x="16" y="5" width="9" height="9" rx="1.5"/>
+              <rect x="5" y="16" width="9" height="9" rx="1.5"/>
+            </g>
+            <rect x="16" y="16" width="9" height="9" rx="1.5" fill="#f0a62a" stroke="#543847" stroke-width="1.5"/>
+          </svg>
+          <h2 class="start-title"><span class="start-title-top">Quebra-Cabeça</span><span class="start-title-main">Deslizante</span></h2>
+          <span class="start-rule" aria-hidden="true"></span>
+          <div class="levels" role="radiogroup" aria-label="Dificuldade">
+            <button type="button" role="radio" data-level="easy" data-tip="8 peças · mais fácil"><b>Fácil</b><i>3×3</i></button>
+            <button type="button" role="radio" data-level="medium" data-tip="15 peças"><b>Médio</b><i>4×4</i></button>
+            <button type="button" role="radio" data-level="hard" data-tip="24 peças · mais difícil"><b>Difícil</b><i>5×5</i></button>
+          </div>
+
+          <button id="start-button" class="btn" type="button" aria-label="Iniciar partida">Iniciar</button>
+          <span class="start-or">ou</span>
+          <kbd class="cap cap-wide">Space</kbd>
+        </div>
+      </section>
 
       <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
         <h2 id="pause-title" class="screen-title">Pausado</h2>
-        <button id="resume-button" class="btn" type="button">Continuar</button>
+        <p id="pause-note" class="note" hidden>Partida retomada</p>
+        <div class="row">
+          <button id="resume-button" class="btn" type="button">Continuar</button>
+          <button id="pause-restart" class="btn btn-alt" type="button" data-tip="Voltar ao tabuleiro inicial">Reiniciar</button>
+        </div>
+      </section>
+      <section class="screen screen-count" role="status" aria-live="assertive" aria-label="Contagem regressiva">
+        <p id="count-num" class="count-num">3</p>
+        <p class="count-sub">Prepare-se</p>
       </section>
       <section class="screen screen-confirm" role="alertdialog" aria-labelledby="confirm-text">
         <h2 id="confirm-text" class="screen-text">Isso encerra a partida atual. Continuar?</h2>
@@ -117,7 +130,7 @@
 
     <button id="help-button" class="help-btn" type="button"
             aria-haspopup="dialog" aria-expanded="false" aria-controls="help-popover"
-            aria-label="Como jogar" title="Como jogar">
+            aria-label="Como jogar" data-tip="Como jogar">
       <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
         <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
         <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
@@ -127,25 +140,27 @@
     </div>
   </div>
 
-  <!-- Como jogar: popover ancorado abaixo do botão "?" (fora da área do jogo) -->
+  <!-- Como jogar: popover ancorado abaixo do botão "?" do grupo de controles -->
   <div id="help-popover" class="help-popover" role="dialog" aria-labelledby="help-title" data-placement="below" hidden>
-    <button id="help-close" class="help-close" type="button" aria-label="Fechar">
+    <button id="help-close" class="help-close" type="button" aria-label="Fechar" data-tip="Fechar" data-tip-key="Esc">
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
     </button>
-    <h2 id="help-title" class="help-title">Como jogar</h2>
+    <div class="help-head"><h2 id="help-title" class="help-title">Como jogar</h2></div>
+    <div id="help-body" class="help-body" tabindex="0" role="region" aria-label="Instruções">
     <p class="help-text">Deslize as peças para o espaço vazio até colocar os números em ordem, de 1 até a última, com o espaço vazio no canto inferior direito.</p>
     <p class="help-text">Toque numa peça que esteja ao lado do espaço vazio para deslizá-la. Peças com um pontinho verde já estão no lugar certo.</p>
     <h3 class="help-sub">Controles</h3>
     <ul class="ctl-list">
       <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Mover peça</span></li>
-      <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar partida</span></li>
-      <li><span class="ctl-keys"><kbd class="cap">P</kbd><span class="ctl-or">/</span><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar</span></li>
+      <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar / continuar</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">P</kbd><span class="ctl-or">/</span><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar / continuar</span></li>
       <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
     </ul>
-    <p class="help-note">Dificuldade: Fácil 3×3, Médio 4×4, Difícil 5×5. O tempo começa ao iniciar. O recorde de cada nível (menos movimentos, depois menor tempo) fica salvo neste aparelho.</p>
+    <p class="help-note">Ao abrir esta ajuda a partida é pausada e o tempo para. Fechar não retoma: toque em Continuar e aguarde a contagem 3, 2, 1, GO!. Dificuldade: Fácil 3×3, Médio 4×4, Difícil 5×5. O tempo começa ao iniciar. O recorde de cada nível (menos movimentos, depois menor tempo) fica salvo neste aparelho.</p>
+    </div>
   </div>
 
-  <script src="slide_puzzle_storage.js?v=2"></script>
-  <script src="slide_puzzle.js?v=2"></script>
+  <script src="slide_puzzle_storage.js?v=3"></script>
+  <script src="slide_puzzle.js?v=4"></script>
 </body>
 </html>

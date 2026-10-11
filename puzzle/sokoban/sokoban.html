@@ -30,14 +30,17 @@
   <div id="arena" class="arena">
     <div id="stage-wrap" class="stage-wrap" data-help="side">
     <main id="stage" class="stage" aria-label="Sokoban">
-      <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" title="Som (M)">
+      <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" data-tip="Pausar (P)">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><g fill="#0f1320"><rect x="3.5" y="2.5" width="3" height="11" rx="1"/><rect x="9.5" y="2.5" width="3" height="11" rx="1"/></g></svg>
+      </button>
+      <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Som (M)">
         <svg viewBox="0 0 16 16" fill="none" stroke="#0f1320" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
           <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="#0f1320"/>
           <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
           <g class="icon-cross" stroke="#c9372a"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
         </svg>
       </button>
-      <button id="levels-button" class="icon-button" type="button" aria-label="Escolher fase" title="Fases (L)">
+      <button id="levels-button" class="icon-button" type="button" aria-label="Escolher fase" data-tip="Fases (L)">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><g fill="#0f1320"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></g></svg>
       </button>
 
@@ -53,11 +56,11 @@
       <p id="status" class="status" aria-live="polite"></p>
 
       <div class="actions">
-        <button id="undo-button" class="btn" type="button" title="Desfazer (Z)">
+        <button id="undo-button" class="btn" type="button">
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3L2.5 6.5 6 10M3 6.5h6.5a3.5 3.5 0 010 7H7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span>Desfazer</span>
         </button>
-        <button id="restart-button" class="btn btn-alt" type="button" title="Reiniciar (R)">
+        <button id="restart-button" class="btn btn-alt" type="button">
           <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 11-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span>Reiniciar</span>
         </button>
@@ -85,6 +88,14 @@
           <kbd class="spacebar">SPACE</kbd>
         </div>
       </section>
+      <section class="screen screen-pause" role="dialog" aria-labelledby="pause-title">
+        <h2 id="pause-title" class="screen-title">Pausado</h2>
+        <p id="pause-text" class="screen-text"></p>
+        <div class="row">
+          <button id="resume-button" class="btn" type="button">Continuar</button>
+          <button id="pause-restart" class="btn btn-alt" type="button">Reiniciar</button>
+        </div>
+      </section>
       <section class="screen screen-levels" role="dialog" aria-labelledby="levels-title">
         <h2 id="levels-title" class="screen-title">Fases</h2>
         <p id="group-name" class="group-name"></p>
@@ -108,10 +119,12 @@
           <button id="won-levels" class="btn btn-alt" type="button">Fases</button>
         </div>
       </section>
+      <div id="countdown" class="countdown" aria-live="assertive"><span id="count-num"></span></div>
+      <p id="toast" class="toast" role="status" hidden></p>
       <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
     </main>
     <div class="help">
-      <button id="help-button" class="help-button" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="help-pop" title="Como jogar">
+      <button id="help-button" class="help-button" type="button" aria-label="Como jogar" aria-expanded="false" aria-controls="help-pop" data-tip="Como jogar">
         <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5.6 6.1a2.5 2.5 0 114.2 1.8c-.9.8-1.8 1.2-1.8 2.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="8" cy="13" r="1.15" fill="currentColor"/></svg>
       </button>
       <div id="help-pop" class="help-pop" role="dialog" aria-labelledby="help-title" hidden>
@@ -120,7 +133,7 @@
         <ul class="help-keys">
           <li><span class="keycaps"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd></span> ou <span class="keycaps"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> mover</li>
           <li><kbd>Z</kbd> desfazer · <kbd>R</kbd> reiniciar</li>
-          <li><kbd>L</kbd> fases · <kbd>M</kbd> som</li>
+          <li><kbd>P</kbd> pausar · <kbd>L</kbd> fases · <kbd>M</kbd> som</li>
         </ul>
         <p class="help-touch">No celular, use os botões na tela.</p>
       </div>

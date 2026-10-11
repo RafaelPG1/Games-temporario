@@ -8,8 +8,10 @@
      water_sort:unlocked -> maior fase liberada (inteiro >= 1). Fases abaixo dela estão concluídas.
      water_sort:last     -> última fase jogada (inteiro >= 1)
      water_sort:muted    -> '1' = som desligado, '0' = som ligado
+     water_sort:game     -> partida em andamento (JSON): fase, configuração inicial, tubos atuais, histórico de despejos e tubo selecionado.
+                            Os tubos são sorteados a cada fase, então precisam ser guardados para recuperar a partida após F5.
 
-   O jogo não tem recorde de pontuação, então nada além disso é guardado.
+   O jogo não tem recorde de pontuação nem temporizadores, então nada além disso é guardado.
 
    Garantias:
      - nunca lança exceção (modo privado, cookies bloqueados, cota cheia...);
@@ -23,7 +25,7 @@
 
   const MAX_LEVEL = 99999;
   const DEFAULTS = Object.freeze({ unlocked: 1, last: 1, muted: false });
-  const KEYS = Object.freeze({ unlocked: 'water_sort:unlocked', last: 'water_sort:last', muted: 'water_sort:muted' });
+  const KEYS = Object.freeze({ unlocked: 'water_sort:unlocked', last: 'water_sort:last', muted: 'water_sort:muted', game: 'water_sort:game' });
   const LEGACY_MUTED = 'arcadia.water_sort.muted';   // chave que o jogo já usava para o som
   const memory = {};
 
@@ -114,7 +116,42 @@
     return muted;
   }
 
+  /* ---- partida em andamento ----
+     Aqui só se confere o formato (inteiros, tamanhos, índices). As regras (cores, capacidade, histórico que reproduz os tubos)
+     são validadas pelo jogo ao restaurar; se algo não bater, a partida salva é descartada. */
+  const asTubes = (v) => (Array.isArray(v) && v.length >= 1 && v.length <= 24 &&
+    v.every((t) => Array.isArray(t) && t.length <= 4 && t.every((c) => Number.isInteger(c) && c >= 0 && c < 64))) ? v.map((t) => t.slice()) : null;
+
+  function cleanGame(g) {
+    if (!g || typeof g !== 'object') return null;
+    const level = asLevel(g.level), initial = asTubes(g.initial), tubes = asTubes(g.tubes);
+    if (!level || !initial || !tubes || !Array.isArray(g.history) || g.history.length > 5000) return null;
+    const ok = (i) => Number.isInteger(i) && i >= 0 && i < tubes.length;
+    const history = [];
+    for (const h of g.history) {
+      if (!h || !ok(h.from) || !ok(h.to) || !Number.isInteger(h.count) || h.count < 1 || h.count > 4) return null;
+      history.push({ from: h.from, to: h.to, count: h.count });
+    }
+    return { level, initial, tubes, history, selected: ok(g.selected) ? g.selected : -1 };
+  }
+
+  function getGame() {
+    try { return cleanGame(JSON.parse(readRaw(KEYS.game))); } catch (error) { return null; }
+  }
+
+  function setGame(game) {
+    const clean = cleanGame(game);
+    if (!clean) return false;
+    writeRaw(KEYS.game, JSON.stringify(clean));
+    return true;
+  }
+
+  function clearGame() {
+    delete memory[KEYS.game];
+    try { window.localStorage.removeItem(KEYS.game); } catch (error) { /* sem acesso: nada a remover */ }
+  }
+
   migrate();
 
-  window.WaterSortStorage = Object.freeze({ KEYS, DEFAULTS, getUnlocked, setUnlocked, getLast, setLast, isMuted, setMuted });
+  window.WaterSortStorage = Object.freeze({ KEYS, DEFAULTS, getUnlocked, setUnlocked, getLast, setLast, isMuted, setMuted, getGame, setGame, clearGame });
 })();

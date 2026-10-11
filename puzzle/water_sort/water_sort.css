@@ -55,7 +55,7 @@ body {
    Sem espaço (celular): "?" logo abaixo do jogo, à direita. O JS escolhe em data-help-pos. */
 .frame { position: relative; display: flex; flex-direction: column; }
 .frame .help-btn { position: absolute; top: 0; left: calc(100% + 16px); }
-.frame[data-help-pos="below"] .help-btn { position: static; align-self: flex-end; margin-top: 12px; }
+.frame[data-help-pos="below"] .help-btn { position: relative; align-self: flex-end; margin-top: 12px; }
 .help-btn {
   flex: none; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--shell-text);
   background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%; cursor: pointer; touch-action: manipulation;
@@ -84,6 +84,9 @@ body {
   margin-left: auto; display: grid; place-items: center; width: max(40px, calc(var(--u) * 24)); height: max(40px, calc(var(--u) * 24));
   padding: 0; cursor: pointer; pointer-events: auto; touch-action: manipulation; opacity: .9;
 }
+#pause-button { margin-left: auto; }
+#mute-button { margin-left: 0; }
+.icon-button:disabled { opacity: .4; cursor: default; pointer-events: none; }
 .icon-button .icon-cross { display: none; }
 .icon-button.is-muted .icon-waves { display: none; }
 .icon-button.is-muted .icon-cross { display: inline; }
@@ -99,7 +102,8 @@ body {
 .chip:hover:not(:disabled), .icon-button:hover, .pager-btn:hover:not(:disabled), .levels-close:hover { background: var(--paper-light); opacity: 1; }
 .chip:active:not(:disabled) { transform: translateY(calc(var(--u) * 2)); }
 .chip:disabled { opacity: .45; cursor: default; }
-.chip:focus-visible, .icon-button:focus-visible, .btn:focus-visible, .pager-btn:focus-visible, .levels-close:focus-visible, .lv:focus-visible, .start:focus-visible .start-card { outline: calc(var(--u) * 3) solid #ffd84a; outline-offset: calc(var(--u) * 1); }
+.chip:focus-visible, .icon-button:focus-visible, .btn:focus-visible, .pager-btn:focus-visible, .levels-close:focus-visible, .lv:focus-visible { outline: calc(var(--u) * 3) solid #ffd84a; outline-offset: calc(var(--u) * 1); }
+.start:focus-visible { outline: calc(var(--u) * 3) solid #ffd84a; outline-offset: calc(var(--u) * -4); }
 
 /* Texto com contorno e diálogo */
 .over-title, .final {
@@ -108,13 +112,16 @@ body {
     calc(var(--o) * -1) var(--o) 0 var(--ink), var(--o) var(--o) 0 var(--ink),
     0 calc(var(--o) * -1) 0 var(--ink), 0 var(--o) 0 var(--ink), calc(var(--o) * -1) 0 0 var(--ink), var(--o) 0 0 var(--ink), 0 calc(var(--o) * 2) 0 var(--ink);
 }
-.dialog {
+.dialog, .pause {
   position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: calc(var(--u) * 14); padding: 0 8%; text-align: center; background: rgba(20, 26, 70, .55);
   opacity: 0; visibility: hidden; transform: translateY(calc(var(--u) * 10));
   transition: opacity .25s ease, transform .25s ease, visibility 0s linear .25s;
 }
-.is-dialog .dialog { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.is-dialog .dialog, .is-paused .pause { opacity: 1; visibility: visible; transform: none; transition-delay: 0s; }
+.pause { z-index: 8; background: rgba(20, 26, 70, .88); pointer-events: none; }
+.is-paused .pause { pointer-events: auto; }   /* ao retomar, para de capturar toques na hora (sem esperar o fade) */
+.pause .final { color: #cdd9ff; max-width: calc(var(--u) * 210); }
 .over-title { margin: 0; font-size: calc(var(--u) * 28); line-height: 1.05; text-transform: uppercase; color: #ffd84a; }
 .final { margin: 0; font-size: max(13px, calc(var(--u) * 14)); line-height: 1.4; text-transform: uppercase; color: #fff3b0; }
 .btn {
@@ -130,38 +137,15 @@ body {
 .btn[hidden] { display: none; }
 .noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
-/* ===== Ecrã inicial: painel central sobre o jogo parado ===== */
+/* ===== Tela inicial: ocupa 100% do palco e cobre o tabuleiro (nada do gameplay aparece atrás) ===== */
 .start {
   position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; padding: 0; border: 0;
-  font: inherit; color: var(--white); background: rgba(20,26,70,.08); cursor: pointer; touch-action: manipulation;
+  font: inherit; color: var(--white); background: linear-gradient(180deg, #3a63d8, #2d4fb8 55%, #1e2f7a); cursor: pointer; touch-action: manipulation;
   opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .45s ease, visibility 0s linear .45s;
 }
 .is-ready .start { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
-
-.start-card {
-  position: relative; display: flex; flex-direction: column; align-items: center; width: min(78%, calc(var(--u) * 200)); overflow: hidden;
-  padding: calc(var(--u) * 20) calc(var(--u) * 14) calc(var(--u) * 15); text-align: center;
-  background: linear-gradient(165deg, #2b48b8, #16225f); border-radius: calc(var(--u) * 10);
-  box-shadow: 0 0 0 calc(var(--u) * 2) var(--ink), 0 0 0 calc(var(--u) * 3) rgba(255,255,255,.12),
-              0 calc(var(--u) * 10) calc(var(--u) * 22) rgba(10,16,60,.55), inset 0 calc(var(--u) * 1.5) 0 rgba(255,255,255,.16);
-  
-  /* Transição clássica e muito suave */
-  transition: transform 0.3s ease, box-shadow 0.3s ease;
-  will-change: transform, box-shadow;
-}
-
-.start-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--u) * 5); background: #ffd84a; box-shadow: 0 calc(var(--u) * 1) 0 #c98a0a; }
-
-.stage:not(.is-ready) .start-card { transform: translateY(calc(var(--u) * -8)) scale(.95); }
-
-/* Hover limpo: apenas um leve erguer e uma sombra ligeiramente mais difusa */
-.start:hover .start-card { 
-  transform: translateY(calc(var(--u) * -3)); 
-  box-shadow: 0 0 0 calc(var(--u) * 2) var(--ink), 
-              0 0 0 calc(var(--u) * 3) rgba(255,255,255,.12),
-              0 calc(var(--u) * 14) calc(var(--u) * 28) rgba(10,16,60,.7), 
-              inset 0 calc(var(--u) * 1.5) 0 rgba(255,255,255,.16);
-}
+.is-ready .pill, .is-ready .dock { visibility: hidden; }   /* só os botões de ícone ficam à mostra na tela inicial */
+.start-card { display: flex; flex-direction: column; align-items: center; width: 100%; padding: 0 calc(var(--u) * 14); text-align: center; }
 
 .start-mark { width: calc(var(--u) * 30); height: calc(var(--u) * 30); border-radius: calc(var(--u) * 8); box-shadow: 0 0 0 calc(var(--u) * 1.5) var(--ink), 0 0 calc(var(--u) * 14) rgba(255,216,74,.3); }
 .start-title { margin-top: calc(var(--u) * 10); font-size: max(13px, calc(var(--u) * 18)); line-height: 1; letter-spacing: .02em; text-transform: uppercase; white-space: nowrap; color: #ffd84a; text-shadow: 0 calc(var(--u) * 2) 0 rgba(10,16,60,.5); }
@@ -178,6 +162,41 @@ body {
 .cap-wide { min-width: calc(var(--u) * 46); }
 .start .cap { height: max(26px, calc(var(--u) * 21)); min-width: calc(var(--u) * 64); font-size: max(11px, calc(var(--u) * 10.5)); letter-spacing: .12em; }
 @keyframes start-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+/* ===== Aviso "Partida retomada" ===== */
+.toast {
+  position: absolute; left: 50%; bottom: calc(var(--u) * 70); z-index: 10; margin: 0; padding: calc(var(--u) * 4) calc(var(--u) * 10); transform: translateX(-50%);
+  font-size: max(10px, calc(var(--u) * 9)); text-transform: uppercase; white-space: nowrap; color: var(--ink); background: var(--paper);
+  border: calc(var(--u) * 2) solid var(--ink); border-radius: 999px; pointer-events: none; animation: toast-in .2s ease-out;
+}
+.toast[hidden] { display: none; }
+@keyframes toast-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ===== Tooltips (um único sistema: data-tip). Mouse: 300 ms de hover (--tip-delay); teclado (:focus-visible): imediato;
+   sair ou clicar esconde na hora (classe .tip-off, via JS); touch: sem hover, nada fica preso.
+   Posição padrão: embaixo do botão, com seta (triângulo) apontando para ele. data-tip-pos="above|left"; data-tip-align="end" alinha à direita. ===== */
+:root { --tip-delay: 0.3s; }
+:where([data-tip]) { position: relative; }
+[data-tip]::after, [data-tip]::before { position: absolute; z-index: 30; opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
+[data-tip]::after {
+  content: attr(data-tip); padding: 5px 9px; font: 900 11px/1.2 "Arial Black", "Trebuchet MS", Arial, sans-serif; letter-spacing: 0; text-transform: none; white-space: nowrap;
+  color: var(--ink); background: var(--paper); border: 2px solid var(--ink); border-radius: 6px; box-shadow: 0 2px 0 #8fa6dc;
+  top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+}
+[data-tip]::before {
+  content: ""; z-index: 31; width: 8px; height: 8px; background: var(--paper); border: solid var(--ink); border-width: 2px 0 0 2px;
+  top: calc(100% + 8px); left: 50%; transform: translate(-50%, -50%) rotate(45deg);
+}
+[data-tip-align="end"]::after { left: auto; right: 0; transform: none; }
+[data-tip-pos="above"]::after { top: auto; bottom: calc(100% + 8px); }
+[data-tip-pos="above"]::before { top: auto; bottom: calc(100% + 8px); transform: translate(-50%, 50%) rotate(45deg); border-width: 0 2px 2px 0; }
+.frame[data-help-pos="below"] .help-btn[data-tip]::after { top: 50%; left: auto; right: calc(100% + 8px); transform: translateY(-50%); }
+.frame[data-help-pos="below"] .help-btn[data-tip]::before { top: 50%; left: auto; right: calc(100% + 8px); transform: translate(50%, -50%) rotate(45deg); border-width: 2px 2px 0 0; }
+@media (hover: hover) and (pointer: fine) {
+  [data-tip]:hover::after, [data-tip]:hover::before { opacity: 1; visibility: visible; transition: opacity .12s ease var(--tip-delay), visibility 0s linear var(--tip-delay); }
+}
+[data-tip]:focus-visible::after, [data-tip]:focus-visible::before { opacity: 1; visibility: visible; transition: none; }
+[data-tip].tip-off::after, [data-tip].tip-off::before { opacity: 0 !important; visibility: hidden !important; transition: none !important; }
+
 /* ===== Seleção de fases ===== */
 .levels-screen {
   position: absolute; inset: 0; z-index: 7; display: flex; flex-direction: column; align-items: center; gap: calc(var(--u) * 10);
@@ -256,4 +275,8 @@ body {
 @media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 520px) { .start-mark { display: none; } .start-card { padding-top: calc(var(--u) * 16); } }
 @media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }
-@media (prefers-reduced-motion: reduce) { .dialog, .levels-screen, .start, .start-card { transition: none; } .start-text, .help-popover { animation: none; } .back, .back svg, .help-btn, .help-btn svg { transition: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .dialog, .pause, .levels-screen, .start { transition: none; } .start-text, .help-popover, .toast { animation: none; } .back, .back svg, .help-btn, .help-btn svg { transition: none; }
+  [data-tip]:hover::after, [data-tip]:hover::before { transition: opacity 0s linear var(--tip-delay), visibility 0s linear var(--tip-delay); }
+  [data-tip]:focus-visible::after, [data-tip]:focus-visible::before { transition: none; }
+}

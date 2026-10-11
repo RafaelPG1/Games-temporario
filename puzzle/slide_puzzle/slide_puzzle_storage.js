@@ -9,6 +9,8 @@
      slide_puzzle:muted        -> '1' = som desligado, '0' = som ligado
      slide_puzzle:best:<nível> -> melhor resultado do nível, JSON { moves, time }
                                   (menos movimentos; em empate, menor tempo em ms)
+     slide_puzzle:game         -> partida em andamento (JSON): level, board, initial, moves, elapsed, status, isRecord
+                                  Permite recuperar a partida após F5 sem embaralhar de novo. Apagada ao voltar à tela inicial.
 
    Garantias:
      - nunca lança exceção (modo privado, cookies bloqueados, cota cheia...);
@@ -25,7 +27,9 @@
     level: 'slide_puzzle:level',
     muted: 'slide_puzzle:muted',
     best: (level) => `slide_puzzle:best:${level}`,
+    game: 'slide_puzzle:game',
   });
+  const GAME_STATUS = Object.freeze(['playing', 'paused', 'won']);
   const memory = {};
 
   function readRaw(key) {
@@ -91,5 +95,37 @@
     return candidate;
   }
 
-  window.SlidePuzzleStorage = Object.freeze({ LEVELS, KEYS, DEFAULTS, getLevel, setLevel, isMuted, setMuted, getBest, setBest });
+  function removeRaw(key) {
+    delete memory[key];
+    try { window.localStorage.removeItem(key); } catch (error) { /* ignora */ }
+  }
+
+  // Tabuleiro válido: permutação de 0..n*n-1 (0 = espaço vazio) com o tamanho do nível.
+  function validBoard(b, level) {
+    const size = { easy: 9, medium: 16, hard: 25 }[level];
+    if (!Array.isArray(b) || b.length !== size) return false;
+    return b.every((v) => Number.isInteger(v) && v >= 0 && v < size) && new Set(b).size === size;
+  }
+
+  // Devolve a partida salva já validada ou null (dado ausente/corrompido nunca quebra o jogo).
+  function getGame() {
+    try {
+      const g = JSON.parse(readRaw(KEYS.game));
+      if (!g || !validLevel(g.level) || !GAME_STATUS.includes(g.status)) return null;
+      if (!validBoard(g.board, g.level) || !validBoard(g.initial, g.level)) return null;
+      if (!Number.isInteger(g.moves) || g.moves < 0 || !Number.isFinite(g.elapsed) || g.elapsed < 0) return null;
+      return { level: g.level, board: g.board.slice(), initial: g.initial.slice(), moves: g.moves,
+               elapsed: Math.round(g.elapsed), status: g.status, isRecord: g.isRecord === true };
+    } catch (error) { return null; }
+  }
+
+  function setGame(game) {
+    if (!game || !validLevel(game.level) || !GAME_STATUS.includes(game.status) || !validBoard(game.board, game.level)) return false;
+    return writeRaw(KEYS.game, JSON.stringify({ level: game.level, board: game.board, initial: game.initial, moves: game.moves,
+      elapsed: Math.round(game.elapsed), status: game.status, isRecord: Boolean(game.isRecord) }));
+  }
+
+  function clearGame() { removeRaw(KEYS.game); }
+
+  window.SlidePuzzleStorage = Object.freeze({ LEVELS, KEYS, DEFAULTS, getLevel, setLevel, isMuted, setMuted, getBest, setBest, getGame, setGame, clearGame });
 })();

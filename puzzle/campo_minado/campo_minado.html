@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Campo Minado · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="campo_minado.css">
+  <link rel="stylesheet" href="campo_minado.css?v=2">
 </head>
 <body>
   <header class="topbar">
@@ -30,86 +30,133 @@
 
   <div id="arena" class="arena">
     <div id="game-wrap" class="game-wrap">
+    <!-- Container único do jogo. As telas (início, pausa, contagem, fim, ajuda) são camadas que cobrem 100% dele;
+         o conteúdo do jogo fica em #game-body. -->
     <main id="game" class="game is-idle" aria-label="Campo Minado">
-      <div class="levels" role="radiogroup" aria-label="Dificuldade">
-        <button type="button" role="radio" data-level="easy"><b>Fácil</b><i>9×9 · 10</i></button>
-        <button type="button" role="radio" data-level="medium"><b>Médio</b><i>16×16 · 40</i></button>
-        <button type="button" role="radio" data-level="hard"><b>Difícil</b><i>30×16 · 99</i></button>
+      <div id="game-body" class="game-body">
+        <div class="levels" role="radiogroup" aria-label="Dificuldade">
+          <button type="button" role="radio" data-level="easy"><b>Fácil</b><i>9×9 · 10</i></button>
+          <button type="button" role="radio" data-level="medium"><b>Médio</b><i>16×16 · 40</i></button>
+          <button type="button" role="radio" data-level="hard"><b>Difícil</b><i>30×16 · 99</i></button>
+        </div>
+
+        <section class="hud" aria-label="Partida">
+          <div class="stat"><span>Minas restantes</span><strong id="mines" aria-live="off">10</strong></div>
+          <div class="stat"><span>Tempo</span><strong id="time">0:00</strong></div>
+        </section>
+
+        <!-- Conjunto único de controles: bandeira · pausa · como jogar · novo jogo -->
+        <div class="tools" role="group" aria-label="Controles do jogo">
+          <button id="flag-button" class="btn btn-alt" type="button" data-action="flag" data-tip="Modo bandeira: tocar marca ou desmarca minas" data-key="F" aria-pressed="false">
+            <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false"><path d="M4.5 2v12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M5 2.6l8 3.2-8 3.2z" fill="#ff3b30" stroke="#a31812" stroke-width=".8" stroke-linejoin="round"/><path d="M2.5 14.5h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <span>Bandeira</span>
+          </button>
+          <button id="pause-button" class="btn btn-alt btn-icon" type="button" data-action="pause" data-tip="Pausar a partida" data-key="P" aria-label="Pausar partida">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M5 3v10M11 3v10" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+          </button>
+          <button id="help-button" class="btn btn-alt btn-icon" type="button" data-action="help" data-tip="Como jogar (pausa a partida)" aria-haspopup="dialog" aria-expanded="false" aria-label="Como jogar">
+            <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="10" cy="14.6" r="1.1" fill="currentColor"/></svg>
+          </button>
+          <button id="new-button" class="btn btn-alt btn-icon" type="button" data-action="new" data-tip="Novo jogo com novas minas" data-key="R" aria-label="Novo jogo">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+
+        <div class="frame">
+          <div id="field" class="field">
+            <div id="grid" class="grid" role="grid" aria-label="Tabuleiro"></div>
+          </div>
+        </div>
+        <p id="status" class="status" aria-live="polite"></p>
       </div>
 
-      <section class="hud" aria-label="Partida">
-        <div class="stat"><span>Minas restantes</span><strong id="mines" aria-live="off">10</strong></div>
-        <div class="stat"><span>Tempo</span><strong id="time">0:00</strong></div>
+      <!-- Início: cobre o container todo. Escolha a dificuldade, depois toque em qualquer ponto, no texto ou Space. -->
+      <section id="screen-start" class="screen screen-start" role="dialog" aria-modal="true" aria-labelledby="start-title">
+        <div class="screen-inner">
+          <svg class="start-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></g><circle cx="8" cy="8" r="4.2" fill="currentColor"/><circle cx="6.7" cy="6.7" r="1.2" fill="#fff" opacity=".7"/></svg>
+          <h2 id="start-title" class="start-title"><span>Campo</span><span>Minado</span></h2>
+          <div class="levels" role="radiogroup" aria-label="Dificuldade">
+            <button type="button" role="radio" data-level="easy"><b>Fácil</b><i>9×9 · 10</i></button>
+            <button type="button" role="radio" data-level="medium"><b>Médio</b><i>16×16 · 40</i></button>
+            <button type="button" role="radio" data-level="hard"><b>Difícil</b><i>30×16 · 99</i></button>
+          </div>
+          <p id="start-best" class="start-best" hidden>Melhor tempo: <strong id="start-best-value">0:00</strong></p>
+          <button class="cta" type="button" data-action="start" data-primary>
+            <span class="cta-text">Toque para iniciar</span>
+            <span class="cta-or">ou</span>
+            <kbd class="cap cap-wide">Space</kbd>
+          </button>
+          <button class="link" type="button" data-action="help">Como jogar</button>
+        </div>
       </section>
 
-      <div class="tools">
-        <button id="flag-button" class="btn btn-alt" type="button" aria-pressed="false" title="Modo bandeira (F)">
-          <svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" focusable="false"><path d="M4.5 2v12.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M5 2.6l8 3.2-8 3.2z" fill="#ff3b30" stroke="#a31812" stroke-width=".8" stroke-linejoin="round"/><path d="M2.5 14.5h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-          <span>Bandeira</span>
-        </button>
-        <button id="new-button" class="btn" type="button" title="Novo jogo (R)">Novo jogo</button>
-      </div>
-
-      <div class="frame">
-        <div id="field" class="field">
-          <div id="grid" class="grid" role="grid" aria-label="Tabuleiro"></div>
+      <!-- Pausa / partida retomada -->
+      <section id="screen-pause" class="screen" role="dialog" aria-modal="true" aria-labelledby="pause-title">
+        <div class="screen-inner">
+          <p id="resumed-chip" class="chip" hidden>Partida retomada</p>
+          <h2 id="pause-title" class="screen-title">Pausado</h2>
+          <p id="pause-note" class="screen-note">Partida em pausa.</p>
+          <dl class="summary">
+            <div><dt>Tempo</dt><dd id="pause-time">0:00</dd></div>
+            <div><dt>Minas restantes</dt><dd id="pause-mines">0</dd></div>
+          </dl>
+          <div class="actions">
+            <button class="btn" type="button" data-action="resume" data-primary>Continuar</button>
+            <button class="btn btn-alt" type="button" data-action="new">Novo jogo</button>
+          </div>
+          <button class="link" type="button" data-action="help">Como jogar</button>
         </div>
-        <section id="start" class="start" role="button" tabindex="0" aria-label="Toque para iniciar ou pressione Space">
-          <svg class="start-mark" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><g stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M8 1.5v13M1.5 8h13M3.4 3.4l9.2 9.2M12.6 3.4l-9.2 9.2"/></g><circle cx="8" cy="8" r="4.2" fill="currentColor"/><circle cx="6.7" cy="6.7" r="1.2" fill="#fff" opacity=".7"/></svg>
-          <p class="start-title" aria-hidden="true"><span>Campo</span><span>Minado</span></p>
-          <p id="start-best" class="start-best" hidden>Melhor tempo: <strong id="start-best-value">0:00</strong></p>
-          <p class="start-hint">
-            <span class="hint-text">Toque para iniciar</span>
-            <span class="hint-or">ou</span>
-            <kbd class="cap cap-wide">Space</kbd>
-          </p>
-        </section>
-        <section id="end" class="end" role="dialog" aria-labelledby="end-title" hidden>
+      </section>
+
+      <!-- Contagem regressiva 3 → 2 → 1 → GO! -->
+      <section id="screen-count" class="screen screen-count" role="status" aria-label="Contagem regressiva">
+        <div class="screen-inner">
+          <p class="count-label">Retomando</p>
+          <p id="count-num" class="count-num" aria-live="assertive">3</p>
+        </div>
+      </section>
+
+      <!-- Vitória / derrota: cobre o container; "Ver tabuleiro" fecha a tela para conferir o resultado -->
+      <section id="screen-end" class="screen screen-end" role="dialog" aria-modal="true" aria-labelledby="end-title">
+        <div class="screen-inner">
           <h2 id="end-title" class="end-title"></h2>
           <p id="end-text" class="end-text"></p>
-          <button id="again-button" class="btn" type="button">Jogar de novo</button>
-          <button id="view-button" class="btn btn-alt" type="button">Ver tabuleiro</button>
-        </section>
-      </div>
-      <p id="status" class="status" aria-live="polite"></p>
-      <noscript><p class="status">Ative o JavaScript para jogar.</p></noscript>
-    </main>
+          <button id="again-button" class="btn" type="button" data-action="new" data-primary>Jogar de novo</button>
+          <button id="view-button" class="btn btn-alt" type="button" data-action="view">Ver tabuleiro</button>
+        </div>
+      </section>
 
-      <!-- Ajuda: botão só com ícone, ao lado do jogo (fora do cabeçalho, do placar e do tabuleiro) + popover ancorado a ele -->
-      <div class="help">
-        <button id="help-button" class="help-btn" type="button"
-                aria-haspopup="dialog" aria-expanded="false" aria-controls="help-popover"
-                aria-label="Como jogar" title="Como jogar">
-          <svg viewBox="0 0 20 20" width="22" height="22" aria-hidden="true" focusable="false">
-            <circle cx="10" cy="10" r="8" fill="none" stroke="currentColor" stroke-width="2"/>
-            <path d="M7.7 7.8a2.4 2.4 0 1 1 3.6 2.1c-.9.5-1.3 1-1.3 1.9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
-          </svg>
+      <!-- Como jogar: camada dentro do container. Abrir pausa a partida; fechar NÃO retoma. -->
+      <section id="screen-help" class="screen screen-help" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <button class="help-close" type="button" data-action="help-close" aria-label="Fechar">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
         </button>
-      </div>
+        <div class="screen-inner help-card">
+          <h2 id="help-title" class="screen-title">Como jogar</h2>
+          <p class="help-text"><b>Objetivo:</b> abra todas as casas que não têm mina. Cada número mostra quantas minas existem nas 8 casas ao redor dele.</p>
+          <h3 class="help-sub">Revelar</h3>
+          <p class="help-text">Clique ou toque numa casa fechada para abrir. Se for uma mina, você perde; casas com 0 abrem as vizinhas sozinhas. O primeiro clique é sempre seguro.</p>
+          <h3 class="help-sub">Marcar uma mina</h3>
+          <p class="help-text">Botão direito, toque longo ou o modo bandeira marcam (ou desmarcam) uma casa. Casas marcadas não podem ser abertas.</p>
+          <h3 class="help-sub">Controles</h3>
+          <ul class="ctl-list">
+            <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar ou continuar</span></li>
+            <li><span class="ctl-keys"><kbd class="cap">P</kbd></span><span class="ctl-label">Pausar</span></li>
+            <li><span class="ctl-keys"><kbd class="cap">F</kbd></span><span class="ctl-label">Modo bandeira</span></li>
+            <li><span class="ctl-keys"><kbd class="cap">R</kbd></span><span class="ctl-label">Novo jogo</span></li>
+            <li><span class="ctl-keys"><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar ou fechar</span></li>
+          </ul>
+          <p class="help-note">O contador mostra as minas restantes (minas menos bandeiras) e pode ficar negativo. Abrir a ajuda pausa a partida; ao fechar, ela continua pausada até você tocar em Continuar.</p>
+          <button class="btn" type="button" data-action="help-close" data-primary>Entendi</button>
+        </div>
+      </section>
+    </main>
     </div>
   </div>
 
-  <div id="help-popover" class="help-popover" role="dialog" aria-labelledby="help-title" data-placement="below" hidden>
-    <button id="help-close" class="help-close" type="button" aria-label="Fechar">
-      <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="square"/></svg>
-    </button>
-    <h2 id="help-title" class="help-title">Como jogar</h2>
-    <p class="help-text"><b>Objetivo:</b> abra todas as casas que não têm mina. Cada número mostra quantas minas existem nas 8 casas ao redor dele.</p>
-    <h3 class="help-sub">Revelar</h3>
-    <p class="help-text">Clique ou toque numa casa fechada para abrir. Se for uma mina, você perde; casas com 0 abrem as vizinhas sozinhas. O primeiro clique é sempre seguro.</p>
-    <h3 class="help-sub">Marcar uma mina</h3>
-    <p class="help-text">Botão direito, toque longo ou o modo bandeira marcam (ou desmarcam) uma casa. Casas marcadas não podem ser abertas.</p>
-    <h3 class="help-sub">Controles</h3>
-    <ul class="ctl-list">
-      <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar</span></li>
-      <li><span class="ctl-keys"><kbd class="cap">F</kbd></span><span class="ctl-label">Modo bandeira</span></li>
-      <li><span class="ctl-keys"><kbd class="cap">R</kbd></span><span class="ctl-label">Novo jogo</span></li>
-      <li><span class="ctl-keys"><kbd class="cap">Esc</kbd></span><span class="ctl-label">Fechar painéis</span></li>
-    </ul>
-    <p class="help-note">O contador mostra as minas restantes (minas menos bandeiras) e pode ficar negativo. Você vence ao abrir todas as casas seguras.</p>
-  </div>
+  <div id="tip" class="tip" role="tooltip"><span id="tip-text"></span><kbd id="tip-key" class="cap" hidden></kbd></div>
+  <noscript><p class="status">Ative o JavaScript para jogar.</p></noscript>
   <script src="campo_minado_storage.js"></script>
-  <script src="campo_minado.js"></script>
+  <script src="campo_minado.js?v=2"></script>
 </body>
 </html>
