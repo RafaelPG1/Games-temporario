@@ -6,24 +6,25 @@
 
    Dados guardados:
      campo_minado:level          -> última dificuldade escolhida: easy | medium | hard
-                                    (mesma chave que o jogo já usava antes do registro compartilhado)
      campo_minado:best:<nível>   -> melhor tempo (ms inteiros) de vitória naquele nível
-     campo_minado:game           -> partida em andamento (JSON), para sobreviver ao F5; apagada ao vencer/perder
+     campo_minado:muted          -> '1' = som desligado, '0' = som ligado
+     campo_minado:game           -> partida em andamento (JSON), para sobreviver ao F5; apagada ao vencer/perder/voltar à tela inicial
 
    Garantias:
      - nunca lança exceção (modo privado, cookies bloqueados, cota cheia...);
      - sem armazenamento persistente, o valor fica em memória durante a sessão;
-     - dado ausente ou inválido vira o padrão seguro (nível fácil, sem recorde);
-     - o melhor tempo salvo nunca piora por engano.
+     - dado ausente ou inválido vira o padrão seguro (nível fácil, som ligado, sem recorde);
+     - o melhor tempo salvo (por nível) nunca piora por engano.
    ========================================================================== */
 (() => {
   'use strict';
 
   const LEVEL_IDS = Object.freeze(['easy', 'medium', 'hard']);
-  const DEFAULTS = Object.freeze({ level: 'easy' });
+  const DEFAULTS = Object.freeze({ level: 'easy', muted: false });
   const KEYS = Object.freeze({
     level: 'campo_minado:level',
     best: (level) => `campo_minado:best:${level}`,
+    muted: 'campo_minado:muted',
     game: 'campo_minado:game',
   });
   const memory = {};
@@ -44,6 +45,7 @@
   }
 
   const isLevel = (level) => LEVEL_IDS.indexOf(level) !== -1;
+  const validTime = (t) => Number.isFinite(t) && t > 0;
 
   function getLevel() {
     const raw = readRaw(KEYS.level);
@@ -56,11 +58,24 @@
     return level;
   }
 
+  function isMuted() {
+    const raw = readRaw(KEYS.muted);
+    if (raw === '1') return true;
+    if (raw === '0') return false;
+    return DEFAULTS.muted;
+  }
+
+  function setMuted(value) {
+    const muted = Boolean(value);
+    writeRaw(KEYS.muted, muted ? '1' : '0');
+    return muted;
+  }
+
   // Melhor tempo (ms) do nível, ou null se ainda não há vitória registrada.
   function getBestTime(level) {
     if (!isLevel(level)) return null;
     const parsed = parseInt(readRaw(KEYS.best(level)), 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) return null;
+    if (!validTime(parsed)) return null;
     return Math.min(parsed, Number.MAX_SAFE_INTEGER);
   }
 
@@ -68,7 +83,7 @@
   function setBestTime(level, ms) {
     const best = getBestTime(level);
     const time = Math.floor(Number(ms));
-    if (!isLevel(level) || !Number.isFinite(time) || time <= 0) return { best, isRecord: false };
+    if (!isLevel(level) || !validTime(time)) return { best, isRecord: false };
     if (best !== null && time >= best) return { best, isRecord: false };
     writeRaw(KEYS.best(level), time);
     return { best: time, isRecord: true };
@@ -89,5 +104,8 @@
     try { window.localStorage.removeItem(KEYS.game); } catch (error) { /* ignora */ }
   }
 
-  window.CampoMinadoStorage = Object.freeze({ KEYS, DEFAULTS, getLevel, setLevel, getBestTime, setBestTime, getGame, setGame, clearGame });
+  // Limpeza única: o antigo modo Fases foi removido, então o progresso dele deixa de ter uso.
+  try { window.localStorage.removeItem('campo_minado:levels'); } catch (error) { /* ignora */ }
+
+  window.CampoMinadoStorage = Object.freeze({ KEYS, DEFAULTS, getLevel, setLevel, isMuted, setMuted, getBestTime, setBestTime, getGame, setGame, clearGame });
 })();
