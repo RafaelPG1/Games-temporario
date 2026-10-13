@@ -21,12 +21,13 @@ body {
 
 /* Cabeçalho (padrão da Arcádia) */
 .topbar {
-  flex: none; display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 clamp(10px, 3vw, 24px);
+  flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; height: 56px; padding: 0 clamp(10px, 3vw, 24px);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 600;
   color: var(--shell-text); background: linear-gradient(180deg, #0d0f16, var(--shell-bg)); border-bottom: 1px solid var(--shell-line);
 }
 .back {
   display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 10px; font-size: 14px;
+  grid-column: 1; justify-self: start; flex: none; white-space: nowrap; min-width: max-content;   /* nunca encolhe nem corta */
   color: var(--shell-text); text-decoration: none; background: var(--shell-surface); border: 1px solid var(--shell-line);
   border-radius: 999px; touch-action: manipulation; transition: border-color .2s, background .2s, transform .1s;
 }
@@ -35,7 +36,7 @@ body {
 .back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
 .back:active { transform: scale(.97); }
 .back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
-.game-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.game-id { grid-column: 2; justify-self: center; display: flex; align-items: center; gap: 10px; }   /* centro exato: colunas laterais iguais (1fr) */
 .game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(210,154,76,.25); }
 .game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
 .game-text h1 { margin: 0; font-size: 15px; font-weight: 700; white-space: nowrap; }
@@ -192,10 +193,10 @@ body {
 .pad:active, .pad.is-down { background: rgba(255,200,87,.25); border-color: var(--amber); transform: translateY(calc(var(--u) * 2)); }
 .pad-up { grid-column: 2; grid-row: 1; } .pad-left { grid-column: 1; grid-row: 2; } .pad-down { grid-column: 2; grid-row: 2; } .pad-right { grid-column: 3; grid-row: 2; }
 
-/* Botão ? (fora do palco) e popover que abre para baixo */
+/* Botão ? (fora do palco). Desktop ("side"): ao lado, popover abre para baixo. Celular ("bottom"): embaixo do palco, alinhado à direita, popover abre para cima (drop-up), alinhados à direita do palco. */
 .help { position: absolute; z-index: 20; width: 42px; height: 42px; }
 .stage-wrap[data-help="side"] .help { left: calc(100% + 10px); top: 0; }
-.stage-wrap[data-help="top"] .help { right: 0; bottom: calc(100% + 8px); }
+.stage-wrap[data-help="bottom"] .help { right: 0; top: calc(100% + 10px); }
 .help-button {
   position: relative; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; color: var(--shell-text); background: var(--shell-surface);
   border: 1px solid var(--shell-line); border-radius: 50%; cursor: pointer; touch-action: manipulation; transition: border-color .2s, background .2s, color .2s, transform .1s;
@@ -218,7 +219,15 @@ body {
   display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; font: inherit; font-size: 11px; color: var(--ink);
   background: var(--cream); border: 1px solid var(--ink); border-radius: 4px; box-shadow: 0 2px 0 #b5ab8c;
 }
+/* Seta do popover: aponta para o botão (para cima quando abre para baixo; para baixo quando abre para cima) */
+.help-pop::after {
+  content: ""; position: absolute; top: -7px; right: 15px; width: 12px; height: 12px; transform: rotate(45deg);
+  background: var(--felt); border: solid var(--line); border-width: 2px 0 0 2px;
+}
+.stage-wrap[data-help="bottom"] .help-pop { top: auto; bottom: calc(100% + 12px); right: 0; animation-name: pop-up; }
+.stage-wrap[data-help="bottom"] .help-pop::after { top: auto; bottom: -7px; border-width: 0 2px 2px 0; }
 @keyframes pop-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+@keyframes pop-up { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 /* Tooltips dos controles só com ícone: um único sistema (data-tip). Mouse: 300 ms de hover; teclado (:focus-visible): imediato;
    saindo ou clicando: some na hora (.tip-off, via JS); touch: sem hover, nada fica preso. Ancorado à direita, abre para baixo. */
@@ -228,7 +237,13 @@ body {
   text-transform: none; white-space: nowrap; color: var(--ink); background: var(--cream); border: calc(var(--u) * 2) solid var(--ink);
   border-radius: calc(var(--u) * 4); box-shadow: 0 calc(var(--u) * 2) 0 #b5ab8c; opacity: 0; visibility: hidden; pointer-events: none; transition: none;
 }
-.stage-wrap[data-help="top"] .help-button::after { top: 50%; right: calc(100% + 8px); transform: translateY(-50%); }
+/* Botão ? embaixo do palco: dica aparece acima dele, com seta apontando para baixo */
+.stage-wrap[data-help="bottom"] .help-button::after { top: auto; bottom: calc(100% + 10px); right: 0; }
+.stage-wrap[data-help="bottom"] .help-button[data-tip]::before {
+  content: ""; position: absolute; bottom: calc(100% + 10px); right: 21px; z-index: 31; width: 9px; height: 9px;
+  transform: translate(50%, 50%) rotate(45deg); background: var(--cream); border: solid var(--ink); border-width: 0 2px 2px 0;
+  opacity: 0; visibility: hidden; pointer-events: none; transition: none;
+}
 /* Botões do palco: tooltip embaixo do botão, com seta (triângulo) apontando para ele. O balão do último botão alinha à borda direita
    para não ser cortado pelo palco; a seta continua centralizada no botão. */
 .icon-button[data-tip]::after { top: calc(100% + var(--u) * 8); left: 50%; right: auto; transform: translateX(-50%); }
@@ -280,18 +295,6 @@ body {
 .is-won .screen-won { transition-delay: .45s; }
 .screen-pause .screen-text { max-width: calc(var(--u) * 200); font-size: max(11px, calc(var(--u) * 11)); color: var(--muted); }
 
-/* Contagem 3 → 2 → 1 → GO! (cobre o palco; o jogo fica congelado por baixo) */
-.countdown {
-  position: absolute; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(14,19,33,.82);
-  opacity: 0; visibility: hidden; pointer-events: none;
-}
-.is-counting .countdown { opacity: 1; visibility: visible; pointer-events: auto; }
-.countdown span { font-size: calc(var(--u) * 84); line-height: 1; text-transform: uppercase; color: var(--amber); text-shadow: 0 calc(var(--u) * 4) 0 #05060a; }
-.countdown span.a { animation: cd-a .7s ease-out; }
-.countdown span.b { animation: cd-b .7s ease-out; }
-@keyframes cd-a { from { transform: scale(1.35); opacity: .2; } to { transform: none; opacity: 1; } }
-@keyframes cd-b { from { transform: scale(1.35); opacity: .2; } to { transform: none; opacity: 1; } }
-
 /* Aviso discreto de "Partida retomada" */
 .toast {
   position: absolute; left: 50%; bottom: calc(var(--u) * 12); z-index: 10; margin: 0; padding: calc(var(--u) * 4) calc(var(--u) * 10); transform: translateX(-50%);
@@ -334,11 +337,12 @@ body {
 .noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
 
 @media (max-width: 640px) { .topbar { height: 52px; } }
+@media (max-width: 360px) { .topbar { gap: 6px; } .back { padding: 0 12px 0 8px; font-size: 13px; } .game-id { gap: 6px; } .game-mark { width: 24px; height: 24px; } .game-text h1 { font-size: 14px; } }
 @media (max-height: 520px) { .stage { --btn: max(36px, calc(var(--u) * 20)); gap: calc(var(--u) * 5); } .status { display: none; } .stat { min-height: calc(var(--u) * 34); } .btn { min-height: 36px; } .dpad { --pad: max(36px, calc(var(--u) * 34)); } .screen { gap: calc(var(--u) * 8); } }
 @media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }
 @media (prefers-reduced-motion: reduce) {
   .e, .box .face, .screen, .start, .pad, .back, .back svg, .help-button { transition: none; }
-  .start-touch, .spacebar, .help-pop, .toast, .countdown span { animation: none; }
+  .start-touch, .spacebar, .help-pop, .toast { animation: none; }
   [data-tip]:hover::after, [data-tip]:hover::before { transition: opacity 0s linear var(--tip-delay), visibility 0s linear var(--tip-delay); }
   [data-tip]:focus-visible::after, [data-tip]:focus-visible::before { transition: none; }
   .player .pl, .player .ft1, .player .ft2, .player .arm, .player .arm-l, .player .arm-r { animation: none !important; }

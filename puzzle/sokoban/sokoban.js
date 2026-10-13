@@ -74,7 +74,7 @@ const ui = {
   undo: $('undo-button'), mute: $('mute-button'), restart: $('restart-button'), grid: $('level-grid'), next: $('next-button'), group: $('group-name'),
   wrap: $('stage-wrap'), levelsScreen: document.querySelector('.screen-levels'), prev: $('page-prev'), pnext: $('page-next'), plabel: $('page-label'), lprog: $('levels-progress'),
   help: $('help-button'), pop: $('help-pop'), start: $('start-screen'), startLevel: $('start-level'), startProg: $('start-progress'),
-  pauseBtn: $('pause-button'), resume: $('resume-button'), pauseText: $('pause-text'), cnum: $('count-num'), toast: $('toast'),
+  pauseBtn: $('pause-button'), resume: $('resume-button'), pauseText: $('pause-text'), toast: $('toast'),
 };
 const PAUSE_TEXT = {
   manual: 'Partida salva. Toque em Continuar para voltar.',
@@ -82,7 +82,6 @@ const PAUSE_TEXT = {
   recovered: 'Partida recuperada de onde você parou.',
   help: 'Feche a ajuda e toque em Continuar para voltar.',
 };
-const COUNT_SEQ = ['3', '2', '1', 'GO!'], COUNT_MS = 750, GO_MS = 450;
 
 /* Personagem: operário de depósito com capacete amarelo, camisa creme e macacão azul. Três vistas desenhadas (frente, costas, perfil);
    o perfil é espelhado para a esquerda. Tudo dentro da casa (viewBox 32 × 32), com a mesma sombra e contorno das caixas. */
@@ -125,7 +124,7 @@ const S = {
   index: 0, rows: 0, cols: 0, wall: [], goal: [], start: null,   // estático + configuração inicial
   player: { r: 0, c: 0 }, boxes: [], history: [],                // dinâmico
   status: 'playing',                                             // playing | won
-  menu: false, started: false, paused: false, pauseReason: 'manual', counting: false, countLabel: '', cdId: 0, cdTick: 0,
+  menu: false, started: false, paused: false, pauseReason: 'manual',
   muted: false, lastStep: -1e9, progress: { unlocked: 1, best: {} }, page: 0, first: 0, size: 20,
   face: 'down', anim: 'idle', animN: 0,                          // só visual: direção do personagem e animação do último passo
   boxEls: [], playerEl: null,
@@ -193,8 +192,8 @@ const boxAt = (r, c) => S.boxes.findIndex((b) => b.r === r && b.c === c);
 const inside = (r, c) => r >= 0 && c >= 0 && r < S.rows && c < S.cols;
 const blocked = (r, c) => !inside(r, c) || S.wall[r][c];
 const solved = () => S.boxes.every((b) => S.goal[b.r][b.c]);
-// O gameplay só avança com a partida iniciada, sem menu, sem pausa e sem contagem regressiva.
-const playable = () => S.status === 'playing' && !S.menu && S.started && !S.paused && !S.counting;
+// O gameplay só avança com a partida iniciada, sem menu e sem pausa.
+const playable = () => S.status === 'playing' && !S.menu && S.started && !S.paused;
 
 /* Tenta um passo. Devolve true só se o estado mudou (movimento válido). Nada aqui depende de animação. */
 function tryMove(dir) {
@@ -241,7 +240,6 @@ function win() {
 }
 function loadLevel(i, persist = true) {
   if (!Number.isInteger(i) || i < 0 || i >= LEVELS.length || i >= S.progress.unlocked) return false;   // fase bloqueada: recusa
-  cancelCountdown();   // invalida contagem pendente: nenhum callback antigo mexe na nova partida
   Object.assign(S, parseLevel(i), { index: i, status: 'playing', menu: false, paused: false, pauseReason: 'manual', history: [], face: 'down', anim: 'idle' });
   S.player = { ...S.start.player }; S.boxes = S.start.boxes.map((b) => ({ ...b }));
   buildBoard(); resizeStage(); render(); if (persist) store.saveLast(i);
@@ -249,7 +247,7 @@ function loadLevel(i, persist = true) {
   return true;
 }
 // Reiniciar funciona também sem nenhum movimento feito e a partir da pausa; recordes, desbloqueios e som ficam intactos.
-const restart = () => { if (S.status === 'playing' && !S.menu && S.started && !S.counting) { Sound.restart(); stopPads(); loadLevel(S.index); } };
+const restart = () => { if (S.status === 'playing' && !S.menu && S.started) { Sound.restart(); stopPads(); loadLevel(S.index); } };
 
 /* ===== Partida salva, pausa e retomada ===== */
 function saveGame() {
@@ -279,35 +277,31 @@ function restoreGame(g) {
   S.started = true; render();
   return true;
 }
-let cdTimer = null, toastTimer = null, stopPads = () => {};
-function cancelCountdown() { S.cdId++; clearTimeout(cdTimer); cdTimer = null; S.counting = false; S.countLabel = ''; }
+let toastTimer = null, stopPads = () => {};
 function pause(reason = 'manual', focus = true) {
   if (!S.started || S.status !== 'playing') return;
-  const wasCounting = S.counting;
-  cancelCountdown(); stopPads();
-  if (!S.paused || wasCounting) { S.paused = true; S.pauseReason = reason; }
+  stopPads();
+  if (!S.paused) { S.paused = true; S.pauseReason = reason; }
   saveGame(); render();
   if (focus && reason !== 'hidden' && !S.menu) ui.resume.focus({ preventScroll: true });
 }
-// Continuar: só inicia a contagem 3 → 2 → 1 → GO!; o gameplay é liberado depois do GO!.
+// Continuar: volta direto para o jogo (sem contagem, já que o Sokoban não tem tempo correndo).
 function resume() {
-  if (!S.paused || S.counting || S.status !== 'playing' || S.menu) return;
+  if (!S.paused || S.status !== 'playing' || S.menu) return;
   setHelp(false, true);
-  const id = ++S.cdId; S.counting = true; let i = 0;
-  const step = () => {
-    if (id !== S.cdId || !S.counting) return;
-    S.countLabel = COUNT_SEQ[i]; S.cdTick++; Sound.click(); render();
-    cdTimer = setTimeout(() => {
-      if (id !== S.cdId || !S.counting) return;
-      if (++i < COUNT_SEQ.length) step();
-      else { S.counting = false; S.paused = false; S.countLabel = ''; S.lastStep = -1e9; saveGame(); render(); }
-    }, i === COUNT_SEQ.length - 1 ? GO_MS : COUNT_MS);
-  };
-  step();
+  S.paused = false; S.lastStep = -1e9; saveGame(); render();
+}
+// Voltar para a tela inicial: salva a partida e mostra a tela de "toque para iniciar". Nada se perde: fase, caixas e movimentos continuam salvos.
+function goHome() {
+  if (!S.started || S.status !== 'playing') return;
+  stopPads(); setHelp(false, true);
+  saveGame();                                   // precisa vir antes de started = false (saveGame ignora a tela inicial)
+  S.started = false; S.paused = false; S.pauseReason = 'manual';
+  refreshStart(); render();
 }
 function togglePause() {
   if (!S.started || S.status !== 'playing') return;
-  if (S.counting || !S.paused) pause('manual'); else resume();
+  if (!S.paused) pause('manual'); else resume();
 }
 function showToast(msg) {
   ui.toast.textContent = msg; ui.toast.hidden = false;
@@ -343,11 +337,10 @@ function render() {
   ui.undo.disabled = !S.history.length || S.status !== 'playing'; ui.restart.disabled = S.status !== 'playing' || !S.started;
   ui.pauseBtn.disabled = !S.started || S.status !== 'playing';
   ui.pauseText.textContent = PAUSE_TEXT[S.pauseReason] || PAUSE_TEXT.manual;
-  ui.cnum.textContent = S.countLabel; ui.cnum.className = S.cdTick % 2 ? 'a' : 'b';   // classe alternada reinicia a animação a cada número
   const done = S.boxes.filter((x) => S.goal[x.r][x.c]).length;
   ui.status.textContent = S.status === 'won' ? 'Fase concluída' : (HINTS[S.index] || `${GROUPS[groupOf(S.index)].name} · ${done} de ${S.boxes.length} caixas nos destinos`);
   const c = ui.stage.classList; c.toggle('is-won', S.status === 'won'); c.toggle('is-levels', S.menu); c.toggle('is-ready', !S.started);
-  c.toggle('is-paused', S.started && S.status === 'playing' && S.paused && !S.counting); c.toggle('is-counting', S.counting);
+  c.toggle('is-paused', S.started && S.status === 'playing' && S.paused);
 }
 /* Catálogo: grade paginada. Colunas e linhas se adaptam ao espaço real da tela (alvo mínimo de 44 px); a página mostra de S.first até S.first + S.size. */
 const MIN_CELL = 44, MAX_COLS = 5, pad2 = (n) => String(n).padStart(2, '0');
@@ -398,7 +391,8 @@ function renderMute() {
   ui.mute.classList.toggle('is-muted', S.muted); ui.mute.setAttribute('aria-pressed', S.muted);
   ui.mute.setAttribute('aria-label', S.muted ? 'Ativar efeitos sonoros' : 'Silenciar efeitos sonoros');
 }
-/* O palco mantém 288 × 512. O botão ? fica fora dele: ao lado quando há espaço; senão acima (se sobrar altura); senão o palco encolhe e abre espaço ao lado. */
+/* O palco mantém 288 × 512 e fica SEMPRE centralizado na horizontal. O botão ? fica fora dele: ao lado quando há espaço (desktop);
+   senão embaixo (celular): o palco perde a altura do botão e o conjunto palco + botão é centralizado na vertical. */
 const HELP_SIZE = 42, HELP_GAP = 10;
 function fitStage(w, h) {
   let ch = Math.min(h, MAX_CSS_HEIGHT), cw = ch * (W / H);
@@ -406,15 +400,14 @@ function fitStage(w, h) {
   return [Math.floor(cw), Math.floor(ch)];
 }
 function resizeStage() {
-  const aw = ui.arena.clientWidth, ah = ui.arena.clientHeight, side = HELP_SIZE + HELP_GAP + 4;
+  const aw = ui.arena.clientWidth, ah = ui.arena.clientHeight, side = HELP_SIZE + HELP_GAP + 4, below = HELP_SIZE + HELP_GAP + 4;
   let [cw, ch] = fitStage(Math.max(1, aw - MARGIN * 2), Math.max(1, ah - MARGIN * 2)), mode = 'side', shift = 0;
   if ((aw - cw) / 2 >= side + MARGIN) mode = 'side';
-  else if ((ah - ch) / 2 >= HELP_SIZE + 12) mode = 'top';
-  else { [cw, ch] = fitStage(Math.max(1, aw - MARGIN * 2 - side), Math.max(1, ah - MARGIN * 2)); shift = side / 2; }
+  else { mode = 'bottom'; [cw, ch] = fitStage(Math.max(1, aw - MARGIN * 2), Math.max(1, ah - MARGIN * 2 - below)); shift = below / 2; }
   ui.wrap.style.width = `${cw}px`; ui.wrap.style.height = `${ch}px`; ui.wrap.style.setProperty('--u', `${cw / W}px`);
-  ui.wrap.dataset.help = mode; ui.wrap.style.transform = shift ? `translateX(${-shift}px)` : '';
+  ui.wrap.dataset.help = mode; ui.wrap.style.transform = shift ? `translateY(${-shift}px)` : '';
 }
-// Abrir a ajuda pausa a partida; fechar só fecha (quem retoma é o jogador, em Continuar, com a contagem). quiet = fechar sem mexer na pausa.
+// Abrir a ajuda pausa a partida; fechar só fecha (quem retoma é o jogador, em Continuar). quiet = fechar sem mexer na pausa.
 function setHelp(on, quiet = false) {
   ui.pop.hidden = !on; ui.help.setAttribute('aria-expanded', on ? 'true' : 'false');
   if (on && !quiet) pause('help', false);
@@ -422,7 +415,7 @@ function setHelp(on, quiet = false) {
 
 /* Tela inicial: o jogo fica parado até o primeiro toque/clique ou SPACE. Só então a fase conta como iniciada. */
 function refreshStart() {
-  const done = completedCount(), total = LEVELS.length, resume = done > 0 || S.index > 0;
+  const done = completedCount(), total = LEVELS.length, resume = done > 0 || S.index > 0 || S.history.length > 0;
   ui.startLevel.textContent = resume ? `Continuar · fase ${S.index + 1}` : 'Fase 1';
   ui.startProg.textContent = done ? `${done} de ${total} fases concluídas` : 'Empurre as caixas até os destinos';
 }
@@ -459,7 +452,7 @@ function init() {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.code === 'Escape') { if (!ui.pop.hidden) { setHelp(false); ui.help.blur(); } else if (S.menu) openMenu(false); else pause('manual'); return; }
     const onBtn = e.target && e.target.closest && e.target.closest('button');
-    if (e.code === 'Space' && !onBtn) { if (!S.started && !S.menu) { e.preventDefault(); begin(); } else if (S.paused && !S.counting) { e.preventDefault(); resume(); } return; }
+    if (e.code === 'Space' && !onBtn) { if (!S.started && !S.menu) { e.preventDefault(); begin(); } else if (S.paused) { e.preventDefault(); resume(); } return; }
     if (e.code === 'Enter' && e.target === ui.start) { e.preventDefault(); begin(); return; }
     const dir = KEYS[e.code];
     if (dir) { e.preventDefault(); input(dir); return; }            // setas não rolam a página
@@ -467,7 +460,7 @@ function init() {
     if (e.code === 'KeyZ' || e.code === 'KeyU') undo();
     else if (e.code === 'KeyR') restart();
     else if (e.code === 'KeyP') togglePause();
-    else if (e.code === 'KeyL') { if (!S.counting) { Sound.click(); openMenu(!S.menu); } }
+    else if (e.code === 'KeyL') { Sound.click(); openMenu(!S.menu); }
     else if (e.code === 'KeyM') toggleMute();
   });
   let timer = null;
@@ -485,7 +478,7 @@ function init() {
   window.addEventListener('blur', stop);
   ui.pauseBtn.addEventListener('click', () => { togglePause(); ui.pauseBtn.blur(); });
   ui.resume.addEventListener('click', resume);
-  $('pause-restart').addEventListener('click', restart);
+  $('pause-home').addEventListener('click', () => { Sound.click(); goHome(); });
   // Sair da aba ou minimizar pausa e salva; ao voltar, continua pausado até o jogador pedir.
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) pause('hidden', false);
@@ -525,4 +518,4 @@ function init() {
 }
 init();
 
-window.__soko = { S, LEVELS, GROUPS, tryMove, undo, restart, loadLevel, input, solved, begin, pause, resume, togglePause };
+window.__soko = { S, LEVELS, GROUPS, tryMove, undo, restart, loadLevel, input, solved, begin, pause, resume, goHome, togglePause };

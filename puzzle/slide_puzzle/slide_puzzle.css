@@ -458,15 +458,19 @@ button { font: inherit; color: inherit; }
 .tip[data-place="bottom"]::after { top: -4px; }
 
 @media (max-width: 640px) { .topbar { height: 52px; } }
-/* Celular: o título quebra em duas linhas centralizadas (cada palavra inteira) e, em telas bem estreitas, a marca some — o Catálogo continua inteiro */
+/* Celular: o título quebra em duas linhas centralizadas (cada palavra inteira); a marca encolhe (≤400px) e só some abaixo de 360px — o Catálogo continua inteiro */
 @media (max-width: 560px) {
   .game-text strong { display: flex; flex-direction: column; align-items: center; font-size: 14px; line-height: 1.08; white-space: normal; }
 }
-@media (max-width: 400px) {
-  .topbar { --side: 94px; gap: 6px; }
+@media (max-width: 420px) {
+  .topbar { --side: 94px; gap: 6px; padding: 0 8px; }
   .back { gap: 4px; padding: 0 8px 0 6px; font-size: 13px; }
-  .game-mark { display: none; }
+  .game-id { gap: 6px; }
+  .game-mark { width: 22px; height: 22px; }   /* a marca continua visível no celular, só menor */
 }
+@media (max-width: 380px) { .game-text strong { font-size: 13px; } }
+@media (max-width: 359px) { .game-mark { display: none; } }   /* só em telas bem estreitas: sem a marca o título segue no centro exato */
+@media (max-width: 340px) { .game-text strong { font-size: 12px; } }
 @media (max-height: 520px) {
   .title-mark, .start-mark, .game-title .title-mark { display: none; } .start-tagline { display: none; } .status { display: none; }
   .stage { --btn: max(40px, calc(var(--u) * 20)); gap: calc(var(--u) * 6); }
