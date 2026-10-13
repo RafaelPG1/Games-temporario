@@ -6,9 +6,22 @@
   <meta name="theme-color" content="#07080c">
   <title>Quebra-Cabeça Deslizante · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="slide_puzzle.css?v=5">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;700;800&family=Hanken+Grotesk:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="slide_puzzle.css?v=12">
 </head>
 <body>
+  <!-- Marca: 3×3 em degradê (a cor de cada peça vem da posição dela no tabuleiro resolvido), com o espaço vazio no canto -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="mark" viewBox="0 0 30 30">
+      <rect x="0" y="0" width="8.4" height="8.4" rx="2.2" fill="#4c5be0"/><rect x="10.8" y="0" width="8.4" height="8.4" rx="2.2" fill="#7c52db"/><rect x="21.6" y="0" width="8.4" height="8.4" rx="2.2" fill="#b04bc8"/>
+      <rect x="0" y="10.8" width="8.4" height="8.4" rx="2.2" fill="#7c52db"/><rect x="10.8" y="10.8" width="8.4" height="8.4" rx="2.2" fill="#b04bc8"/><rect x="21.6" y="10.8" width="8.4" height="8.4" rx="2.2" fill="#e04f6e"/>
+      <rect x="0" y="21.6" width="8.4" height="8.4" rx="2.2" fill="#b04bc8"/><rect x="10.8" y="21.6" width="8.4" height="8.4" rx="2.2" fill="#e04f6e"/>
+    </symbol>
+  </svg>
+
+  <!-- Cabeçalho em 3 colunas: [Catálogo] [título centralizado] [coluna espelho] -->
   <header class="topbar">
     <a class="back" href="../../index.html" aria-label="Voltar ao catálogo da Arcádia">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
@@ -17,45 +30,36 @@
       <span>Catálogo</span>
     </a>
     <div class="game-id">
-      <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
-        <rect width="32" height="32" rx="9" fill="#1f4a52"/>
-        <g fill="#f3e8c3" stroke="#543847" stroke-width="1.5">
-          <rect x="5" y="5" width="9" height="9" rx="1.5"/><rect x="16" y="5" width="9" height="9" rx="1.5"/>
-          <rect x="5" y="16" width="9" height="9" rx="1.5"/>
-        </g>
-        <rect x="16" y="16" width="9" height="9" rx="1.5" fill="#f0a62a" stroke="#543847" stroke-width="1.5"/>
-      </svg>
-      <div class="game-text"><strong>Quebra-Cabeça Deslizante</strong></div>
+      <svg class="game-mark" viewBox="0 0 30 30" width="26" height="26" aria-hidden="true" focusable="false"><use href="#mark"/></svg>
+      <div class="game-text"><strong><span>Quebra-Cabeça</span> <span>Deslizante</span></strong></div>
     </div>
   </header>
 
   <div id="arena" class="arena">
-    <!-- frame = jogo (#stage) + botão "?" escuro do lado de fora da área do jogo -->
+    <!-- frame = jogo (#stage) + botão "?" do lado de fora da área do jogo -->
     <div id="frame" class="frame" data-help-pos="side">
-    <main id="stage" class="stage is-ready" aria-label="Quebra-Cabeça Deslizante">
-      <!-- Controles do jogo: pausa e som (o "?" fica fora do palco) -->
+    <main id="stage" class="stage is-home is-away" aria-label="Quebra-Cabeça Deslizante">
+      <!-- Controles do jogo: espiar imagem, pausa e som (o "?" fica fora do palco) -->
       <div class="controls" role="group" aria-label="Controles">
+        <button id="peek-button" class="icon-button" type="button" aria-label="Espiar a imagem completa (segure)" data-tip="Segure para espiar a imagem" data-tip-key="V">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="2.1" fill="currentColor" stroke="none"/>
+          </svg>
+        </button>
         <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" data-tip="Pausar" data-tip-key="P">
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="#543847"/></svg>
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/><rect x="9.5" y="2.5" width="3" height="11" rx="1" fill="currentColor"/></svg>
         </button>
         <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Silenciar efeitos" data-tip-key="M">
-          <svg viewBox="0 0 16 16" fill="none" stroke="#543847" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
-            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="#543847"/>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
             <g class="icon-waves"><path d="M10.5 6a3 3 0 010 4M12.5 4a6 6 0 010 8"/></g>
-            <g class="icon-cross" stroke="#c9372a"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
+            <g class="icon-cross"><path d="M10.5 6l4 4M14.5 6l-4 4"/></g>
           </svg>
         </button>
       </div>
 
       <h1 class="game-title">
-        <svg class="title-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-          <rect width="32" height="32" rx="8" fill="#10303a"/>
-          <g fill="#f3e8c3" stroke="#543847" stroke-width="1.5">
-            <rect x="5" y="5" width="9" height="9" rx="1.5"/><rect x="16" y="5" width="9" height="9" rx="1.5"/>
-            <rect x="5" y="16" width="9" height="9" rx="1.5"/>
-          </g>
-          <rect x="16" y="16" width="9" height="9" rx="1.5" fill="#f0a62a" stroke="#543847" stroke-width="1.5"/>
-        </svg>
+        <svg class="title-mark" viewBox="0 0 30 30" aria-hidden="true" focusable="false"><use href="#mark"/></svg>
         <span class="title-text"><span class="title-top">Quebra-Cabeça</span><span class="title-main">Deslizante</span></span>
       </h1>
 
@@ -67,6 +71,8 @@
 
       <div class="board">
         <div id="grid" class="grid" role="group" aria-label="Tabuleiro"></div>
+        <!-- Espiar: imagem completa por cima do tabuleiro enquanto o botão do olho (ou a tecla V) estiver pressionado -->
+        <div id="peek" class="peek" aria-hidden="true"></div>
       </div>
       <p id="status" class="status" aria-live="polite"></p>
 
@@ -75,37 +81,116 @@
         <button id="reset-button" class="btn btn-alt" type="button" data-tip="Voltar ao tabuleiro inicial">Reiniciar</button>
       </div>
 
-      <!-- Tela inicial: camada que cobre 100% do palco (nada do jogo aparece por trás) -->
-      <section id="start-screen" class="start" aria-label="Tela inicial">
+      <!-- Tela inicial: escolha do modo (Fases ou Livre). Camada que cobre 100% do palco (nada do jogo aparece por trás) -->
+      <section id="home-screen" class="start start-home" aria-label="Tela inicial">
         <div class="start-card">
-          <svg class="start-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-            <rect width="32" height="32" rx="8" fill="#10303a"/>
-            <g fill="#f3e8c3" stroke="#543847" stroke-width="1.5">
-              <rect x="5" y="5" width="9" height="9" rx="1.5"/><rect x="16" y="5" width="9" height="9" rx="1.5"/>
-              <rect x="5" y="16" width="9" height="9" rx="1.5"/>
-            </g>
-            <rect x="16" y="16" width="9" height="9" rx="1.5" fill="#f0a62a" stroke="#543847" stroke-width="1.5"/>
-          </svg>
-          <h2 class="start-title"><span class="start-title-top">Quebra-Cabeça</span><span class="start-title-main">Deslizante</span></h2>
-          <span class="start-rule" aria-hidden="true"></span>
-          <div class="levels" role="radiogroup" aria-label="Dificuldade">
-            <button type="button" role="radio" data-level="easy" data-tip="8 peças · mais fácil"><b>Fácil</b><i>3×3</i></button>
-            <button type="button" role="radio" data-level="medium" data-tip="15 peças"><b>Médio</b><i>4×4</i></button>
-            <button type="button" role="radio" data-level="hard" data-tip="24 peças · mais difícil"><b>Difícil</b><i>5×5</i></button>
+          <div class="start-head">
+            <svg class="start-mark" viewBox="0 0 30 30" aria-hidden="true" focusable="false">
+              <rect x="0" y="0" width="8.4" height="8.4" rx="2.2" fill="#4c5be0"/><rect x="10.8" y="0" width="8.4" height="8.4" rx="2.2" fill="#7c52db"/><rect x="21.6" y="0" width="8.4" height="8.4" rx="2.2" fill="#b04bc8"/>
+              <rect x="0" y="10.8" width="8.4" height="8.4" rx="2.2" fill="#7c52db"/><rect x="10.8" y="10.8" width="8.4" height="8.4" rx="2.2" fill="#b04bc8"/><rect x="21.6" y="10.8" width="8.4" height="8.4" rx="2.2" fill="#e04f6e"/>
+              <rect x="0" y="21.6" width="8.4" height="8.4" rx="2.2" fill="#b04bc8"/><rect class="mark-slide" x="10.8" y="21.6" width="8.4" height="8.4" rx="2.2" fill="#e04f6e"/>
+            </svg>
+            <h2 class="start-title"><span class="start-title-top">Quebra-Cabeça</span><span class="start-title-main">Deslizante</span></h2>
+            <p class="start-tagline">Deslize as peças até a imagem se formar.</p>
           </div>
-
-          <button id="start-button" class="btn" type="button" aria-label="Iniciar partida">Iniciar</button>
-          <span class="start-or">ou</span>
-          <kbd class="cap cap-wide">Space</kbd>
+          <div class="mode-list">
+            <button id="card-levels" class="mode-card" type="button" aria-label="Modo Fases">
+              <span class="mode-text"><strong>Fases</strong><small id="home-info">0 de 40 concluídas</small></span>
+              <i class="mode-bar" aria-hidden="true"><b id="home-bar"></b></i>
+              <svg class="mode-go" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button id="card-free" class="mode-card mode-alt" type="button" aria-label="Modo Infinito">
+              <span class="mode-text"><strong>Infinito</strong><small>Partidas sem fim · números ou imagens</small></span>
+              <svg class="mode-go" viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
         </div>
       </section>
 
+      <!-- Modo Infinito (id interno "free"): dificuldade, imagem opcional, mistura de estilos e início da partida -->
+      <section id="start-screen" class="start start-free" aria-label="Modo Infinito">
+        <button id="back-free" class="back-chip" type="button" aria-label="Voltar para a tela inicial"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Voltar</span></button>
+        <div class="start-card">
+          <div class="start-head">
+            <h2 class="screen-title">Modo Infinito</h2>
+            <p class="start-tagline">Escolha o tamanho do tabuleiro.</p>
+          </div>
+          <div class="levels" role="radiogroup" aria-label="Dificuldade">
+            <button type="button" role="radio" data-level="easy" data-tip="8 peças · mais fácil"><span class="mini" data-n="3"></span><b>Fácil</b><i>3×3</i></button>
+            <button type="button" role="radio" data-level="medium" data-tip="15 peças"><span class="mini" data-n="4"></span><b>Médio</b><i>4×4</i></button>
+            <button type="button" role="radio" data-level="hard" data-tip="24 peças · mais difícil"><span class="mini" data-n="5"></span><b>Difícil</b><i>5×5</i></button>
+          </div>
+          <!-- Imagem personalizada: o envio já recorta e ajusta a foto ao tabuleiro; "Ajustar" abre o editor -->
+          <div class="img-row">
+            <button id="img-upload" class="img-pick" type="button" aria-label="Enviar imagem" data-tip="Usar uma foto sua no tabuleiro">
+              <span id="img-thumb" class="img-thumb" aria-hidden="true">
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="2.5" y="3.5" width="15" height="13" rx="2.5"/><circle cx="7" cy="8" r="1.4" fill="currentColor" stroke="none"/><path d="M3 14.5l4.5-4.2 3.2 3 2.3-2 4 3.7"/></svg>
+              </span>
+              <span class="img-text"><strong id="img-title">Enviar imagem</strong><small id="img-sub" role="status">Use uma foto no tabuleiro</small></span>
+            </button>
+            <div id="img-tools" class="img-tools" hidden>
+              <button id="img-adjust" class="chip-btn" type="button" aria-label="Ajustar recorte" data-tip="Ajustar recorte">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4.5 1.5v10a1 1 0 001 1h9M1.5 4.5h10a1 1 0 011 1v9"/></svg>
+              </button>
+              <button id="img-remove" class="chip-btn" type="button" aria-label="Remover imagem" data-tip="Voltar aos números">
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9"/></svg>
+              </button>
+            </div>
+            <input id="file-input" type="file" accept="image/*" hidden>
+          </div>
+          <!-- Toggle: ligado, cada partida sorteia números ou uma imagem (as 20 ilustrações e, se houver, a sua) -->
+          <button id="mix-toggle" class="mix-row" type="button" role="switch" aria-checked="false" data-tip="Sortear números ou imagem a cada partida">
+            <span class="mix-text"><strong>Misturar estilos</strong><small id="mix-sub">Desligado: números (ou sua imagem)</small></span>
+            <span class="switch" aria-hidden="true"><i></i></span>
+          </button>
+          <div class="start-cta">
+            <button id="start-button" class="btn" type="button" aria-label="Iniciar partida">Iniciar</button>
+            <span class="start-or">ou <kbd class="cap cap-wide">Space</kbd></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Modo Fases: 40 fases em 2 páginas (1 = números, 2 = imagens). A seguinte só abre ao concluir a anterior; fase de imagem concluída mostra a ilustração -->
+      <section id="menu-screen" class="start start-menu" aria-label="Escolha da fase">
+        <button id="back-menu" class="back-chip" type="button" aria-label="Voltar para a tela inicial"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Voltar</span></button>
+        <div class="start-card">
+          <div class="start-head">
+            <h2 class="screen-title">Fases</h2>
+            <p class="start-tagline menu-note">Conclua uma fase para liberar a próxima.</p>
+          </div>
+          <div class="seg" role="tablist" aria-label="Páginas de fases">
+            <button id="tab-num" class="seg-btn" type="button" role="tab" aria-selected="true">Números <i>0/20</i></button>
+            <button id="tab-img" class="seg-btn" type="button" role="tab" aria-selected="false">Imagens <i>0/20</i></button>
+          </div>
+          <div id="lvl-grid" class="lvl-grid" role="group" aria-label="Fases"></div>
+        </div>
+      </section>
+
+      <!-- Editor de recorte: arrastar move a imagem, o controle dá zoom, "Encaixar" mostra a imagem inteira -->
+      <section id="crop-screen" class="screen screen-crop" role="dialog" aria-labelledby="crop-title">
+        <h2 id="crop-title" class="screen-title crop-title">Ajustar imagem</h2>
+        <p class="crop-note">Arraste para mover e use o controle para dar zoom.</p>
+        <div class="crop-box">
+          <canvas id="crop-canvas" width="720" height="720" aria-label="Pré-visualização do recorte"></canvas>
+          <i class="crop-guide" aria-hidden="true"></i>
+        </div>
+        <div class="crop-zoom">
+          <button id="crop-fit" class="chip-btn chip-text" type="button" data-tip="Mostrar a imagem inteira">Encaixar</button>
+          <input id="crop-range" type="range" min="1" max="4" step="0.01" value="1" aria-label="Zoom">
+        </div>
+        <div class="row">
+          <button id="crop-ok" class="btn" type="button">Usar imagem</button>
+          <button id="crop-cancel" class="btn btn-alt" type="button">Cancelar</button>
+        </div>
+      </section>
+
+      <!-- Pausa: somente Continuar e Voltar para a tela inicial -->
       <section class="screen screen-paused" role="dialog" aria-labelledby="pause-title">
         <h2 id="pause-title" class="screen-title">Pausado</h2>
         <p id="pause-note" class="note" hidden>Partida retomada</p>
         <div class="row">
           <button id="resume-button" class="btn" type="button">Continuar</button>
-          <button id="pause-restart" class="btn btn-alt" type="button" data-tip="Voltar ao tabuleiro inicial">Reiniciar</button>
+          <button id="pause-home" class="btn btn-alt" type="button">Voltar para a tela inicial</button>
         </div>
       </section>
       <section class="screen screen-count" role="status" aria-live="assertive" aria-label="Contagem regressiva">
@@ -113,7 +198,7 @@
         <p class="count-sub">Prepare-se</p>
       </section>
       <section class="screen screen-confirm" role="alertdialog" aria-labelledby="confirm-text">
-        <h2 id="confirm-text" class="screen-text">Isso encerra a partida atual. Continuar?</h2>
+        <h2 id="confirm-text" class="screen-text confirm-text">Isso encerra a partida atual. Continuar?</h2>
         <div class="row">
           <button id="confirm-yes" class="btn" type="button">Continuar</button>
           <button id="confirm-no" class="btn btn-alt" type="button">Voltar</button>
@@ -121,9 +206,14 @@
       </section>
       <section class="screen screen-won" role="dialog" aria-labelledby="won-title">
         <h2 id="won-title" class="screen-title">Resolvido!</h2>
+        <p id="won-stage" class="note" hidden>Fase 1 de 40</p>
         <p class="screen-text"><span id="won-moves">0</span> movimentos · <span id="won-time">0:00</span></p>
         <p id="won-record" class="record" hidden>Novo recorde</p>
-        <button id="again-button" class="btn" type="button">Jogar de novo</button>
+        <div class="row">
+          <button id="next-button" class="btn" type="button" hidden>Próxima fase</button>
+          <button id="again-button" class="btn" type="button" data-tip="Novo embaralhamento, na mesma fase ou dificuldade">Novo jogo</button>
+          <button id="won-home" class="btn btn-alt" type="button">Voltar para a tela inicial</button>
+        </div>
       </section>
       <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
     </main>
@@ -147,20 +237,24 @@
     </button>
     <div class="help-head"><h2 id="help-title" class="help-title">Como jogar</h2></div>
     <div id="help-body" class="help-body" tabindex="0" role="region" aria-label="Instruções">
-    <p class="help-text">Deslize as peças para o espaço vazio até colocar os números em ordem, de 1 até a última, com o espaço vazio no canto inferior direito.</p>
-    <p class="help-text">Toque numa peça que esteja ao lado do espaço vazio para deslizá-la. Peças com um pontinho verde já estão no lugar certo.</p>
+    <p class="help-text">Deslize as peças para o espaço vazio até formar a imagem. Com números, a ordem é de 1 até a última, com o espaço vazio no canto inferior direito.</p>
+    <p class="help-text">Toque numa peça que esteja ao lado do espaço vazio para deslizá-la. Peças que já estão no lugar certo ganham um contorno verde suave e um selo de visto.</p>
+    <h3 class="help-sub">Modos</h3>
+    <p class="help-text"><b>Fases</b>: 40 fases em duas páginas. A página <b>Números</b> tem as fases 1 a 20 e a página <b>Imagens</b> tem as fases 21 a 40 (uma ilustração diferente em cada), sempre de 3×3 a 5×5 e cada vez mais embaralhadas. Concluir uma fase libera a próxima (as imagens abrem depois da fase 20). <b>Infinito</b>: partidas sem fim; você escolhe a dificuldade (Fácil 3×3, Médio 4×4, Difícil 5×5) e pode enviar uma imagem sua, que é recortada sozinha (use o botão de recorte para ajustar). Ligando <b>Misturar estilos</b>, cada partida sorteia números ou uma imagem.</p>
     <h3 class="help-sub">Controles</h3>
     <ul class="ctl-list">
       <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Mover peça</span></li>
       <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar / continuar</span></li>
       <li><span class="ctl-keys"><kbd class="cap">P</kbd><span class="ctl-or">/</span><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar / continuar</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">V</kbd></span><span class="ctl-label">Espiar a imagem (segure)</span></li>
       <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
     </ul>
-    <p class="help-note">Ao abrir esta ajuda a partida é pausada e o tempo para. Fechar não retoma: toque em Continuar e aguarde a contagem 3, 2, 1, GO!. Dificuldade: Fácil 3×3, Médio 4×4, Difícil 5×5. O tempo começa ao iniciar. O recorde de cada nível (menos movimentos, depois menor tempo) fica salvo neste aparelho.</p>
+    <p class="help-note">Ao abrir esta ajuda a partida é pausada e o tempo para. Fechar não retoma: toque em Continuar e aguarde a contagem 3, 2, 1, GO!. “Novo jogo” e “Reiniciar” ficam abaixo do tabuleiro; a pausa só tem Continuar e Voltar para a tela inicial. O tempo começa ao iniciar. O recorde de cada fase e dificuldade (menos movimentos, depois menor tempo) fica salvo neste aparelho, assim como a imagem que você enviou.</p>
     </div>
   </div>
 
-  <script src="slide_puzzle_storage.js?v=3"></script>
-  <script src="slide_puzzle.js?v=4"></script>
+  <script src="slide_puzzle_storage.js?v=6"></script>
+  <script src="slide_puzzle_images.js?v=2"></script>
+  <script src="slide_puzzle.js?v=8"></script>
 </body>
 </html>

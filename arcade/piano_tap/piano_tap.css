@@ -418,12 +418,7 @@ button { font: inherit; color: inherit; }
 .screen-over .actions { gap: 8px; margin-top: calc(var(--col) * .04); }
 .screen-over .btn, .screen-paused .btn { min-height: max(38px, calc(var(--col) * .5)); }
 .screen-paused .actions { gap: 10px; }
-@media (prefers-reduced-motion: reduce) {
-  .progress, .progress-fill, .mode-card, .back-chip, .lv, .pager-btn { transition: none; }
-  .pstar.pop { animation: none; }
-  .rating.show, .combo.show { animation: rating-fade .6s linear both; }
-  .feedback { transition: none; }
-}
+
 
 @media (max-width: 640px) { .topbar { height: 52px; } }
 /* Celular: botão do catálogo compacto (mantém o texto) para o título continuar no centro exato */
@@ -445,17 +440,5 @@ button { font: inherit; color: inherit; }
   .arena { padding: 4px 8px; }
   .reason { display: none; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .screen, .start, .start-card, .back, .back svg, .help-btn, .help-btn svg, .tool, .btn-ghost { transition: none; }
-  .bump, .glow, .board.shake, .badge, .help-popover, .count-num.tick { animation: none; } .toast.show { animation-duration: .01s; opacity: 1; }
-}
+
 /* Tooltips com movimento reduzido: nada de deslize/escala/fade, mas a espera de --tip-delay continua valendo (transição de 0s com atraso) */
-@media (prefers-reduced-motion: reduce) {
-  .tip { transform: translate(calc(-50% + var(--tip-x)), 0); }
-}
-@media (hover: hover) and (prefers-reduced-motion: reduce) {
-  [data-tip]:hover:not(:disabled):not(:active):not([data-tip-off]) > .tip { transition: opacity 0s linear var(--tip-delay), visibility 0s linear var(--tip-delay); }
-}
-@media (prefers-reduced-motion: reduce) {
-  [data-tip]:focus-visible:not(:disabled):not(:active):not([data-tip-off]) > .tip { transition: none; }
-}

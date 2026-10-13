@@ -5,10 +5,11 @@
    Expõe um único objeto global: MemoryMatchStorage.
 
    Dados guardados (todos sob o prefixo "memory_match:", sem tocar nas chaves de outros jogos):
-     memory_match:best  -> recorde: maior pontuação já alcançada (inteiro >= 0)
+     memory_match:best  -> recorde antigo do jogo de 10 pares (mantido só por compatibilidade)
+     memory_match:levels -> progresso das fases (JSON): { done: [bool x 18], time: [melhor tempo em ms x 18], score: [melhor pontuação x 18] }
      memory_match:muted -> '1' = som desligado, '0' = som ligado
-     memory_match:game  -> partida em andamento (JSON): cartas na ordem atual, reveladas, pares,
-                           tentativas, pontuação, tempo, fase. Validado pelo jogo ao restaurar.
+     memory_match:game  -> partida em andamento (JSON): modo, fase, símbolos, cartas na ordem atual, reveladas, pares,
+                           vez de jogar, placar, tentativas, pontuação, tempo. Validado pelo jogo ao restaurar.
    Se a chave nova ainda não existe, lê as chaves antigas do jogo (memory:best / memory:muted).
 
    Garantias:
@@ -20,10 +21,11 @@
 (() => {
   'use strict';
 
-  const KEYS = Object.freeze({ best: 'memory_match:best', muted: 'memory_match:muted', game: 'memory_match:game' });
+  const KEYS = Object.freeze({ best: 'memory_match:best', levels: 'memory_match:levels', muted: 'memory_match:muted', game: 'memory_match:game' });
   const LEGACY = Object.freeze({ best: 'memory:best', muted: 'memory:muted' });
   const DEFAULTS = Object.freeze({ best: 0, muted: false });
-  const GAME_VERSION = 1;
+  const GAME_VERSION = 2;                                   // v2: modos de jogo (fases, IA, 2 jogadores); salvamentos v1 são descartados
+  const LEVEL_COUNT = 18;                                   // precisa bater com MemoryMatchLevels.COUNT
   const memory = {};
 
   function readRaw(key) {
@@ -64,6 +66,38 @@
     return best;
   }
 
+  /* ---- fases ---- */
+  // Devolve sempre { done, time, score } com LEVEL_COUNT itens válidos.
+  function getLevels() {
+    const out = { done: new Array(LEVEL_COUNT).fill(false), time: new Array(LEVEL_COUNT).fill(0), score: new Array(LEVEL_COUNT).fill(0) };
+    const raw = readRaw(KEYS.levels);
+    if (raw === null) return out;
+    try {
+      const data = JSON.parse(raw);
+      if (data && typeof data === 'object') {
+        const num = (v) => { const n = Math.floor(Number(v)); return Number.isFinite(n) && n > 0 ? Math.min(n, Number.MAX_SAFE_INTEGER) : 0; };
+        for (let i = 0; i < LEVEL_COUNT; i++) {
+          out.done[i] = Array.isArray(data.done) && data.done[i] === true;
+          out.time[i] = num(Array.isArray(data.time) ? data.time[i] : 0);
+          out.score[i] = num(Array.isArray(data.score) ? data.score[i] : 0);
+        }
+      }
+    } catch (error) { /* JSON ruim: começa do zero */ }
+    return out;
+  }
+
+  // Grava o resultado de uma fase concluída (level = 1..LEVEL_COUNT). Só melhora: o menor tempo e a maior pontuação ficam.
+  function setLevelResult(level, timeMs, score) {
+    const data = getLevels(), i = Math.floor(Number(level)) - 1;
+    if (!(i >= 0 && i < LEVEL_COUNT)) return data;
+    const t = Math.floor(Number(timeMs)), sc = Math.floor(Number(score));
+    data.done[i] = true;
+    if (Number.isFinite(t) && t > 0 && (data.time[i] === 0 || t < data.time[i])) data.time[i] = t;
+    if (Number.isFinite(sc) && sc > data.score[i]) data.score[i] = sc;
+    writeRaw(KEYS.levels, JSON.stringify(data));
+    return data;
+  }
+
   function isMuted() {
     let raw = readRaw(KEYS.muted);
     if (raw === null) raw = readRaw(LEGACY.muted);
@@ -96,5 +130,5 @@
 
   function clearGame() { removeRaw(KEYS.game); }
 
-  window.MemoryMatchStorage = Object.freeze({ KEYS, DEFAULTS, getBest, setBest, isMuted, setMuted, saveGame, loadGame, clearGame });
+  window.MemoryMatchStorage = Object.freeze({ KEYS, DEFAULTS, LEVEL_COUNT, getBest, setBest, getLevels, setLevelResult, isMuted, setMuted, saveGame, loadGame, clearGame });
 })();

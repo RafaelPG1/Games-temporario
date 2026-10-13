@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Jogo da Memória · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="memory_match.css?v=4">
+  <link rel="stylesheet" href="memory_match.css?v=5">
 </head>
 <body>
   <header class="topbar">
@@ -14,29 +14,38 @@
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span>Catálogo</span>
     </a>
+    <!-- Marca + título em SVG: ficam no centro exato do cabeçalho (o título tem largura fixa via textLength) -->
     <div class="game-id">
       <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
         <rect width="32" height="32" rx="9" fill="#2b2d5b"/>
         <rect x="6" y="8" width="11" height="15" rx="2.5" fill="#fff4dc" transform="rotate(-10 11 15)"/>
         <rect x="15" y="9" width="11" height="15" rx="2.5" fill="#ff7a59" transform="rotate(8 20 16)"/>
       </svg>
-      <div class="game-text"><strong>Jogo da Memória</strong></div>
+      <svg class="game-title" viewBox="0 0 150 22" role="img" aria-label="Jogo da Memória" focusable="false">
+        <text x="0" y="17" font-size="17" font-weight="700" fill="currentColor" textLength="150" lengthAdjust="spacingAndGlyphs">Jogo da Memória</text>
+      </svg>
     </div>
   </header>
 
   <main id="arena" class="arena">
     <div id="play" class="play">
-      <!-- Container único do jogo. As telas (início, pausa, contagem, vitória, ajuda) são camadas
+      <!-- Container único do jogo. As telas (início, modo, fases, tamanho, pausa, contagem, fim, ajuda) são camadas
            que cobrem 100% deste painel; o conteúdo do jogo fica em #game-body. -->
       <div id="game-panel" class="game-panel">
         <div id="game-body" class="game-body">
           <section id="hud" class="hud" aria-label="Placar">
-            <div class="hud-main">
+            <!-- Fases: pontos e recorde da fase -->
+            <div id="hud-solo" class="hud-main">
               <div class="stat-score"><span class="label">Pontos</span><strong id="score" class="value">0</strong></div>
               <div id="best-card" class="stat-best">
                 <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true" focusable="false"><path d="M4 2h8v4a4 4 0 0 1-8 0zM4 3H1.5v1.5A2.5 2.5 0 0 0 4 7M12 3h2.5v1.5A2.5 2.5 0 0 1 12 7M8 10v3M5 14h6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span class="label">Recorde</span><strong id="best" class="value">0</strong>
               </div>
+            </div>
+            <!-- Contra a IA e 2 Jogadores: um cartão por jogador; o da vez fica destacado -->
+            <div id="hud-versus" class="hud-main hud-versus" hidden>
+              <div id="pcard-0" class="pcard"><span id="pname-0" class="label">Você</span><strong id="pscore-0" class="value">0</strong><i class="turn-tag">Sua vez</i></div>
+              <div id="pcard-1" class="pcard"><span id="pname-1" class="label">Computador</span><strong id="pscore-1" class="value">0</strong><i class="turn-tag">Sua vez</i></div>
             </div>
             <p class="hud-stats">
               <span>Tempo <b id="time">0:00</b></span>
@@ -66,9 +75,17 @@
               <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M13 8a5 5 0 1 1-1.6-3.7M13 2.5v3h-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
           </nav>
+
+          <!-- Fases: tempo-meta fixo (a referência a ser batida), na parte de baixo da interface da fase -->
+          <section id="level-bar" class="level-bar" aria-label="Meta de tempo da fase" hidden>
+            <span class="lb-level"><span class="label">Fase</span><b id="lb-level">1</b></span>
+            <span class="lb-goal"><span class="label">Tempo meta</span><strong id="lb-target" class="lb-time">02:00</strong></span>
+            <span class="lb-best"><span class="label">Seu melhor</span><b id="lb-best">--:--</b></span>
+            <i id="lb-fill" class="lb-fill"></i>
+          </section>
         </div>
 
-        <!-- Início: ocupa o painel todo. Toque em qualquer ponto, botão ou Space. -->
+        <!-- Início: toque em qualquer ponto, botão ou Space leva à escolha do modo. -->
         <section id="screen-start" class="screen" aria-labelledby="start-title" role="dialog" aria-modal="true">
           <div class="screen-inner">
             <svg class="start-mark" viewBox="0 0 32 32" width="84" height="84" aria-hidden="true" focusable="false">
@@ -77,14 +94,61 @@
               <rect x="15" y="9" width="11" height="15" rx="2.5" fill="#ff7a59" transform="rotate(8 20 16)"/>
             </svg>
             <h2 id="start-title" class="screen-title title-xl">Jogo da Memória</h2>
-            <p class="screen-note">Encontre os <span data-pairs>10</span> pares com o menor número de tentativas.</p>
+            <p class="screen-note">Vire as cartas e encontre todos os pares.</p>
             <button class="cta" type="button" data-action="start" data-primary>
               <span class="cta-text">Toque para iniciar</span>
               <span class="cta-or">ou</span>
               <kbd class="cap cap-wide">Space</kbd>
             </button>
-            <p id="start-best" class="start-best" hidden>Recorde <b data-best>0</b></p>
             <button class="link" type="button" data-action="help">Como jogar</button>
+          </div>
+        </section>
+
+        <!-- Escolha do modo: Fases, Contra a IA ou 2 Jogadores -->
+        <section id="screen-mode" class="screen" aria-labelledby="mode-title" role="dialog" aria-modal="true">
+          <button class="back-chip" type="button" data-action="back-home" aria-label="Voltar para a tela inicial">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Voltar</span>
+          </button>
+          <div class="screen-inner">
+            <h2 id="mode-title" class="screen-title">Como quer jogar?</h2>
+            <button class="mode-card" type="button" data-action="mode-levels" data-primary>
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.2 6.1 20.6l1.3-6.6L2.5 9.4l6.6-.8z" fill="currentColor" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+              <span class="mode-text"><strong>Fases</strong><small id="mode-levels-info">0 de 18 concluídas</small></span>
+            </button>
+            <button class="mode-card" type="button" data-action="mode-ai">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="8" width="16" height="12" rx="3.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8V4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="3.6" r="1.4" fill="currentColor"/><circle cx="9" cy="13.5" r="1.7" fill="currentColor"/><circle cx="15" cy="13.5" r="1.7" fill="currentColor"/><path d="M9.5 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <span class="mode-text"><strong>Contra a IA</strong><small>Você × computador, em turnos</small></span>
+            </button>
+            <button class="mode-card" type="button" data-action="mode-pvp">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="16.5" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 20c0-3.6 2.4-6 5.5-6s5.5 2.4 5.5 6M12.5 14.4c1-.4 2-.4 3.9-.4 3 0 5.1 2.4 5.1 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              <span class="mode-text"><strong>2 Jogadores</strong><small>Dois humanos na mesma tela</small></span>
+            </button>
+          </div>
+        </section>
+
+        <!-- Menu de fases -->
+        <section id="screen-levels" class="screen" aria-labelledby="levels-title" role="dialog" aria-modal="true">
+          <button class="back-chip" type="button" data-action="back-mode" aria-label="Voltar para a escolha de modo">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Voltar</span>
+          </button>
+          <div class="screen-inner screen-wide">
+            <h2 id="levels-title" class="screen-title">Escolha a fase</h2>
+            <p id="levels-note" class="screen-note">Cada fase tem mais cartas e um tempo-meta para bater.</p>
+            <div id="levels-grid" class="levels-grid"></div>
+            <p class="legend"><span class="lg lg-done">Concluída</span><span class="lg lg-gold">Meta batida</span></p>
+          </div>
+        </section>
+
+        <!-- Configuração (Contra a IA e 2 Jogadores): quantidade de cartas -->
+        <section id="screen-setup" class="screen" aria-labelledby="setup-title" role="dialog" aria-modal="true">
+          <button class="back-chip" type="button" data-action="back-mode" aria-label="Voltar para a escolha de modo">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3l-5 5 5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Voltar</span>
+          </button>
+          <div class="screen-inner screen-wide">
+            <h2 id="setup-title" class="screen-title">Contra a IA</h2>
+            <p id="setup-note" class="screen-note">Quantas cartas?</p>
+            <div id="size-grid" class="size-grid"></div>
+            <p id="setup-rule" class="help-note setup-rule">Quem acha um par joga de novo. Vence quem fizer mais pares.</p>
           </div>
         </section>
 
@@ -95,13 +159,17 @@
             <h2 id="pause-title" class="screen-title">Pausado</h2>
             <p id="pause-note" class="screen-note">Partida em pausa.</p>
             <dl class="summary">
-              <div><dt>Pontos</dt><dd id="pause-score">0</dd></div>
+              <div><dt id="pause-score-label">Pontos</dt><dd id="pause-score">0</dd></div>
               <div><dt>Tentativas</dt><dd id="pause-attempts">0</dd></div>
               <div><dt>Tempo</dt><dd id="pause-time">0:00</dd></div>
             </dl>
             <div class="actions">
               <button class="btn" type="button" data-action="resume" data-primary>Continuar</button>
               <button class="btn btn-ghost" type="button" data-action="restart">Reiniciar</button>
+              <div class="actions-row">
+                <button id="menu-pause-button" class="btn btn-ghost" type="button" data-action="menu"><span id="menu-pause-label">Fases</span></button>
+                <button id="home-pause-button" class="btn btn-ghost btn-home" type="button" data-action="home" aria-label="Voltar para a tela inicial"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M2 7.6L8 2.8l6 4.8M3.8 6.6V13h3V9.6h2.4V13h3V6.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="home-label">Início</span></button>
+              </div>
             </div>
             <button class="link" type="button" data-action="help">Como jogar</button>
           </div>
@@ -115,26 +183,40 @@
           </div>
         </section>
 
-        <!-- Vitória -->
+        <!-- Fim da partida (fase concluída, vitória, derrota ou empate) -->
         <section id="screen-win" class="screen" aria-labelledby="win-title" role="dialog" aria-modal="true">
           <div class="screen-inner">
             <h2 id="win-title" class="screen-title title-xl">Todos os pares!</h2>
-            <p class="win-score"><span id="win-score">0</span><small>pontos</small></p>
+            <p class="win-score"><span id="win-score">0</span><small id="win-unit">pontos</small></p>
             <p class="screen-note">em <b id="win-attempts">0</b> tentativas · <b id="win-time">0:00</b></p>
+            <p id="win-goal" class="goal-line" hidden></p>
             <p id="record-badge" class="badge" hidden>Novo recorde!</p>
-            <button id="again-button" class="btn" type="button" data-action="restart" data-primary>Jogar novamente</button>
+            <div class="actions">
+              <button id="next-button" class="btn btn-next" type="button" data-action="next" data-primary hidden>Próxima fase</button>
+              <button id="again-button" class="btn" type="button" data-action="restart" data-primary>Jogar novamente</button>
+              <div class="actions-row">
+                <button id="menu-win-button" class="btn btn-ghost" type="button" data-action="menu"><span id="menu-win-label">Fases</span></button>
+                <button id="home-win-button" class="btn btn-ghost btn-home" type="button" data-action="home" aria-label="Voltar para a tela inicial"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false"><path d="M2 7.6L8 2.8l6 4.8M3.8 6.6V13h3V9.6h2.4V13h3V6.6" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="home-label">Início</span></button>
+              </div>
+            </div>
           </div>
         </section>
 
         <!-- Como jogar: camada dentro do painel. Abrir pausa a partida; fechar NÃO retoma. -->
         <section id="screen-help" class="screen screen-help" aria-labelledby="help-title" role="dialog" aria-modal="true">
+          <div class="screen-inner help-card">
           <button class="help-close" type="button" data-action="help-close" aria-label="Fechar">
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
           </button>
-          <div class="screen-inner help-card">
             <h2 id="help-title" class="screen-title">Como jogar</h2>
-            <p class="help-text">Vire duas cartas por vez e encontre os <span data-pairs>10</span> pares de símbolos iguais, com o menor número de tentativas. Se forem diferentes, elas viram de volta: memorize onde cada símbolo está.</p>
-            <h3 class="help-sub">Pontuação</h3>
+            <p class="help-text">Vire duas cartas por vez e encontre os pares de símbolos iguais. Se forem diferentes, elas viram de volta: memorize onde cada símbolo está.</p>
+            <h3 class="help-sub">Modos</h3>
+            <ul class="rule-list rule-modes">
+              <li><b>Fases</b> 18 fases, cada uma com mais cartas e símbolos diferentes. Concluir libera a próxima. Embaixo fica o <b>tempo meta</b> da fase: termine antes dele para bater a meta.</li>
+              <li><b>Contra a IA</b> você e o computador alternam turnos. Quem acha um par joga de novo; ao errar, passa a vez. Vence quem fizer mais pares.</li>
+              <li><b>2 Jogadores</b> o mesmo jogo, mas com dois humanos revezando na mesma tela.</li>
+            </ul>
+            <h3 class="help-sub">Pontuação (Fases)</h3>
             <ul class="rule-list">
               <li><b>+100</b> a cada par encontrado</li>
               <li><b>+25</b> por acerto seguido (acumula)</li>
@@ -148,7 +230,7 @@
               <li><span class="ctl-keys"><kbd class="cap">R</kbd></span><span class="ctl-label">Reiniciar</span></li>
               <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
             </ul>
-            <p class="help-note">Abrir a ajuda pausa a partida. Ao fechar, ela continua pausada até você tocar em Continuar. O recorde fica salvo neste aparelho.</p>
+            <p class="help-note">Abrir a ajuda pausa a partida. Ao fechar, ela continua pausada até você tocar em Continuar. O progresso das fases fica salvo neste aparelho.</p>
             <button class="btn" type="button" data-action="help-close" data-primary>Entendi</button>
           </div>
         </section>
@@ -157,7 +239,9 @@
   </main>
   <div id="tip" class="tip" role="tooltip"><span id="tip-text"></span><kbd id="tip-key" class="cap" hidden></kbd></div>
   <noscript><p class="noscript">Ative o JavaScript para jogar.</p></noscript>
-  <script src="memory_match_storage.js?v=4"></script>
-  <script src="memory_match.js?v=4"></script>
+  <script src="memory_match_storage.js?v=5"></script>
+  <script src="memory_match_symbols.js?v=5"></script>
+  <script src="memory_match_levels.js?v=5"></script>
+  <script src="memory_match.js?v=5"></script>
 </body>
 </html>

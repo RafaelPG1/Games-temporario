@@ -17,7 +17,7 @@ const CONFIG = {
   speedEase: 3,                                  // suavidade com que a velocidade real segue a velocidade-alvo (a curva vem de piano_tap_levels.js)
   maxStep: 0.02, maxFrame: 0.1,                  // passo fixo máximo da simulação e limite de dt por quadro (s)
   historySize: 6, maxCol: 100, minCol: 24, margin: 14, restartLock: 500,
-  volume: 0.3,
+  volume: 0.8,
   countFrom: 3, countStep: 0.7, goFlash: 0.6,   // contagem 3·2·1 (s por número) e quanto tempo o "GO!" fica na tela
   holdsOnDesktop: true,                          // tecla longa (segurar) também no teclado/mouse (chances e fases vêm de piano_tap_levels.js)
   holdMinMs: 0,                                  // tecla longa: 0 = soltar cedo nunca encerra a partida (>0 = ms mínimos segurando)
@@ -42,7 +42,7 @@ const PAUSE_COPY = {
   auto:     { title: 'Pausado', note: 'Pausa ao sair da aba' },
   restored: { title: 'Partida retomada', note: 'Seu progresso foi recuperado' },
 };
-const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const reduceMotion = false;   // animações sempre ligadas (antes seguia o "reduzir movimento" do sistema, que costuma estar ativo no desktop)
 const lerp = (a, b, t) => a + (b - a) * t;
 
 function mix(a, b, t) {
@@ -59,18 +59,30 @@ const MELODY = 'E4 E4 F4 G4 G4 F4 E4 D4 C4 C4 D4 E4 E4 D4 D4 E4 E4 F4 G4 G4 F4 E
   .split(' ').map((n) => NOTE[n]);
 
 const Sound = (() => {
-  let ctx = null, master = null, unavailable = false, muted = PianoTapStorage.isMuted();
+  let ctx = null, master = null, unavailable = false, muted = PianoTapStorage.isMuted(), primed = false;
   function ensure() {
     if (unavailable) return null;
     if (!ctx) {
       const Ctor = window.AudioContext || window.webkitAudioContext;
       if (!Ctor) { unavailable = true; return null; }
       try {
-        ctx = new Ctor(); master = ctx.createGain();
-        master.gain.value = CONFIG.volume; master.connect(ctx.destination);
+        ctx = new Ctor();
+        // compressor evita estourar quando várias notas tocam juntas e permite um volume bem mais alto
+        const comp = ctx.createDynamicsCompressor();
+        master = ctx.createGain(); master.gain.value = CONFIG.volume;
+        master.connect(comp); comp.connect(ctx.destination);
+        ctx.onstatechange = () => { if (ctx.state !== 'running') primed = false; };
       } catch (e) { unavailable = true; ctx = null; return null; }
     }
-    if (ctx.state === 'suspended') { try { ctx.resume().catch(() => {}); } catch (e) {} }
+    // 'suspended' (política de autoplay) e 'interrupted' (iOS) precisam de resume() dentro de um gesto do usuário
+    if (ctx.state !== 'running') { try { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); } catch (e) {} }
+    // iOS/Safari: um buffer mudo tocado no gesto "destrava" a saída de áudio
+    if (!primed) {
+      try {
+        const b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource();
+        s.buffer = b; s.connect(ctx.destination); s.start(0); primed = true;
+      } catch (e) {}
+    }
     return ctx;
   }
   function tone({ type = 'sine', from, to = from, duration = 0.1, volume = 0.4, delay = 0 }) {
@@ -91,21 +103,24 @@ const Sound = (() => {
     get muted() { return muted; },
     unlock() { if (!muted) play(ensure); },
     setMuted(v) { muted = Boolean(v); PianoTapStorage.setMuted(muted); if (!muted) play(ensure); },
+    // Nota de piano: a fundamental (C4~G4, 260-390 Hz) some em alto-falante de celular/notebook, então os harmônicos
+    // (2x, 3x, 4x) carregam o volume e o timbre é triangular/"percussivo" para ficar bem audível.
     note(freq) {
       play(() => {
-        tone({ type: 'sine', from: freq, duration: 0.6, volume: 0.5 });
-        tone({ type: 'triangle', from: freq * 2, duration: 0.3, volume: 0.14 });
-        tone({ type: 'sine', from: freq * 3, duration: 0.15, volume: 0.05 });
+        tone({ type: 'triangle', from: freq, duration: 0.7, volume: 0.9 });
+        tone({ type: 'sine', from: freq * 2, duration: 0.45, volume: 0.55 });
+        tone({ type: 'triangle', from: freq * 3, duration: 0.25, volume: 0.3 });
+        tone({ type: 'sine', from: freq * 4, duration: 0.15, volume: 0.15 });
       });
     },
-    record() { play(() => [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.14, volume: 0.35, delay: 0.1 * i }))); },
-    hit() { play(() => { tone({ type: 'sawtooth', from: 220, to: 45, duration: 0.5, volume: 0.35 }); tone({ type: 'square', from: 110, to: 38, duration: 0.3, volume: 0.22 }); }); },
-    hold() { play(() => tone({ type: 'triangle', from: 880, duration: 0.12, volume: 0.22 })); },
-    star() { play(() => [784, 1175, 1568].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.16, volume: 0.3, delay: 0.07 * i }))); },
-    win() { play(() => [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.22, volume: 0.35, delay: 0.1 * i }))); },
-    click() { play(() => tone({ type: 'triangle', from: 520, to: 700, duration: 0.06, volume: 0.25 })); },
-    count() { play(() => tone({ type: 'triangle', from: 440, duration: 0.09, volume: 0.25 })); },
-    go() { play(() => { tone({ type: 'triangle', from: 659, duration: 0.1, volume: 0.28 }); tone({ type: 'sine', from: 988, duration: 0.2, volume: 0.35, delay: 0.07 }); }); },
+    record() { play(() => [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.14, volume: 0.6, delay: 0.1 * i }))); },
+    hit() { play(() => { tone({ type: 'sawtooth', from: 220, to: 45, duration: 0.5, volume: 0.6 }); tone({ type: 'square', from: 110, to: 38, duration: 0.3, volume: 0.4 }); }); },
+    hold() { play(() => tone({ type: 'triangle', from: 880, duration: 0.12, volume: 0.45 })); },
+    star() { play(() => [784, 1175, 1568].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.16, volume: 0.55, delay: 0.07 * i }))); },
+    win() { play(() => [523, 659, 784, 1047, 1319].forEach((f, i) => tone({ type: 'triangle', from: f, duration: 0.22, volume: 0.6, delay: 0.1 * i }))); },
+    click() { play(() => tone({ type: 'triangle', from: 520, to: 700, duration: 0.06, volume: 0.45 })); },
+    count() { play(() => tone({ type: 'triangle', from: 440, duration: 0.09, volume: 0.45 })); },
+    go() { play(() => { tone({ type: 'triangle', from: 659, duration: 0.1, volume: 0.5 }); tone({ type: 'sine', from: 988, duration: 0.2, volume: 0.6, delay: 0.07 }); }); },
   };
 })();
 
@@ -1096,6 +1111,7 @@ function init() {
   document.addEventListener('pointercancel', (e) => releaseInput('p' + e.pointerId));
   ui.board.addEventListener('pointerdown', (e) => { if (!e.target.closest('button')) onPointerDown(e); });
   document.addEventListener('contextmenu', (e) => e.preventDefault());
+  ['pointerup', 'touchend', 'click', 'keydown'].forEach((ev) => document.addEventListener(ev, () => Sound.unlock(), { capture: true, passive: true }));
   ui.mute.addEventListener('click', () => { toggleMute(); ui.mute.blur(); });
   ui.pause.addEventListener('click', () => { setPaused(true, 'manual'); ui.pause.blur(); });
   ui.start.addEventListener('click', () => { Sound.unlock(); Sound.click(); openMode(); });
