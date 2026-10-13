@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Jogo da Velha · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="jogo_velha.css">
+  <link rel="stylesheet" href="jogo_velha.css?v=2">
 </head>
 <body>
   <header class="topbar">
@@ -44,7 +44,7 @@
           <div class="board-wrap">
             <div id="board" class="board" role="group" aria-label="Tabuleiro 3 por 3"></div>
 
-            <!-- Pausa, ajuda, partida retomada e contagem: cobrem só o tabuleiro; os controles continuam à mostra -->
+            <!-- Pausa, ajuda e partida retomada: cobrem só o tabuleiro; os controles continuam à mostra -->
             <div id="veil" class="veil" tabindex="-1" hidden>
               <section id="panel-pause" class="panel" role="dialog" aria-labelledby="pause-title" hidden>
                 <h2 id="pause-title" class="panel-title">Pausa</h2>
@@ -62,9 +62,6 @@
                 <div class="panel-actions">
                   <button id="help-close" class="btn" type="button">Fechar</button>
                 </div>
-              </section>
-              <section id="panel-count" class="panel panel-count" aria-label="Retomando a partida" hidden>
-                <p id="count-num" class="count-num" role="status" aria-live="assertive">3</p>
               </section>
             </div>
           </div>
@@ -134,6 +131,6 @@
   </div>
 
   <script src="jogo_velha_storage.js"></script>
-  <script src="jogo_velha.js"></script>
+  <script src="jogo_velha.js?v=2"></script>
 </body>
 </html>

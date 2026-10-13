@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#07080c">
   <title>Cobrinha · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="snake.css?v=5">
+  <link rel="stylesheet" href="snake.css?v=7">
 </head>
 <body>
   <header class="topbar">
@@ -133,17 +133,19 @@
           <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
       </button>
-      <h2 id="help-title" class="help-title">Como jogar</h2>
-      <p class="help-text">Guie a cobrinha até as frutinhas para crescer e somar pontos. Cada fruta deixa o jogo um pouco mais rápido. Não bata nas paredes nem em você mesma.</p>
-      <h3 class="help-sub">Controles</h3>
-      <ul class="ctl-list">
-        <li><span class="ctl-keys"><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-left"/></svg><span class="sr-only">Seta para a esquerda</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-up"/></svg><span class="sr-only">Seta para cima</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-down"/></svg><span class="sr-only">Seta para baixo</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-right"/></svg><span class="sr-only">Seta para a direita</span></kbd></span><span class="ctl-label">Mover</span></li>
-        <li><span class="ctl-keys"><kbd class="cap">W</kbd><kbd class="cap">A</kbd><kbd class="cap">S</kbd><kbd class="cap">D</kbd></span><span class="ctl-label">Mover também</span></li>
-        <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar / retomar</span></li>
-        <li><span class="ctl-keys"><kbd class="cap">P</kbd><span class="ctl-or">/</span><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar</span></li>
-        <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
-      </ul>
-      <p class="help-note">No celular, deslize no tabuleiro ou use os botões na tela. Não é possível virar 180° de uma vez.</p>
+      <div class="help-scroll" tabindex="0" role="region" aria-labelledby="help-title">
+        <h2 id="help-title" class="help-title">Como jogar</h2>
+        <p class="help-text">Guie a cobrinha até as frutinhas para crescer e somar pontos. Cada fruta deixa o jogo um pouco mais rápido. Não bata nas paredes nem em você mesma.</p>
+        <h3 class="help-sub">Controles</h3>
+        <ul class="ctl-list">
+          <li><span class="ctl-keys"><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-left"/></svg><span class="sr-only">Seta para a esquerda</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-up"/></svg><span class="sr-only">Seta para cima</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-down"/></svg><span class="sr-only">Seta para baixo</span></kbd><kbd class="cap"><svg class="cap-icon" aria-hidden="true" focusable="false"><use href="#icon-right"/></svg><span class="sr-only">Seta para a direita</span></kbd></span><span class="ctl-label">Mover</span></li>
+          <li><span class="ctl-keys"><kbd class="cap">W</kbd><kbd class="cap">A</kbd><kbd class="cap">S</kbd><kbd class="cap">D</kbd></span><span class="ctl-label">Mover também</span></li>
+          <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar / retomar</span></li>
+          <li><span class="ctl-keys"><kbd class="cap">P</kbd><span class="ctl-or">/</span><kbd class="cap">Esc</kbd></span><span class="ctl-label">Pausar</span></li>
+          <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
+        </ul>
+        <p class="help-note">No celular, deslize no tabuleiro ou use os botões na tela. Não é possível virar 180° de uma vez.</p>
+      </div>
     </div>
   </main>
 

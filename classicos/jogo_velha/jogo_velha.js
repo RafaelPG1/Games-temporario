@@ -1,8 +1,8 @@
 'use strict';
 /* Jogo da Velha · Arcádia. Fonte única de verdade: o objeto S. O DOM só reflete S (render) e o armazenamento é gravado a cada mudança (persist).
-   Fases: start (tela inicial) → play ⇄ pause (manual | recovered | help) → count (3·2·1·GO!) → play. */
+   Fases: start (tela inicial) → play ⇄ pause (manual | recovered | help). Continuar volta direto ao jogo, sem contagem. */
 const LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
-const AI_DELAY_MS = 380, CONFIRM_MS = 3000, COUNT_STEP_MS = 700, GO_MS = 550;
+const AI_DELAY_MS = 380, CONFIRM_MS = 3000;
 const W = 288, H = 512, MARGIN = 6, MAX_CSS_HEIGHT = 1000;
 const SYMBOL = {
   X: '<svg class="sx" viewBox="0 0 100 100" aria-hidden="true"><path class="draw" pathLength="1" d="M26 27C38 38 58 60 75 74"/><path class="draw d2" pathLength="1" d="M74 25C60 40 42 58 27 76"/></svg>',
@@ -14,7 +14,7 @@ const $ = (id) => document.getElementById(id);
 const ui = {
   arena: $('arena'), wrap: $('stage-wrap'), stage: $('stage'), game: $('game'), board: $('board'), status: $('status'),
   round: $('round-btn'), session: $('session-btn'), mute: $('mute-btn'), pause: $('pause-btn'), help: $('help-button'),
-  veil: $('veil'), pausePanel: $('panel-pause'), helpPanel: $('panel-help'), countPanel: $('panel-count'), countNum: $('count-num'),
+  veil: $('veil'), pausePanel: $('panel-pause'), helpPanel: $('panel-help'),
   pauseTitle: $('pause-title'), pauseText: $('pause-text'), resume: $('resume-btn'), pauseRestart: $('pause-restart'),
   helpClose: $('help-close'), start: $('start-screen'), startBtn: $('start-btn'), strike: null, cells: [],
 };
@@ -27,10 +27,10 @@ const S = {
   score: { X: 0, O: 0, D: 0 },
   token: 0,            // muda a cada rodada nova ou pausa: invalida jogada pendente da IA
   thinking: false, confirm: 0, muted: false,
-  phase: 'start',      // start | play | pause | count: só em 'play' alguém joga, nem a IA
+  phase: 'start',      // start | play | pause: só em 'play' alguém joga, nem a IA
   pauseKind: 'manual', // manual | recovered (partida retomada) | help
   prevKind: 'manual',  // tipo de pausa a que se volta ao fechar a ajuda
-  count: 3, countTimer: 0, focusKey: null, lastCount: null,
+  focusKey: null,
 };
 
 /* ===== Armazenamento: preferências, placar e partida em jogo_velha_storage.js ===== */
@@ -67,8 +67,6 @@ const Sound = (() => {
     unlock() { if (!S.muted) { try { ensure(); } catch (e) { /* ignora */ } } },
     place(p) { const f = p === 'X' ? 330 : 440; tone(f, f * 0.8, 0.09, 'triangle', 0.4); },
     click() { tone(620, 700, 0.04, 'sine', 0.14); },
-    tick() { tone(520, 520, 0.08, 'sine', 0.22); },
-    go() { tone(784, 1047, 0.22, 'triangle', 0.3); },
     result(kind) { // 'win' | 'lose' | 'draw'
       if (kind === 'win') [523, 659, 784, 1047].forEach((f, i) => tone(f, f, 0.16, 'triangle', 0.3, D + i * 0.1));
       else if (kind === 'lose') { tone(392, 330, 0.18, 'triangle', 0.28, D); tone(330, 247, 0.3, 'triangle', 0.28, D + 0.17); }
@@ -154,11 +152,11 @@ function humanMove(i) {
 }
 function clearBoard() { S.board = Array(9).fill(''); S.turn = S.starter; S.over = false; S.line = null; S.result = null; }
 function newRound() { // nova rodada na fase atual (na tela inicial continua na tela inicial; no jogo continua jogando)
-  S.token++; S.thinking = false; clearCount(); clearConfirm(); clearBoard();
+  S.token++; S.thinking = false; clearConfirm(); clearBoard();
   sync(); maybeAI();
 }
-function restartToStart() { // descarta a partida, cancela contagens e volta à tela inicial sem iniciar nada; o placar é mantido
-  S.token++; S.thinking = false; clearCount(); clearConfirm(); clearBoard();
+function restartToStart() { // descarta a partida e volta à tela inicial sem iniciar nada; o placar é mantido
+  S.token++; S.thinking = false; clearConfirm(); clearBoard();
   S.phase = 'start'; S.pauseKind = 'manual'; S.prevKind = 'manual';
   sync();
 }
@@ -168,7 +166,6 @@ function setMode(m) { if (m !== S.mode) { Sound.click(); S.mode = m; store.save(
 function setLevel(l) { if (l !== S.level) { Sound.click(); S.level = l; store.save('level', l); resetSession(); } }
 function setStarter(s) { if (s !== S.starter) { Sound.click(); S.starter = s; store.save('starter', s); newRound(); } }
 function clearConfirm() { clearTimeout(S.confirm); S.confirm = 0; }
-function clearCount() { clearTimeout(S.countTimer); S.countTimer = 0; }
 function onSession() { // zerar o placar pede um segundo toque (expira sozinho) e não mexe no tabuleiro
   Sound.click();
   if (!S.confirm) { S.confirm = setTimeout(() => { S.confirm = 0; render(); }, CONFIRM_MS); render(); return; }
@@ -185,29 +182,17 @@ function begin() {
 }
 
 /* ===== Pausa, ajuda e retomada ===== */
-function pauseGame(kind = 'manual') { // congela tudo: invalida a IA pendente e cancela a contagem; nada joga até continuar
+function pauseGame(kind = 'manual') { // congela tudo: invalida a IA pendente; nada joga até continuar
   if (S.phase === 'start') return;
   if (S.phase === 'pause') { if (kind === 'recovered' && S.pauseKind === 'manual') { S.pauseKind = kind; sync(); } return; }
-  clearCount(); S.token++; S.thinking = false; S.phase = 'pause'; S.pauseKind = kind; sync();
+  S.token++; S.thinking = false; S.phase = 'pause'; S.pauseKind = kind; sync();
 }
-function resume() { // só o jogador chama: a retomada começa na contagem 3 → 2 → 1 → GO!
+function resume() { // só o jogador chama: o jogo volta na hora, sem contagem
   if (S.phase !== 'pause') return;
-  if (S.over) { S.phase = 'play'; sync(); return; } // rodada já decidida: nada a retomar
-  startCount();
-}
-function startCount() { // a contagem só muda S.count; o jogo só volta a andar em GO!
-  clearCount(); S.phase = 'count'; S.count = 3; Sound.unlock(); sync(); Sound.tick();
-  const step = () => {
-    if (S.phase !== 'count') return;
-    S.count--;
-    if (S.count > 0) { sync(); Sound.tick(); S.countTimer = setTimeout(step, COUNT_STEP_MS); return; }
-    S.count = 0; sync(); Sound.go();
-    S.countTimer = setTimeout(() => { S.countTimer = 0; if (S.phase !== 'count') return; S.phase = 'play'; sync(); maybeAI(); }, GO_MS);
-  };
-  S.countTimer = setTimeout(step, COUNT_STEP_MS);
+  S.phase = 'play'; Sound.unlock(); sync(); if (!S.over) maybeAI();
 }
 function togglePause() {
-  if ((S.phase === 'play' && !S.over) || S.phase === 'count') pauseGame('manual');
+  if (S.phase === 'play' && !S.over) pauseGame('manual');
   else if (S.phase === 'pause') { if (S.pauseKind === 'help') closeHelp(); else resume(); }
 }
 function openHelp() {
@@ -220,7 +205,7 @@ function closeHelp() { // fechar a ajuda NÃO retoma: volta à tela de pausa e e
 }
 function toggleHelp() { if (S.phase === 'pause' && S.pauseKind === 'help') closeHelp(); else openHelp(); }
 function onAway() { // saiu da aba / minimizou / vai descarregar: pausa e deixa a retomada pronta
-  if ((S.phase === 'play' && !S.over) || S.phase === 'count') pauseGame('recovered');
+  if (S.phase === 'play' && !S.over) pauseGame('recovered');
   else if (S.phase === 'pause' && S.pauseKind === 'manual') { S.pauseKind = 'recovered'; sync(); }
 }
 function toggleMute() { S.muted = !S.muted; store.save('muted', S.muted); if (!S.muted) { Sound.unlock(); Sound.click(); } render(); }
@@ -250,7 +235,7 @@ function strikePath(line) { // risco da vitória, do centro da primeira casa ao 
   return `M${ax - dx} ${ay - dy}L${bx + dx} ${by + dy}`;
 }
 function focusFor(key) { // leva o foco ao botão certo quando a tela muda por ação do jogador
-  const el = { 'pause:manual': ui.resume, 'pause:recovered': ui.resume, 'pause:help': ui.helpClose, count: ui.veil }[key];
+  const el = { 'pause:manual': ui.resume, 'pause:recovered': ui.resume, 'pause:help': ui.helpClose }[key];
   if (el) el.focus({ preventScroll: true });
 }
 function render() {
@@ -272,7 +257,6 @@ function render() {
 
   let text, k = '';
   if (S.phase === 'start') { k = 'end'; text = 'Aguardando início'; }
-  else if (S.phase === 'count') text = 'Prepare-se…';
   else if (paused) text = help ? 'Como jogar' : S.pauseKind === 'recovered' ? 'Partida retomada' : 'Pausado';
   else if (S.over) {
     k = 'end';
@@ -291,19 +275,13 @@ function render() {
   document.querySelector('[data-starter="X"]').setAttribute('aria-label', ai ? 'Você começa (X)' : 'X começa');
   document.querySelector('[data-starter="O"]').setAttribute('aria-label', ai ? 'A IA começa (O)' : 'O começa');
 
-  /* tela de pausa / ajuda / contagem sobre o tabuleiro */
-  const veil = paused || S.phase === 'count';
-  ui.veil.hidden = !veil; ui.veil.classList.toggle('is-count', S.phase === 'count');
-  ui.pausePanel.hidden = !(paused && !help); ui.helpPanel.hidden = !help; ui.countPanel.hidden = S.phase !== 'count';
+  /* tela de pausa / ajuda sobre o tabuleiro */
+  ui.veil.hidden = !paused;
+  ui.pausePanel.hidden = !(paused && !help); ui.helpPanel.hidden = !help;
   const rec = S.pauseKind === 'recovered';
   ui.pausePanel.classList.toggle('is-recovered', rec);
   ui.pauseTitle.textContent = rec ? 'Partida retomada' : 'Pausa';
   ui.pauseText.textContent = rec ? 'Sua partida foi salva. Continue de onde parou.' : 'A partida está congelada até você continuar.';
-  if (S.phase === 'count') {
-    const label = S.count > 0 ? String(S.count) : 'GO!';
-    ui.countNum.textContent = label; ui.countNum.classList.toggle('go', S.count === 0);
-    if (S.lastCount !== S.count) { S.lastCount = S.count; ui.countNum.style.animation = 'none'; void ui.countNum.offsetWidth; ui.countNum.style.animation = ''; }
-  } else S.lastCount = null;
 
   const again = S.over && inPlay;
   ui.round.textContent = again ? 'Jogar de novo' : 'Reiniciar'; ui.round.dataset.tip = again ? 'Reinicia a partida atual' : 'Descarta a partida e volta ao início'; ui.round.disabled = S.phase === 'start';
@@ -362,7 +340,7 @@ function init() {
     if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
     const onBtn = e.target && e.target.closest && e.target.closest('button');
     if (e.code === 'Escape') {
-      if (S.phase === 'pause' && S.pauseKind === 'help') closeHelp(); else if ((S.phase === 'play' && !S.over) || S.phase === 'count') pauseGame('manual');
+      if (S.phase === 'pause' && S.pauseKind === 'help') closeHelp(); else if (S.phase === 'play' && !S.over) pauseGame('manual');
       return;
     }
     if (e.code === 'Space' && !onBtn) {
