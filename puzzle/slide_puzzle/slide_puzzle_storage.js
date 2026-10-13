@@ -14,7 +14,7 @@
      slide_puzzle:image        -> imagem personalizada do modo Livre (data URI JPEG quadrado, já recortado).
                                   Ausente = tabuleiro com números.
      slide_puzzle:game         -> partida em andamento (JSON): mode ('free' | 'levels'), stage, level, board, initial, moves, elapsed,
-                                  status, isRecord, look ('num' | 'art:<0-19>' | 'custom' = estilo do tabuleiro da rodada). Permite recuperar a partida após F5 sem embaralhar de novo. Apagada ao voltar à tela inicial.
+                                  status, isRecord, look ('num' | 'art:<0-39>' | 'custom' = estilo do tabuleiro da rodada). Permite recuperar a partida após F5 sem embaralhar de novo. Apagada ao voltar à tela inicial.
                                   Salvamentos antigos (sem mode) valem como modo Livre.
 
    Garantias:
@@ -39,7 +39,7 @@
   });
   const GAME_STATUS = Object.freeze(['playing', 'paused', 'won']);
   const LEVEL_COUNT = 40;                                   // precisa bater com Levels.COUNT (slide_puzzle.js): 20 de números + 20 de imagens
-  const ART_COUNT = 20;                                     // ilustrações disponíveis (SlidePuzzleImages.COUNT)
+  const ART_COUNT = 40;                                     // ilustrações disponíveis (SlidePuzzleImages.COUNT)
   const validLook = (l) => l === 'num' || l === 'custom' || (/^art:\d{1,2}$/.test(l) && Number(l.slice(4)) < ART_COUNT);
   const FREE_SIZE = Object.freeze({ easy: 9, medium: 16, hard: 25 });
   const BOARD_SIZES = Object.freeze([9, 16, 25]);
