@@ -8,8 +8,16 @@
      water_sort:unlocked -> maior fase liberada (inteiro >= 1). Fases abaixo dela estão concluídas.
      water_sort:last     -> última fase jogada (inteiro >= 1)
      water_sort:muted    -> '1' = som desligado, '0' = som ligado
-     water_sort:game     -> partida em andamento (JSON): fase, configuração inicial, tubos atuais, histórico de despejos e tubo selecionado.
+     water_sort:game     -> partida em andamento do Modo Fases (JSON): fase, configuração inicial, tubos atuais, histórico de despejos e tubo selecionado.
                             Os tubos são sorteados a cada fase, então precisam ser guardados para recuperar a partida após F5.
+     water_sort:inf      -> Modo Infinito: maior nível de dificuldade alcançado (inteiro >= 1); é de onde o modo continua.
+     water_sort:infgame  -> partida em andamento do Modo Infinito (mesmo formato de water_sort:game)
+     water_sort:mode     -> último modo jogado: 'levels' ou 'infinite'
+     water_sort:infhist  -> histórico do Modo Infinito (JSON { "nível": melhor nº de movimentos }). Guarda só os INF_HIST_MAX níveis mais
+                            recentes, para não crescer sem limite; os níveis abaixo de water_sort:inf continuam contando como concluídos.
+     water_sort:infboards -> tabuleiros sorteados do Modo Infinito (JSON [[nível, "texto"], ...], do mais antigo ao mais recente). Cada nível é
+                            gerado ao acaso uma vez; ficar salvo aqui permite rejogar EXATAMENTE o mesmo tabuleiro pelo catálogo. Guarda só os
+                            INF_BOARDS_MAX mais recentes (cada um tem ~60 caracteres); níveis mais antigos sorteiam um tabuleiro novo.
 
    O jogo não tem recorde de pontuação nem temporizadores, então nada além disso é guardado.
 
@@ -23,9 +31,14 @@
 (() => {
   'use strict';
 
-  const MAX_LEVEL = 99999;
-  const DEFAULTS = Object.freeze({ unlocked: 1, last: 1, muted: false });
-  const KEYS = Object.freeze({ unlocked: 'water_sort:unlocked', last: 'water_sort:last', muted: 'water_sort:muted', game: 'water_sort:game' });
+  const MAX_LEVEL = 1001;   // teto: 1000 níveis no Infinito (1001 = "todos concluídos"); valores maiores salvos antes são limitados a isto
+  const DEFAULTS = Object.freeze({ unlocked: 1, last: 1, muted: false, inf: 1, mode: 'levels' });
+  const KEYS = Object.freeze({
+    unlocked: 'water_sort:unlocked', last: 'water_sort:last', muted: 'water_sort:muted', game: 'water_sort:game',
+    inf: 'water_sort:inf', infgame: 'water_sort:infgame', mode: 'water_sort:mode', infhist: 'water_sort:infhist', infboards: 'water_sort:infboards'
+  });
+  const INF_HIST_MAX = 1000, INF_BOARDS_MAX = 400;
+  const gameKey = (mode) => (mode === 'infinite' ? KEYS.infgame : KEYS.game);
   const LEGACY_MUTED = 'arcadia.water_sort.muted';   // chave que o jogo já usava para o som
   const memory = {};
 
@@ -135,23 +148,111 @@
     return { level, initial, tubes, history, selected: ok(g.selected) ? g.selected : -1 };
   }
 
-  function getGame() {
-    try { return cleanGame(JSON.parse(readRaw(KEYS.game))); } catch (error) { return null; }
+  // mode: 'levels' (padrão) ou 'infinite'; cada modo tem a própria partida salva.
+  function getGame(mode) {
+    try { return cleanGame(JSON.parse(readRaw(gameKey(mode)))); } catch (error) { return null; }
   }
 
-  function setGame(game) {
+  function setGame(game, mode) {
     const clean = cleanGame(game);
     if (!clean) return false;
-    writeRaw(KEYS.game, JSON.stringify(clean));
+    writeRaw(gameKey(mode), JSON.stringify(clean));
     return true;
   }
 
-  function clearGame() {
-    delete memory[KEYS.game];
-    try { window.localStorage.removeItem(KEYS.game); } catch (error) { /* sem acesso: nada a remover */ }
+  function clearGame(mode) {
+    const key = gameKey(mode);
+    delete memory[key];
+    try { window.localStorage.removeItem(key); } catch (error) { /* sem acesso: nada a remover */ }
+  }
+
+  /* ---- Modo Infinito: nível de dificuldade alcançado (só sobe) ---- */
+  function getInfLevel() {
+    return asLevel(readRaw(KEYS.inf)) || DEFAULTS.inf;
+  }
+
+  function setInfLevel(level) {
+    const n = asLevel(level), current = getInfLevel();
+    if (!n || n <= current) return current;
+    writeRaw(KEYS.inf, n);
+    return n;
+  }
+
+  /* ---- Modo Infinito: histórico de níveis concluídos (melhor nº de movimentos de cada um) ---- */
+  function getInfHistory() {
+    const out = {};
+    try {
+      const obj = JSON.parse(readRaw(KEYS.infhist));
+      if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+        for (const k of Object.keys(obj)) {
+          const lv = asLevel(k), mv = Math.floor(Number(obj[k]));
+          if (lv && String(lv) === k && Number.isFinite(mv) && mv >= 1 && mv <= 99999) out[lv] = mv;
+        }
+      }
+    } catch (error) { /* ausente ou inválido: histórico vazio */ }
+    return out;
+  }
+
+  // Registra a conclusão de um nível; se ele já estava no histórico, fica o menor nº de movimentos. Devolve o histórico atualizado.
+  function addInfDone(level, moves) {
+    const lv = asLevel(level), mv = Math.floor(Number(moves)), hist = getInfHistory();
+    if (!lv || !Number.isFinite(mv) || mv < 1) return hist;
+    hist[lv] = hist[lv] ? Math.min(hist[lv], mv) : Math.min(mv, 99999);
+    const keys = Object.keys(hist).map(Number).sort((a, b) => a - b);
+    for (let i = 0; i < keys.length - INF_HIST_MAX; i++) delete hist[keys[i]];   // descarta os níveis mais antigos (menores)
+    writeRaw(KEYS.infhist, JSON.stringify(hist));
+    return hist;
+  }
+
+  /* ---- Modo Infinito: tabuleiros gerados (para rejogar o mesmo nível com o mesmo tabuleiro) ----
+     Formato de cada tabuleiro: tubos separados por "|", cores em base 36 (tubo vazio = nada entre dois "|"). */
+  const encodeTubes = (tubes) => tubes.map((t) => t.map((c) => c.toString(36)).join('')).join('|');
+  function decodeTubes(text) {
+    if (typeof text !== 'string' || !/^[0-9a-z|]*$/.test(text)) return null;
+    const tubes = text.split('|').map((part) => part.split('').filter(Boolean).map((ch) => parseInt(ch, 36)));
+    return asTubes(tubes);                          // mesmas conferências de formato da partida salva
+  }
+  function readBoards() {
+    try {
+      const list = JSON.parse(readRaw(KEYS.infboards));
+      if (Array.isArray(list)) return list.filter((e) => Array.isArray(e) && asLevel(e[0]) && typeof e[1] === 'string').map((e) => [asLevel(e[0]), e[1]]);
+    } catch (error) { /* ausente ou inválido: nenhum tabuleiro salvo */ }
+    return [];
+  }
+
+  // Devolve o tabuleiro salvo do nível (lista de tubos) ou null. O jogo ainda confere as regras (cores/capacidade) antes de usar.
+  function getInfBoard(level) {
+    const lv = asLevel(level); if (!lv) return null;
+    const hit = readBoards().find((e) => e[0] === lv);
+    return hit ? decodeTubes(hit[1]) : null;
+  }
+
+  // Guarda (ou troca) o tabuleiro de um nível; o mais recém-guardado vai para o fim e só os INF_BOARDS_MAX mais recentes ficam.
+  function setInfBoard(level, tubes) {
+    const lv = asLevel(level), clean = asTubes(tubes);
+    if (!lv || !clean) return false;
+    const list = readBoards().filter((e) => e[0] !== lv);
+    list.push([lv, encodeTubes(clean)]);
+    while (list.length > INF_BOARDS_MAX) list.shift();
+    writeRaw(KEYS.infboards, JSON.stringify(list));
+    return true;
+  }
+
+  /* ---- último modo jogado ---- */
+  function getMode() {
+    return readRaw(KEYS.mode) === 'infinite' ? 'infinite' : DEFAULTS.mode;
+  }
+
+  function setMode(mode) {
+    const m = mode === 'infinite' ? 'infinite' : 'levels';
+    writeRaw(KEYS.mode, m);
+    return m;
   }
 
   migrate();
 
-  window.WaterSortStorage = Object.freeze({ KEYS, DEFAULTS, getUnlocked, setUnlocked, getLast, setLast, isMuted, setMuted, getGame, setGame, clearGame });
+  window.WaterSortStorage = Object.freeze({
+    KEYS, DEFAULTS, getUnlocked, setUnlocked, getLast, setLast, isMuted, setMuted,
+    getGame, setGame, clearGame, getInfLevel, setInfLevel, getInfHistory, addInfDone, getInfBoard, setInfBoard, getMode, setMode
+  });
 })();

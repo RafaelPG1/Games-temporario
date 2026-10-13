@@ -7,9 +7,10 @@
   <meta name="theme-color" content="#070b1c">
   <title>Tubos de Cores · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="water_sort.css?v=4">
+  <link rel="stylesheet" href="water_sort.css?v=11">
 </head>
 <body>
+  <!-- Cabeçalho em 3 colunas: Catálogo | título centralizado | espaçador (mantém o título no centro da página) -->
   <header class="topbar">
     <a class="back" href="../../index.html" aria-label="Voltar ao catálogo da Arcádia">
       <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" focusable="false">
@@ -19,12 +20,14 @@
     </a>
     <div class="game-id">
       <svg class="game-mark" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false">
-        <rect width="32" height="32" rx="9" fill="#3a63d8"/>
-        <path d="M11 6h10v3h-1v13a5 5 0 0 1-8 0V9h-1z" fill="#fff" fill-opacity=".35" stroke="#1b2150" stroke-width="2" stroke-linejoin="round"/>
-        <path d="M12 17h8v5a4 4 0 0 1-8 0z" fill="#ff8a1f"/><path d="M12 14h8v3h-8z" fill="#a3e635"/>
+        <defs><linearGradient id="gm-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a3a9c"/><stop offset="1" stop-color="#0d3a4e"/></linearGradient></defs>
+        <rect width="32" height="32" rx="9" fill="url(#gm-bg)"/>
+        <path d="M11 6h10v3h-1v13a5 5 0 0 1-8 0V9h-1z" fill="#fff" fill-opacity=".22" stroke="#cfe3ff" stroke-width="1.6" stroke-linejoin="round"/>
+        <path d="M12 17h8v5a4 4 0 0 1-8 0z" fill="#ff8a1f"/><path d="M12 14h8v3h-8z" fill="#5eead4"/>
       </svg>
-      <div class="game-text"><strong>Tubos de Cores</strong></div>
+      <h1 class="game-title">Tubos de Cores</h1>
     </div>
+    <span class="topbar-spacer" aria-hidden="true"></span>
   </header>
 
   <div id="arena" class="arena">
@@ -33,34 +36,56 @@
     <main id="stage" class="stage is-ready" aria-label="Tubos de Cores">
       <canvas id="game-canvas" aria-label="Tubos de líquido: toque em um tubo e depois no destino"></canvas>
 
-      <!-- Tela inicial: o jogo fica parado até tocar ou apertar Space -->
-      <button id="start-button" class="start" type="button" aria-label="Iniciar partida">
-        <span class="start-card">
+      <!-- Tela inicial: escolha do modo. O jogo fica parado até escolher (ou apertar Space para continuar o último modo) -->
+      <section id="start-screen" class="start" aria-label="Escolha o modo de jogo">
+        <div class="start-card">
           <svg class="start-mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-            <rect width="32" height="32" rx="8" fill="#3a63d8"/>
-            <path d="M11 6h10v3h-1v13a5 5 0 0 1-8 0V9h-1z" fill="#fff" fill-opacity=".35" stroke="#1b2150" stroke-width="2" stroke-linejoin="round"/>
-            <path d="M12 17h8v5a4 4 0 0 1-8 0z" fill="#ff8a1f"/><path d="M12 14h8v3h-8z" fill="#a3e635"/>
+            <defs><linearGradient id="sm-bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2f43b8"/><stop offset="1" stop-color="#0d4a5e"/></linearGradient></defs>
+            <rect width="32" height="32" rx="8" fill="url(#sm-bg)"/>
+            <path d="M11 6h10v3h-1v13a5 5 0 0 1-8 0V9h-1z" fill="#fff" fill-opacity=".22" stroke="#cfe3ff" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M12 17h8v5a4 4 0 0 1-8 0z" fill="#ff8a1f"/><path d="M12 14h8v3h-8z" fill="#5eead4"/>
           </svg>
-          <span class="start-title">Tubos de Cores</span>
-          <span class="start-level">Fase <b id="start-level">1</b></span>
-          <span class="start-rule" aria-hidden="true"></span>
-          <span class="start-text">Toque para iniciar</span>
-          <span class="start-or">ou</span>
-          <kbd class="cap cap-wide">Space</kbd>
-        </span>
-      </button>
+          <h2 class="start-title">Tubos de Cores</h2>
+          <p class="start-tag">Despeje, combine e ordene</p>
+
+          <div class="mode-list">
+            <button id="mode-levels" class="mode-btn" type="button">
+              <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                <rect x="3" y="20" width="7" height="9" rx="2" fill="#5eead4"/>
+                <rect x="12.5" y="13" width="7" height="16" rx="2" fill="#ffd84a"/>
+                <rect x="22" y="5" width="7" height="24" rx="2" fill="#ff8a1f"/>
+              </svg>
+              <span class="mode-text">
+                <span class="mode-name">Modo Fases</span>
+                <span id="mode-levels-info" class="mode-info">Fase 1 de 30</span>
+              </span>
+            </button>
+            <button id="mode-infinite" class="mode-btn" type="button">
+              <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+                <path d="M16 16c-2.6-4-4.6-5.6-7-5.6a5.6 5.6 0 0 0 0 11.2c2.4 0 4.4-1.6 7-5.6s4.6-5.6 7-5.6a5.6 5.6 0 0 1 0 11.2c-2.4 0-4.4-1.6-7-5.6z" fill="none" stroke="#5eead4" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              <span class="mode-text">
+                <span class="mode-name">Modo Infinito</span>
+                <span id="mode-infinite-info" class="mode-info">Nível 1</span>
+              </span>
+            </button>
+          </div>
+
+          <p class="start-hint"><kbd class="cap cap-wide">Space</kbd><span>continua o último modo</span></p>
+        </div>
+      </section>
 
       <div class="hud">
-        <span class="pill">Fase <b id="hud-level">1</b></span>
+        <span class="pill"><span id="hud-label">Fase</span> <b id="hud-level">1</b></span>
         <span class="pill">Movs <b id="hud-moves">0</b></span>
         <button id="pause-button" class="icon-button" type="button" aria-label="Pausar" data-tip="Pausar (P)">
-          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><rect x="3" y="2" width="4" height="12" fill="#1b2150"/><rect x="9" y="2" width="4" height="12" fill="#1b2150"/></svg>
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><rect x="3" y="2" width="3.4" height="12" rx="1" fill="currentColor"/><rect x="9.6" y="2" width="3.4" height="12" rx="1" fill="currentColor"/></svg>
         </button>
         <button id="mute-button" class="icon-button" type="button" aria-pressed="false" aria-label="Silenciar efeitos sonoros" data-tip="Som (M)" data-tip-align="end">
-          <svg viewBox="0 0 16 16" shape-rendering="crispEdges" aria-hidden="true" focusable="false">
-            <path fill="#1b2150" d="M1 6h3l4-3v10l-4-3H1z"/>
-            <g class="icon-waves" fill="#1b2150"><rect x="10" y="6" width="1" height="4"/><rect x="12" y="4" width="1" height="8"/><rect x="14" y="2" width="1" height="12"/></g>
-            <g class="icon-cross" fill="#ff7a1a"><rect x="10" y="5" width="2" height="2"/><rect x="12" y="7" width="2" height="2"/><rect x="14" y="9" width="2" height="2"/><rect x="14" y="5" width="2" height="2"/><rect x="10" y="9" width="2" height="2"/></g>
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M1 6h3l4-3v10l-4-3H1z"/>
+            <g class="icon-waves" fill="currentColor"><rect x="10" y="6" width="1.2" height="4" rx=".6"/><rect x="12" y="4" width="1.2" height="8" rx=".6"/><rect x="14" y="2" width="1.2" height="12" rx=".6"/></g>
+            <g class="icon-cross" fill="none" stroke="#ff7a8a" stroke-width="1.6" stroke-linecap="round"><path d="M10.5 5.5l4 5M14.5 5.5l-4 5"/></g>
           </svg>
         </button>
       </div>
@@ -68,43 +93,68 @@
       <div class="dock">
         <button id="undo-button" class="chip" type="button">Desfazer</button>
         <button id="restart-button" class="chip" type="button">Reiniciar</button>
-        <button id="new-button" class="chip" type="button" data-tip="Nova configuração da fase" data-tip-pos="above">Novo jogo</button>
+        <button id="new-button" class="chip" type="button" data-tip="Sortear outro tabuleiro deste nível" data-tip-pos="above">Novo jogo</button>
         <button id="levels-button" class="chip" type="button" aria-haspopup="dialog">Fases</button>
       </div>
 
-      <!-- Seleção de fases: grade de números, paginada -->
+      <!-- Acelerador: dentro do palco, canto inferior direito acima dos comandos. Desligado (1x) por padrão; alterna para 2x com transição suave. -->
+      <button id="speed-button" class="icon-button speed-btn" type="button" aria-pressed="false"
+              aria-label="Acelerar animações (desligado)" data-tip="Acelerar (S)" data-tip-pos="above" data-tip-align="end">
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+          <path d="M2.5 3.6v8.8c0 .5.5.8.9.5L8.6 8.4c.3-.2.3-.6 0-.8L3.4 3.1c-.4-.3-.9 0-.9.5zM8.4 3.6v8.8c0 .5.5.8.9.5l5.2-4.5c.3-.2.3-.6 0-.8L9.3 3.1c-.4-.3-.9 0-.9.5z" fill="currentColor"/>
+        </svg>
+        <span class="speed-x" aria-hidden="true">2×</span>
+      </button>
+
+      <!-- Seleção de fases (Modo Fases): grade de números, paginada -->
       <section id="levels-screen" class="levels-screen" role="dialog" aria-modal="true" aria-labelledby="levels-title">
-        <button id="levels-close" class="levels-close" type="button" aria-label="Fechar" data-tip="Fechar (Esc)" data-tip-align="end">
-          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        <!-- Origem = Tela Inicial: só "Voltar" (volta ao menu). Origem = partida: só "X" (fecha e retoma o jogo). O JS alterna os dois. -->
+        <button id="levels-back" class="levels-back" type="button" aria-label="Voltar para a Tela Inicial" hidden>
+          <svg viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M12 4l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>Voltar</span>
         </button>
-        <h2 id="levels-title" class="over-title levels-title">Fases</h2>
+        <button id="levels-close" class="levels-close" type="button" aria-label="Fechar" data-tip="Fechar (Esc)" data-tip-align="end">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+        </button>
+        <h2 id="levels-title" class="panel-title levels-title">Fases</h2>
+        <p id="levels-sub" class="levels-sub" aria-live="polite"></p>
         <div id="levels-wrap" class="levels-wrap">
           <div id="levels-grid" class="levels-grid" role="group" aria-label="Fases"></div>
         </div>
         <div class="levels-pager">
+          <button id="levels-first" class="pager-btn" type="button" aria-label="Primeira página" data-tip="Primeira página" data-tip-pos="above" data-tip-align="start">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M8.5 3L3.5 8l5 5M13 3L8 8l5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
           <button id="levels-prev" class="pager-btn" type="button" aria-label="Página anterior">
-            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
           <span id="levels-page" class="levels-page" aria-live="polite">1 / 1</span>
           <button id="levels-next" class="pager-btn" type="button" aria-label="Próxima página">
-            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button id="levels-cur" class="pager-btn" type="button" aria-label="Ir para o atual" data-tip="Ir para o atual" data-tip-pos="above" data-tip-align="end">
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3 3l5 5-5 5M8 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </button>
         </div>
       </section>
 
       <!-- Pausa: cobre 100% do jogo; quem retoma é o jogador (Continuar), que volta na hora ao ponto exato -->
       <section id="pause-screen" class="pause" role="dialog" aria-modal="true" aria-labelledby="pause-title">
-        <h2 id="pause-title" class="over-title">Pausado</h2>
-        <p id="pause-text" class="final"></p>
-        <button id="resume-button" class="btn" type="button">Continuar</button>
-        <button id="pause-restart" class="btn btn-ghost" type="button">Reiniciar</button>
+        <div class="panel">
+          <h2 id="pause-title" class="panel-title">Pausado</h2>
+          <p id="pause-text" class="panel-text"></p>
+          <button id="resume-button" class="btn" type="button">Continuar</button>
+          <button id="pause-home" class="btn btn-ghost" type="button">Voltar para a Tela Inicial</button>
+        </div>
       </section>
 
       <section id="dialog" class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" aria-live="polite">
-        <h2 id="dialog-title" class="over-title">Fase concluída!</h2>
-        <p id="dialog-text" class="final"></p>
-        <button id="dialog-ok" class="btn" type="button">Próxima fase</button>
-        <button id="dialog-cancel" class="btn btn-ghost" type="button">Cancelar</button>
+        <div class="panel">
+          <h2 id="dialog-title" class="panel-title">Fase concluída!</h2>
+          <p id="dialog-text" class="panel-text"></p>
+          <button id="dialog-ok" class="btn" type="button">Próxima fase</button>
+          <button id="dialog-cancel" class="btn btn-ghost" type="button">Cancelar</button>
+        </div>
       </section>
 
       <p id="toast" class="toast" role="status" hidden></p>
@@ -121,6 +171,7 @@
         <circle cx="10" cy="14.6" r="1.1" fill="currentColor"/>
       </svg>
     </button>
+
     </div>
   </div>
 
@@ -135,16 +186,17 @@
     <h3 class="help-sub">Controles</h3>
     <ul class="ctl-list">
       <li><span class="ctl-keys"><kbd class="cap cap-wide">Toque</kbd></span><span class="ctl-label">Escolher tubo</span></li>
-      <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Iniciar</span></li>
+      <li><span class="ctl-keys"><kbd class="cap cap-wide">Space</kbd></span><span class="ctl-label">Continuar o último modo</span></li>
       <li><span class="ctl-keys"><kbd class="cap">Z</kbd></span><span class="ctl-label">Desfazer</span></li>
       <li><span class="ctl-keys"><kbd class="cap">R</kbd></span><span class="ctl-label">Reiniciar a fase</span></li>
       <li><span class="ctl-keys"><kbd class="cap">P</kbd></span><span class="ctl-label">Pausar / continuar</span></li>
+      <li><span class="ctl-keys"><kbd class="cap">S</kbd></span><span class="ctl-label">Acelerar animações (1× / 2×)</span></li>
       <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
     </ul>
-    <p class="help-note">Cada vitória libera a próxima fase, sempre mais difícil. O progresso fica salvo neste aparelho e as fases já liberadas podem ser jogadas de novo em "Fases".</p>
+    <p class="help-note">Modo Fases: 30 fases fixas, sempre iguais, e cada vitória libera a próxima. Modo Infinito: até 1000 níveis sorteados, cada vez mais difíceis; o tabuleiro de cada nível fica salvo, então o catálogo ("Níveis") reabre o mesmo, e "Novo jogo" (com confirmação) apaga a partida atual e sorteia outro. Ao escolher um modo, o catálogo abre na página do nível mais recente. O progresso e a partida em andamento de cada modo ficam salvos neste aparelho. Se você recarregar a página no meio de uma partida, ela volta já pausada.</p>
   </div>
 
-  <script src="water_sort_storage.js?v=4"></script>
-  <script src="water_sort.js?v=4"></script>
+  <script src="water_sort_storage.js?v=8"></script>
+  <script src="water_sort.js?v=11"></script>
 </body>
 </html>
