@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#070b1c">
   <title>Tubos de Cores · Arcádia</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="water_sort.css?v=11">
+  <link rel="stylesheet" href="water_sort.css?v=12">
 </head>
 <body>
   <!-- Cabeçalho em 3 colunas: Catálogo | título centralizado | espaçador (mantém o título no centro da página) -->
@@ -181,6 +181,8 @@
       <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path d="M3.5 3.5l9 9M12.5 3.5l-9 9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
     </button>
     <h2 id="help-title" class="help-title">Como jogar</h2>
+    <!-- Só o miolo rola: título e botão de fechar ficam fixos; a barra é fina e as bordas esmaecem quando há mais conteúdo -->
+    <div id="help-body" class="help-body" role="region" aria-label="Instruções de como jogar" tabindex="0">
     <p class="help-text">Despeje os líquidos entre os tubos até que cada tubo tenha uma única cor, totalmente cheio.</p>
     <p class="help-text">Toque num tubo para pegá-lo e depois no tubo de destino. Só dá para despejar sobre a mesma cor ou num tubo vazio, e se houver espaço.</p>
     <h3 class="help-sub">Controles</h3>
@@ -194,9 +196,10 @@
       <li><span class="ctl-keys"><kbd class="cap">M</kbd></span><span class="ctl-label">Som</span></li>
     </ul>
     <p class="help-note">Modo Fases: 30 fases fixas, sempre iguais, e cada vitória libera a próxima. Modo Infinito: até 1000 níveis sorteados, cada vez mais difíceis; o tabuleiro de cada nível fica salvo, então o catálogo ("Níveis") reabre o mesmo, e "Novo jogo" (com confirmação) apaga a partida atual e sorteia outro. Ao escolher um modo, o catálogo abre na página do nível mais recente. O progresso e a partida em andamento de cada modo ficam salvos neste aparelho. Se você recarregar a página no meio de uma partida, ela volta já pausada.</p>
+    </div>
   </div>
 
   <script src="water_sort_storage.js?v=8"></script>
-  <script src="water_sort.js?v=11"></script>
+  <script src="water_sort.js?v=12"></script>
 </body>
 </html>

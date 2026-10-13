@@ -146,7 +146,7 @@ const ui = {
   dTitle: $('dialog-title'), dText: $('dialog-text'), dOk: $('dialog-ok'), dNo: $('dialog-cancel'),
   arena: $('arena'), frame: $('frame'), startScreen: $('start-screen'),
   mLevels: $('mode-levels'), mInf: $('mode-infinite'), mLevelsInfo: $('mode-levels-info'), mInfInfo: $('mode-infinite-info'),
-  helpButton: $('help-button'), helpPopover: $('help-popover'), helpClose: $('help-close'),
+  helpButton: $('help-button'), helpPopover: $('help-popover'), helpClose: $('help-close'), helpBody: $('help-body'),
   levelsBtn: $('levels-button'), lvScreen: $('levels-screen'), lvClose: $('levels-close'), lvBack: $('levels-back'), lvWrap: $('levels-wrap'), lvGrid: $('levels-grid'),
   lvPrev: $('levels-prev'), lvNext: $('levels-next'), lvPage: $('levels-page'), lvFirst: $('levels-first'), lvCur: $('levels-cur'),
   lvTitle: $('levels-title'), lvSub: $('levels-sub'), speed: $('speed-button'), hud: document.querySelector('.hud'),
@@ -1024,7 +1024,7 @@ function pickLevel(n) {
 /* ===== Ajuda "Como jogar": popover ancorado ABAIXO do botão "?", fora da área do jogo ===== */
 function openHelp() {
   if (helpOpen) return;
-  helpOpen = true; ui.helpPopover.hidden = false; ui.helpButton.setAttribute('aria-expanded', 'true'); placeHelp();
+  helpOpen = true; ui.helpPopover.hidden = false; ui.helpBody.scrollTop = 0; ui.helpButton.setAttribute('aria-expanded', 'true'); placeHelp();
   pause('help', false);   // abrir a ajuda pausa a partida (sem efeito na tela inicial); fechar NÃO retoma
 }
 function closeHelp() {
@@ -1046,10 +1046,17 @@ function placeHelp() {
   let placement = 'below';
   if (ui.frame.dataset.helpPos !== 'side' && height > roomBelow && roomAbove > roomBelow) placement = 'above';
   const room = placement === 'below' ? roomBelow : roomAbove;
-  if (height > room) { pop.style.maxHeight = `${Math.max(96, Math.floor(room))}px`; pop.style.overflowY = 'auto'; }
+  if (height > room) { pop.style.maxHeight = `${Math.max(96, Math.floor(room))}px`; }   // o miolo (.help-body) é quem rola
   const finalHeight = pop.offsetHeight;
   pop.style.top = `${Math.round(placement === 'below' ? btn.bottom + HELP.gap : btn.top - HELP.gap - finalHeight)}px`;
   pop.dataset.placement = placement;
+  updateHelpFade();
+}
+/* Esmaece o topo/rodapé do miolo só onde ainda há conteúdo escondido (começo: só embaixo; fim: só em cima; sem rolagem: nenhum). */
+function updateHelpFade() {
+  const el = ui.helpBody, max = el.scrollHeight - el.clientHeight;
+  el.classList.toggle('fade-top', max > 1 && el.scrollTop > 2);
+  el.classList.toggle('fade-bottom', max > 1 && el.scrollTop < max - 2);
 }
 
 /* ===== Ligações ===== */
@@ -1068,6 +1075,7 @@ ui.helpButton.addEventListener('click', e => {
   if (helpOpen) closeHelp(); else openHelp();
   if (e.detail > 0) ui.helpButton.blur();   // clique/toque: Space não deve acionar o botão depois
 });
+ui.helpBody.addEventListener('scroll', updateHelpFade, { passive: true });
 ui.helpClose.addEventListener('click', e => { e.stopPropagation(); closeHelp(); ui.helpButton.focus({ preventScroll: true }); });
 // Um toque fora do popover só o fecha.
 document.addEventListener('pointerdown', e => {
