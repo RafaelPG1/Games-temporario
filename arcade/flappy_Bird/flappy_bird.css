@@ -14,40 +14,17 @@
   --red: #e5432b;
   --white: #ffffff;
   --u: 1.5px;
-  --o: max(1px, calc(var(--u) * 1.6)); /* espessura do contorno dos textos */
+  --o: max(1px, calc(var(--u) * 1.6));
 
-  /* Moldura ao redor do jogo (cabeçalho e fundo) */
-  --shell-bg: #07080c;
-  --shell-surface: #0e1017;
-  --shell-line: #222633;
-  --shell-text: #eceef5;
-  --shell-muted: #8d93a8;
-  --shell-accent: #ffc857;
-
-  --tip-delay: 0.3s;       /* atraso para o tooltip (data-tip) aparecer no hover do mouse */
+  /* atraso para o tooltip (data-tip) aparecer no hover do mouse */
 }
 
-* { box-sizing: border-box; }
-
 html, body {
-  margin: 0;
-  height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
-  background: var(--shell-bg);
   touch-action: none;
-  -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
 }
 
 body {
-  display: flex;
-  flex-direction: column;
-  height: 100vh;
-  height: 100dvh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-family: "Arial Black", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif;
   font-weight: 900;
   color: var(--white);
@@ -56,66 +33,35 @@ body {
 /* ---------- Cabeçalho ---------- */
 
 .topbar {
-  flex: none;
   display: flex;
-  align-items: center;
   gap: 14px;
-  height: 56px;
-  padding: 0 clamp(10px, 3vw, 24px);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   font-weight: 600;
   color: var(--shell-text);
-  background: linear-gradient(180deg, #0d0f16, var(--shell-bg));
-  border-bottom: 1px solid var(--shell-line);
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
 }
 
 .back {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 40px;
-  padding: 0 16px 0 10px;
-  font-size: 14px;
-  color: var(--shell-text);
-  text-decoration: none;
-  background: var(--shell-surface);
-  border: 1px solid var(--shell-line);
-  border-radius: 999px;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   cursor: pointer;
   touch-action: manipulation;
   transition: border-color 0.2s, background 0.2s, box-shadow 0.25s, transform 0.1s;
 }
-.back svg { transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), color 0.2s; }
 .back:hover {
-  background: #141722;
-  border-color: rgba(255, 200, 87, 0.6);
   box-shadow: 0 0 0 4px rgba(255, 200, 87, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-.back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
-.back:active { transform: scale(0.97); }
-.back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
 
 .game-id {
-  display: flex;
-  align-items: center;
-  gap: 10px;
   min-width: 0;
 }
-.game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(78, 192, 232, 0.28); }
-.game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.game-mark { border-radius: 9px; box-shadow: 0 0 18px rgba(78, 192, 232, 0.28); }
 .game-text strong {
-  font-size: 15px;
-  font-weight: 700;
   letter-spacing: -0.01em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
-
-
 
 /* ---------- Arena (área ao redor do palco) ---------- */
 .arena {
@@ -264,12 +210,7 @@ body {
 .cap-icon { display: block; width: calc(var(--cap) * 0.6); height: calc(var(--cap) * 0.6); }
 
 .sr-only {
-  position: absolute;
-  width: 1px; height: 1px;
   margin: -1px; padding: 0;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
   border: 0;
 }
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
@@ -419,7 +360,6 @@ body {
   outline-offset: calc(var(--u) * 5);
 }
 
-
 /* Ajustes para alinhar os ícones de teclado na tela de retomada */
 .screen-recovery .hint {
   position: static;
@@ -560,17 +500,10 @@ body {
 
 .noscript {
   position: absolute;
-  inset: auto 0 40% 0;
-  margin: 0;
-  text-align: center;
   color: var(--white);
 }
 
 /* ---------- Telas pequenas ---------- */
-
-@media (max-width: 640px) {
-  .topbar { height: 52px; }
-}
 
 /* ---------- Telas muito baixas (celular deitado) ---------- */
 
@@ -604,30 +537,17 @@ body {
 .arena.help-bottom .help { top: calc(100% + 8px); left: auto; right: 0; }
 
 .help-btn {
-  display: grid;
-  place-items: center;
   width: 44px;
   height: 44px;
-  padding: 0;
-  color: var(--shell-text);
-  background: var(--shell-surface);
-  border: 1px solid var(--shell-line);
-  border-radius: 50%;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  cursor: pointer;
-  touch-action: manipulation;
   transition: border-color 0.2s, background 0.2s, box-shadow 0.25s, transform 0.1s;
 }
-.help-btn svg { transition: color 0.2s; }
 .help-btn:hover,
 .help-btn[aria-expanded="true"] {
-  background: #141722;
-  border-color: rgba(255, 200, 87, 0.6);
   box-shadow: 0 0 0 4px rgba(255, 200, 87, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .help-btn:hover svg,
 .help-btn[aria-expanded="true"] svg { color: var(--shell-accent); }
-.help-btn:active { transform: scale(0.95); }
 .help-btn:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
 
 .help-popover {
@@ -639,7 +559,6 @@ body {
   color: var(--ink);
   font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif;
   font-weight: 700;
-  text-align: left;
   background: var(--paper);
   border: 3px solid var(--ink);
   box-shadow:
@@ -648,17 +567,11 @@ body {
     0 12px 28px rgba(0, 0, 0, 0.45);
   animation: help-in 0.16s ease-out;
 }
-.help-popover[hidden] { display: none; }
 
 /* Seta apontando para o botão */
 .help-popover::before {
-  content: "";
-  position: absolute;
-  width: 14px;
-  height: 14px;
   background: var(--paper);
   border: 3px solid var(--ink);
-  transform: rotate(45deg);
 }
 
 /* Alternativa quando não cabe abaixo: ao lado do botão (celular deitado) */
@@ -681,7 +594,7 @@ body {
   left: var(--pop-x, 0px);
   transform-origin: var(--arrow-x, 22px) top;
 }
-.help-popover[data-placement="below"]::before { left: calc(var(--arrow-x, 22px) - 7px); top: -10px; border-right: 0; border-bottom: 0; }
+.help-popover[data-placement="below"]::before { left: calc(var(--arrow-x, 22px) - 7px); top: -10px; }
 
 /* Último recurso (celular em pé, sem altura livre abaixo do botão): abre para cima */
 .help-popover[data-placement="above"] {
@@ -689,7 +602,7 @@ body {
   right: 0;
   transform-origin: right bottom;
 }
-.help-popover[data-placement="above"]::before { right: 12px; bottom: -10px; border-left: 0; border-top: 0; }
+.help-popover[data-placement="above"]::before { right: 12px; bottom: -10px; }
 
 .help-title {
   margin: 0 28px 6px 0;
@@ -719,17 +632,11 @@ body {
   position: absolute;
   top: 3px;
   right: 3px;
-  display: grid;
-  place-items: center;
   width: 32px;
   height: 32px;
-  padding: 0;
   color: var(--ink);
-  background: transparent;
-  border: 0;
   border-radius: 4px;
   opacity: 0.6;
-  cursor: pointer;
   touch-action: manipulation;
 }
 .help-close svg { width: 12px; height: 12px; }
@@ -749,7 +656,7 @@ body {
 /* ---------- Cabeçalho: voltar | nome do jogo | (espaço) ----------
    Regras próprias do jogo: o layout do cabeçalho não depende de nenhum arquivo compartilhado. */
 .topbar {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px;
   min-height: 46px; padding-top: 0; padding-bottom: 0; padding-left: clamp(12px, 3vw, 24px); padding-right: clamp(12px, 3vw, 24px);
 }
 .topbar .back { justify-self: start; min-height: 44px; }
@@ -786,8 +693,8 @@ body {
 
 [data-tip]::before,
 [data-tip]::after {
-  position: absolute; z-index: 40; pointer-events: none;
-  opacity: 0; visibility: hidden; transition: none;          /* escondido: some na hora, sem atraso */
+  z-index: 40;
+  /* escondido: some na hora, sem atraso */
 }
 [data-tip]::after {
   content: attr(data-tip);

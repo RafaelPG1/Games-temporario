@@ -1,45 +1,32 @@
 /* puzzle/campo_minado/campo_minado.css - casca externa no padrão da Arcádia; tabuleiro com identidade própria */
 :root {
   --menu-accent: #ffc857;
-  --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
-  --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
   --closed: #5b7a8c; --closed-hi: #86a2b2; --closed-lo: #3a5160;
   --open: #161c29; --open-line: #232c40; --coral: #ff5a4e; --focus: #4ec0e8;
-  --tip-delay: 0.3s;
   --cell: 34px; --cols: 9; --gap: 2px; --bevel: 2px; --fs: .54; --chrome: 40px;
   --screen-bg: linear-gradient(180deg, #151925, #10131c);
   --cpad: 14px; --fpad: 9px; --apad-y: 14px; --apad-x: clamp(8px, 2vw, 20px);
 }
-* { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body {
-  margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--shell-bg);
-  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none;
 }
 body {
-  display: flex; flex-direction: column; height: 100vh; height: 100dvh; color: var(--shell-text);
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  color: var(--shell-text);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }
 
 /* Cabeçalho (padrão da Arcádia) */
 .topbar {
-  flex: none; display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); align-items: center; column-gap: 12px; height: 56px; padding: 0 clamp(8px, 3vw, 24px);   /* [marca + título] no centro exato; as laterais nunca ficam menores que o botão */
-  font-weight: 600; background: linear-gradient(180deg, #0d0f16, var(--shell-bg)); border-bottom: 1px solid var(--shell-line);
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); column-gap: 12px; padding: 0 clamp(8px, 3vw, 24px);   /* [marca + título] no centro exato; as laterais nunca ficam menores que o botão */
+  font-weight: 600;
 }
 .back {
   grid-column: 1; justify-self: start; flex: none; white-space: nowrap;
-  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 10px; font-size: 14px;
-  color: var(--shell-text); text-decoration: none; background: var(--shell-surface); border: 1px solid var(--shell-line);
-  border-radius: 999px; touch-action: manipulation; transition: border-color .2s, background .2s, transform .1s;
+  touch-action: manipulation;
 }
-.back svg { transition: transform .25s cubic-bezier(.2,.8,.2,1), color .2s; }
-.back:hover { background: #141722; border-color: rgba(255,200,87,.6); }
-.back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
-.back:active { transform: scale(.97); }
-.back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
-.game-id { grid-column: 2; justify-self: center; display: flex; align-items: center; gap: 10px; min-width: 0; }
-.game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(134,162,178,.25); }
+.game-id { grid-column: 2; justify-self: center; min-width: 0; }
+.game-mark { border-radius: 9px; box-shadow: 0 0 18px rgba(134,162,178,.25); }
 .game-title { flex: none; display: block; width: 120px; height: 22px; color: var(--shell-text); overflow: visible; }
 
 /* Arena: rola na vertical se a tela for baixa; nunca na horizontal */
@@ -251,8 +238,8 @@ body {
 .ctl-label { font-size: 14px; }
 .help-note { margin: 10px 0 0; font-size: 12px; line-height: 1.4; color: var(--shell-muted); }
 .help-close {
-  flex: none; display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
-  color: var(--shell-muted); background: transparent; border: 0; border-radius: 10px; cursor: pointer; touch-action: manipulation;
+  flex: none; width: 44px; height: 44px;
+  color: var(--shell-muted); border-radius: 10px; touch-action: manipulation;
 }
 .help-close svg { width: 14px; height: 14px; }
 .help-close:hover { color: var(--shell-text); background: rgba(255,255,255,.06); }
@@ -267,7 +254,6 @@ body {
 .tip .cap { height: 20px; min-width: 20px; padding: 0 5px; font-size: 11px; border-radius: 4px; box-shadow: 0 2px 0 #4a5068; }
 .tip .cap[hidden] { display: none; }
 
-@media (max-width: 640px) { .topbar { height: 52px; } }
 /* ===== CABEÇALHO NO CELULAR: "Catálogo" sempre inteiro e o título no centro (mesma solução do Jogo da Memória) ===== */
 @media (max-width: 460px) {
   .topbar { column-gap: 6px; padding: 0 8px; }

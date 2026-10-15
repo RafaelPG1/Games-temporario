@@ -2,33 +2,28 @@
    Identidade: mesa de carteado de salão. Feltro verde, aro de madeira escura com filete de latão,
    placar e controles como um único conjunto. As cartas (bloco "Cartas") não mudaram. */
 :root {
-  --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633; --shell-text: #eceef5; --shell-muted: #8d93a8;
   --felt-1: #14594f; --felt-2: #0a312f; --felt-edge: #061f1e;
   --rail-1: #3a2a1d; --rail-2: #1a110b;
   --brass: #d9b45f; --brass-2: #efd28b; --ivory: #f7f1e1; --ivory-2: #ece3cc; --red: #bf2f2a; --blk: #1c2029; --sel: #7fe3d6;
   --panel-1: #14504b; --panel-2: #082524; --ink: #0b2523; --mist: #cfe3df;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
   --cw: 60px; --ch: 84px;
-  --tip-delay: 0.3s;          /* espera do tooltip no hover (no teclado aparece sem espera) */
+  /* espera do tooltip no hover (no teclado aparece sem espera) */
 }
-* { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--shell-bg); touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
-body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); font-family: "Avenir Next", "Nunito", "Segoe UI", system-ui, sans-serif; color: var(--shell-text); }
+html, body { touch-action: manipulation; }
+body { font-family: "Avenir Next", "Nunito", "Segoe UI", system-ui, sans-serif; color: var(--shell-text); }
 button { font: inherit; color: inherit; }
-.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.sr-only { margin: -1px; padding: 0; border: 0; }
 
 /* ===== Casca externa (mesmo padrão dos outros jogos) ===== */
-.topbar { flex: none; display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 clamp(10px, 3vw, 24px); font-weight: 600; background: linear-gradient(180deg, #0d0f16, var(--shell-bg)); border-bottom: 1px solid var(--shell-line); }
-.back { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 10px; font-size: 14px; color: var(--shell-text); text-decoration: none; background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 999px; transition: border-color .2s, background .2s, transform .1s; }
-.back svg { transition: transform .25s cubic-bezier(.2,.8,.2,1), color .2s; }
-.back:hover { background: #141722; border-color: rgba(217,180,95,.6); }
-.back:hover svg { transform: translateX(-3px); color: var(--brass); }
-.back:active { transform: scale(.97); }
+.topbar { display: flex; gap: 14px; font-weight: 600; }
+.back { color: var(--shell-text); }
+.back:hover { border-color: rgba(217,180,95,.6); }
+.back:hover svg { color: var(--brass); }
 .back:focus-visible, .tool:focus-visible, .btn:focus-visible, .btn-link:focus-visible, .card:focus-visible, .slot:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
-.game-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(63,208,201,.2); }
-.game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
-.game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.game-id { min-width: 0; }
+.game-mark { border-radius: 9px; box-shadow: 0 0 18px rgba(63,208,201,.2); }
+.game-text strong { white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
 
 .arena { flex: 1 1 0; min-height: 0; display: flex; justify-content: center; align-items: stretch; padding: 12px 10px; background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg); }
@@ -133,7 +128,6 @@ button { font: inherit; color: inherit; }
 .field.celebrate .card { animation: hop .9s cubic-bezier(.3,.7,.3,1) both; }
 @keyframes hop { 35% { translate: 0 calc(var(--ch) * -.22); rotate: 7deg; } 70% { translate: 0 calc(var(--ch) * -.04); rotate: -3deg; } }
 
-
 /* ===== Telas sobre a mesa: início, pausa/retomada e contagem ===== */
 .overlay { position: absolute; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; border-radius: 22px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .22s ease, visibility 0s linear .22s; }
 .is-ready .start, .is-paused .pause, .is-counting .countdown { opacity: 1; visibility: visible; pointer-events: auto; transition-delay: 0s; }
@@ -219,11 +213,10 @@ button { font: inherit; color: inherit; }
 .win-score small { font: 700 14px var(--serif); color: #b6ccc7; }
 .win-line b { color: var(--shell-text); }
 .badge { display: inline-block; padding: 5px 14px; font-weight: 800; color: var(--ink) !important; background: var(--brass); border-radius: 999px; }
-.noscript { position: fixed; inset: auto 0 40% 0; margin: 0; text-align: center; }
+.noscript { position: fixed; }
 
 /* ===== Responsivo ===== */
 @media (hover: none) and (pointer: coarse) { .panel-hint { display: none; } }
-@media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-width: 560px) {
   .arena { padding: 8px 4px; }
   .game-body { gap: 8px; }

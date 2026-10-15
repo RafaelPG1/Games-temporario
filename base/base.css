@@ -1,0 +1,17 @@
+/* base/base.css - padrões compartilhados (fundo da página, cabeçalho, botão Catálogo). Ver base/LEIA-ME.md */
+:root { --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633; --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857; --tip-delay: .3s; }
+:where(*) { box-sizing: border-box; }
+:where(html), :where(body) { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--shell-bg); -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+:where(body) { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); }
+:where(.topbar) { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; column-gap: 14px; height: var(--shell-topbar-h, 56px); padding: 0 clamp(10px, 3vw, 24px); background: linear-gradient(180deg, var(--shell-topbar-top, #0d0f16), var(--shell-bg)); border-bottom: 1px solid var(--shell-line); }
+@media (max-width: 640px) { :where(.topbar) { height: var(--shell-topbar-h-sm, 52px); } }
+:where(.back) { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 10px; font-size: 14px; color: var(--shell-text); text-decoration: none; background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 999px; transition: border-color .2s, background .2s, transform .1s; }
+:where(.back svg) { transition: transform .25s cubic-bezier(.2, .8, .2, 1), color .2s; }
+.back:hover { background: var(--shell-hover-bg, #141722); border-color: var(--shell-hover-line, rgba(255, 200, 87, .6)); }
+.back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
+.back:active { transform: scale(.97); }
+.back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
+:where(.game-id) { display: flex; align-items: center; gap: 10px; }
+:where(.game-mark) { flex: none; }
+:where(.game-text) { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+:where(.game-text strong) { font-size: 15px; font-weight: 700; }

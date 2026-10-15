@@ -1,0 +1,14 @@
+/* base/ui.css - componentes compartilhados (utilitários, botão ?, janela Como jogar, esqueleto de tooltip). Ver base/LEIA-ME.md */
+:where(.sr-only) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:where(.noscript) { inset: auto 0 40% 0; margin: 0; text-align: center; }
+:where(.help-btn) { display: grid; place-items: center; padding: 0; color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%; cursor: pointer; touch-action: manipulation; }
+:where(.help-btn svg) { transition: color .2s; }
+.help-btn:hover, .help-btn[aria-expanded="true"] { background: var(--shell-hover-bg, #141722); border-color: var(--shell-hover-line, rgba(255, 200, 87, .6)); }
+.help-btn:active { transform: scale(.95); }
+:where(.help-close) { display: grid; place-items: center; padding: 0; background: transparent; border: 0; cursor: pointer; }
+:where(.help-popover) { text-align: left; }
+.help-popover[hidden] { display: none; }
+:where(.help-popover)::before { content: ""; position: absolute; width: 14px; height: 14px; transform: rotate(45deg); }
+.help-popover[data-placement="above"]::before { border-left: 0; border-top: 0; }
+.help-popover[data-placement="below"]::before { border-right: 0; border-bottom: 0; }
+:where(.tips-css) [data-tip]::before, :where(.tips-css) [data-tip]::after { position: absolute; pointer-events: none; opacity: 0; visibility: hidden; transition: none; }

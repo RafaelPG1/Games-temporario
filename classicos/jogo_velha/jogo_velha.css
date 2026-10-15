@@ -4,46 +4,30 @@
   --paper: #163832; --panel: #1f4a42; --sheet: #10302a; --line: #4f7d72; --ink: #eef6f1; --muted: #a9c4ba;
   --x: #ff8272; --o: #74d6f0; --hl: #ffd84d; --on-hl: #14241f; --shadow: #081512;
   --hand: "Segoe Print", "Bradley Hand", "Chalkboard SE", "Marker Felt", "Comic Sans MS", cursive;
-  --u: 1.5px; --tip-delay: 0.3s;
-  --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
-  --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
+  --u: 1.5px;
 }
-* { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body {
-  margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;
-  background: var(--shell-bg); touch-action: none;
-  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
-  -webkit-user-select: none; user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
 }
 body {
-  display: flex; flex-direction: column; height: 100vh; height: 100dvh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 700; color: var(--ink);
 }
 
 /* Cabeçalho (padrão da Arcádia) */
 .topbar {
-  flex: none; display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); align-items: center; column-gap: 12px; height: 56px;
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); column-gap: 12px;
   padding: 0 clamp(8px, 3vw, 24px); font-weight: 600;   /* [marca + título] no centro exato; as laterais nunca ficam menores que o botão */
-  color: var(--shell-text); background: linear-gradient(180deg, #0d0f16, var(--shell-bg));
-  border-bottom: 1px solid var(--shell-line);
+  color: var(--shell-text);
 }
 .back {
-  grid-column: 1; justify-self: start; flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 10px;
-  font-size: 14px; color: var(--shell-text); text-decoration: none; background: var(--shell-surface);
-  border: 1px solid var(--shell-line); border-radius: 999px; touch-action: manipulation;
-  transition: border-color .2s, background .2s, transform .1s;
+  grid-column: 1; justify-self: start; flex: none; white-space: nowrap;
+  touch-action: manipulation;
 }
-.back svg { transition: transform .25s cubic-bezier(.2,.8,.2,1), color .2s; }
-.back:hover { background: #141722; border-color: rgba(255,200,87,.6); }
-.back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
-.back:active { transform: scale(.97); }
-.back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
-.game-id { grid-column: 2; justify-self: center; display: flex; align-items: center; gap: 10px; min-width: 0; }
-.game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(241,244,250,.18); }
-.game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
-.game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.game-id { grid-column: 2; justify-self: center; min-width: 0; }
+.game-mark { border-radius: 9px; box-shadow: 0 0 18px rgba(241,244,250,.18); }
+.game-text strong { white-space: nowrap; }
 
 /* Arena e palco (proporção 288 × 512, como os outros jogos da Arcádia) */
 .arena {
@@ -198,7 +182,7 @@ body {
 .icon-btn .icon-cross { display: none; stroke: var(--x); }
 .icon-btn.is-muted .icon-waves { display: none; } .icon-btn.is-muted .icon-cross { display: inline; }
 .icon-btn .icon-play { display: none; } .icon-btn.is-paused .icon-pause { display: none; } .icon-btn.is-paused .icon-play { display: inline; }
-.noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
+.noscript { position: absolute; }
 
 /* Tooltips: 300 ms no mouse, imediato no foco do teclado, some na hora ao sair/clicar. O último fica alinhado à direita para não ser cortado */
 [data-tip] { position: relative; }
@@ -212,7 +196,6 @@ body {
 @media (hover: hover) and (pointer: fine) { [data-tip]:hover:not(.tip-off)::after { opacity: 1; transition: opacity .12s ease var(--tip-delay); } }
 [data-tip]:focus-visible:not(.tip-off)::after { opacity: 1; transition-delay: 0s; }
 
-@media (max-width: 640px) { .topbar { height: 52px; } }
 /* Cabeçalho no celular: "Catálogo" sempre inteiro e o título no centro */
 @media (max-width: 460px) {
   .topbar { column-gap: 6px; padding: 0 8px; }

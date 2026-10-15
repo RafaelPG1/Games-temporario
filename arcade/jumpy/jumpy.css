@@ -3,48 +3,30 @@
   --ink: #543847; --paper: #ded895; --paper-light: #f6efb4;
   --menu-accent: #f08a24; --orange: #f08a24; --orange-dark: #c9600d; --white: #fff;
   --u: 1.5px; --o: max(1px, calc(var(--u) * 1.6));
-  --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
-  --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
 }
-* { box-sizing: border-box; }
 html, body {
-  margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;
-  background: var(--shell-bg); touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
-  -webkit-user-select: none; user-select: none;
+  touch-action: manipulation;
+  -webkit-touch-callout: none;
 }
 body {
-  display: flex; flex-direction: column; height: 100vh; height: 100dvh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-family: "Arial Black", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif;
   font-weight: 900; color: var(--white);
 }
 
 /* Cabeçalho */
 .topbar {
-  flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; height: 56px;
-  padding: 0 clamp(10px, 3vw, 24px);
+  gap: 14px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 600;
-  color: var(--shell-text); background: linear-gradient(180deg, #0d0f16, var(--shell-bg));
-  border-bottom: 1px solid var(--shell-line);
+  color: var(--shell-text);
 }
 .back {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 10px;
-  font-size: 14px; color: var(--shell-text); text-decoration: none; background: var(--shell-surface);
-  border: 1px solid var(--shell-line); border-radius: 999px; touch-action: manipulation;
-  transition: border-color .2s, background .2s, transform .1s;
+  touch-action: manipulation;
 }
-.back svg { transition: transform .25s cubic-bezier(.2,.8,.2,1), color .2s; }
-.back:hover { background: #141722; border-color: rgba(255,200,87,.6); }
-.back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
-.back:active { transform: scale(.97); }
-.back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
 .back { justify-self: start; }
 /* Logo + título juntos, centralizados no cabeçalho (coluna do meio do grid) */
-.game-id { display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; justify-self: center; }
-.game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(78,192,232,.28); }
-.game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
-.game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.game-id { justify-content: center; min-width: 0; justify-self: center; }
+.game-mark { border-radius: 9px; box-shadow: 0 0 18px rgba(78,192,232,.28); }
+.game-text strong { white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
 
 /* Arena e palco */
@@ -112,7 +94,7 @@ body {
 .cap-icon { display: block; width: calc(var(--cap) * .58); height: calc(var(--cap) * .58); }
 .hint-or { font-size: max(11px, calc(var(--u) * 11)); letter-spacing: .08em; }
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
-.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.sr-only { margin: -1px; padding: 0; border: 0; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 
 .screen-over { justify-content: center; gap: calc(var(--u) * 16); padding: 0 8%; transform: translateY(calc(var(--u) * 14)); }
@@ -203,9 +185,8 @@ body {
 #pause-button .icon-play { display: none; }
 #pause-button.is-paused .icon-pause { display: none; }
 #pause-button.is-paused .icon-play { display: inline; }
-.noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
+.noscript { position: absolute; }
 
-@media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }
 @media (prefers-reduced-motion: reduce) { .recovery-count.pop { animation: none; } .screen { transition: none; } .back, .back svg { transition: none; } .help-popover { animation: none; } .help-btn { transition: none; } }
 
@@ -216,38 +197,33 @@ body {
 .arena.help-bottom .help { top: auto; bottom: 6px; left: auto; right: 0; }
 
 .help-btn {
-  display: grid; place-items: center; width: 44px; height: 44px; padding: 0;
-  color: var(--shell-text); background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%;
-  cursor: pointer; touch-action: manipulation;
+  width: 44px; height: 44px;
   transition: border-color .2s, background .2s, box-shadow .25s, transform .1s;
 }
-.help-btn svg { transition: color .2s; }
 .help-btn:hover, .help-btn[aria-expanded="true"] {
-  background: #141722; border-color: rgba(255,200,87,.6); box-shadow: 0 0 0 4px rgba(255,200,87,.08);
+  box-shadow: 0 0 0 4px rgba(255,200,87,.08);
 }
 .help-btn:hover svg, .help-btn[aria-expanded="true"] svg { color: var(--shell-accent); }
-.help-btn:active { transform: scale(.95); }
 .help-btn:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
 
 .help-popover {
   --arrow-x: 22px; --arrow-y: 22px;
   position: absolute; z-index: 30; width: 240px; padding: 14px 16px 12px;
-  color: var(--ink); font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif; font-weight: 700; text-align: left;
+  color: var(--ink); font-family: "Trebuchet MS", "Segoe UI", Arial, sans-serif; font-weight: 700;
   background: var(--paper); border: 3px solid var(--ink);
   box-shadow: inset 0 0 0 2px var(--paper-light), 0 4px 0 rgba(0,0,0,.35), 0 12px 28px rgba(0,0,0,.45);
   animation: help-in .16s ease-out;
 }
-.help-popover[hidden] { display: none; }
 .help-popover::before {
-  content: ""; position: absolute; width: 14px; height: 14px; background: var(--paper);
-  border: 3px solid var(--ink); transform: rotate(45deg);
+  background: var(--paper);
+  border: 3px solid var(--ink);
 }
 /* Padrão: abaixo do botão. O JS define --pop-x (deslocamento) e --arrow-x (seta sob o botão). */
 .help-popover[data-placement="below"] { top: calc(100% + 12px); left: var(--pop-x, 0px); transform-origin: var(--arrow-x) top; }
-.help-popover[data-placement="below"]::before { left: calc(var(--arrow-x) - 7px); top: -10px; border-right: 0; border-bottom: 0; }
+.help-popover[data-placement="below"]::before { left: calc(var(--arrow-x) - 7px); top: -10px; }
 /* Faixa sob o jogo (celular em pé): não há espaço abaixo, abre acima do botão */
 .help-popover[data-placement="above"] { bottom: calc(100% + 12px); left: var(--pop-x, 0px); transform-origin: var(--arrow-x) bottom; }
-.help-popover[data-placement="above"]::before { left: calc(var(--arrow-x) - 7px); bottom: -10px; border-left: 0; border-top: 0; }
+.help-popover[data-placement="above"]::before { left: calc(var(--arrow-x) - 7px); bottom: -10px; }
 /* Celular deitado, se não couber abaixo: ao lado do botão */
 .help-popover[data-placement="side"] { left: calc(100% + 12px); top: var(--pop-y, 0px); transform-origin: left 22px; }
 .help-popover[data-placement="side"]::before { left: -9px; top: calc(var(--arrow-y) - 7px); border-right: 0; border-top: 0; }
@@ -269,8 +245,8 @@ body {
 .help-note { margin: 10px 0 0; font-size: 12px; line-height: 1.3; opacity: .8; }
 
 .help-close {
-  position: absolute; top: 3px; right: 3px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
-  color: var(--ink); background: transparent; border: 0; border-radius: 4px; opacity: .6; cursor: pointer; touch-action: manipulation;
+  position: absolute; top: 3px; right: 3px; width: 32px; height: 32px;
+  color: var(--ink); border-radius: 4px; opacity: .6; touch-action: manipulation;
 }
 .help-close svg { width: 12px; height: 12px; }
 .help-close:hover { opacity: 1; background: rgba(84,56,71,.12); }
@@ -286,7 +262,6 @@ body {
 }
 .pause-restart[data-tip] { position: relative; --tip-gap: calc(var(--u) * 17); }   /* desvia da laje de baixo do botão */
 .help-btn[data-tip] { position: relative; }
-[data-tip]::before, [data-tip]::after { position: absolute; opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
 [data-tip]::after {
   content: attr(data-tip); z-index: 60; top: calc(100% + var(--tip-gap)); right: 0; white-space: nowrap;
   padding: max(6px, calc(var(--u) * 4.5)) max(9px, calc(var(--u) * 7)) max(6px, calc(var(--u) * 4.5));

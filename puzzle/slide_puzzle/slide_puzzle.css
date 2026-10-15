@@ -13,20 +13,12 @@
   --display: "Bricolage Grotesque", "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --text: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --ease: cubic-bezier(.22, 1, .36, 1);
-  --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
-  --tip-delay: 0.3s;
-  --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
 }
-* { box-sizing: border-box; }
 html, body {
-  margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;
-  background: var(--shell-bg); touch-action: none;
-  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
-  -webkit-user-select: none; user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
 }
 body {
-  display: flex; flex-direction: column; height: 100vh; height: 100dvh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-family: var(--text); font-weight: 600; color: var(--ink);
 }
 button { font: inherit; color: inherit; }
@@ -36,27 +28,19 @@ button { font: inherit; color: inherit; }
    e o botão Catálogo tem largura própria (--side), então nunca é espremido nem cortado, nem no celular. */
 .topbar {
   --side: 108px;
-  flex: none; display: grid; grid-template-columns: var(--side) minmax(0, 1fr) var(--side); align-items: center; gap: 8px; height: 56px;
-  padding: 0 clamp(10px, 3vw, 24px);
+  grid-template-columns: var(--side) minmax(0, 1fr) var(--side); gap: 8px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 600;
-  color: var(--shell-text); background: linear-gradient(180deg, #0d0f16, var(--shell-bg));
-  border-bottom: 1px solid var(--shell-line);
+  color: var(--shell-text);
 }
 .back {
-  justify-self: start; display: inline-flex; align-items: center; justify-content: center; gap: 6px; width: var(--side); min-height: 40px; padding: 0 10px 0 8px;
-  font-size: 14px; white-space: nowrap; color: var(--shell-text); text-decoration: none; background: var(--shell-surface);
-  border: 1px solid var(--shell-line); border-radius: 999px; touch-action: manipulation;
-  transition: border-color .2s, background .2s, transform .1s;
+  justify-self: start; justify-content: center; width: var(--side); padding: 0 10px 0 8px;
+  white-space: nowrap; color: var(--shell-text);
+  touch-action: manipulation;
 }
-.back svg { flex: none; transition: transform .25s cubic-bezier(.2,.8,.2,1), color .2s; }
-.back:hover { background: #141722; border-color: rgba(255,200,87,.6); }
-.back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
-.back:active { transform: scale(.97); }
-.back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
-.game-id { justify-self: center; display: flex; align-items: center; justify-content: center; gap: 10px; min-width: 0; max-width: 100%; text-align: center; }
-.game-mark { flex: none; }
-.game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
-.game-text strong { font-family: var(--display); font-size: 16px; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.back svg { flex: none; }
+.back:hover svg { color: var(--shell-accent); }
+.game-id { justify-self: center; justify-content: center; min-width: 0; max-width: 100%; text-align: center; }
+.game-text strong { font-family: var(--display); font-size: 16px; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .game-text strong span { white-space: nowrap; }
 
 /* Arena e palco (proporção 288 × 512) */
@@ -72,14 +56,11 @@ button { font: inherit; color: inherit; }
 .frame .help-btn { position: absolute; top: 0; left: calc(100% + 16px); }
 .frame[data-help-pos="below"] .help-btn { position: static; align-self: flex-end; margin-top: 12px; }
 .help-btn {
-  flex: none; display: grid; place-items: center; width: 40px; height: 40px; padding: 0; color: var(--shell-text);
-  background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 50%; cursor: pointer; touch-action: manipulation;
+  flex: none; width: 40px; height: 40px; color: var(--shell-text);
   transition: border-color .2s, background .2s, box-shadow .25s, transform .1s;
 }
-.help-btn svg { transition: color .2s; }
-.help-btn:hover, .help-btn[aria-expanded="true"] { background: #141722; border-color: rgba(255,200,87,.6); box-shadow: 0 0 0 4px rgba(255,200,87,.08); }
+.help-btn:hover, .help-btn[aria-expanded="true"] { box-shadow: 0 0 0 4px rgba(255,200,87,.08); }
 .help-btn:hover svg, .help-btn[aria-expanded="true"] svg { color: var(--shell-accent); }
-.help-btn:active { transform: scale(.95); }
 .help-btn:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
 
 .stage {
@@ -403,15 +384,14 @@ button { font: inherit; color: inherit; }
 /* Ajuda: popover ancorado ao botão "?", fora da área do jogo (posição calculada pelo JS) */
 .help-popover {
   --arrow-x: 22px; --pop-line: rgba(255,255,255,.16);
-  position: fixed; z-index: 50; display: flex; flex-direction: column; width: 270px; padding: 0; text-align: left;
+  position: fixed; z-index: 50; display: flex; flex-direction: column; width: 270px; padding: 0;
   font-family: var(--text); font-weight: 500; color: var(--ink);
   background: #171a3a; border: 1px solid var(--pop-line); border-radius: 18px;
   box-shadow: 0 18px 44px rgba(0,0,0,.65); animation: help-in .18s var(--ease);
 }
-.help-popover[hidden] { display: none; }
-.help-popover::before { content: ""; position: absolute; left: calc(var(--arrow-x) - 7px); width: 14px; height: 14px; background: #171a3a; border: 1px solid var(--pop-line); transform: rotate(45deg); }
-.help-popover[data-placement="below"]::before { top: -8px; border-right: 0; border-bottom: 0; }
-.help-popover[data-placement="above"]::before { bottom: -8px; border-left: 0; border-top: 0; }
+.help-popover::before { left: calc(var(--arrow-x) - 7px); background: #171a3a; border: 1px solid var(--pop-line); }
+.help-popover[data-placement="below"]::before { top: -8px; }
+.help-popover[data-placement="above"]::before { bottom: -8px; }
 .help-title { margin: 0; font-family: var(--display); font-size: 20px; font-weight: 800; line-height: 1; letter-spacing: -.03em; color: var(--ink); }
 .help-text { margin: 0 0 8px; font-size: 13px; line-height: 1.45; color: #c6cbe8; }
 .help-text b { color: var(--ink); font-weight: 700; }
@@ -424,12 +404,12 @@ button { font: inherit; color: inherit; }
 .help-popover .cap { --u: 1.4px; height: 24px; min-width: 24px; padding: 0 6px; font-size: 11px; }
 .help-popover .cap-wide { min-width: 56px; }
 .help-note { margin: 10px 0 0; font-size: 12px; line-height: 1.4; color: var(--ink-2); }
-.help-close { position: absolute; top: 5px; right: 5px; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; color: var(--ink); background: transparent; border: 0; border-radius: 50%; opacity: .6; cursor: pointer; touch-action: manipulation; }
+.help-close { position: absolute; top: 5px; right: 5px; width: 32px; height: 32px; color: var(--ink); border-radius: 50%; opacity: .6; touch-action: manipulation; }
 .help-close svg { width: 12px; height: 12px; }
 .help-close:hover { opacity: 1; background: var(--veil); }
 .help-close:focus-visible { opacity: 1; outline: 2px solid var(--focus); outline-offset: -2px; }
 @keyframes help-in { from { opacity: 0; transform: scale(.95); } to { opacity: 1; transform: none; } }
-.noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
+.noscript { position: absolute; }
 /* Ajuda: cabeçalho fixo (título + fechar) e corpo rolável com barra fina e indicador de "tem mais" */
 .help-head { flex: none; padding: 15px 44px 8px 18px; }
 .help-body {
@@ -457,7 +437,6 @@ button { font: inherit; color: inherit; }
 .tip[data-place="bottom"] { --tip-shift: -3px; }
 .tip[data-place="bottom"]::after { top: -4px; }
 
-@media (max-width: 640px) { .topbar { height: 52px; } }
 /* Celular: o título quebra em duas linhas centralizadas (cada palavra inteira); a marca encolhe (≤400px) e só some abaixo de 360px — o Catálogo continua inteiro */
 @media (max-width: 560px) {
   .game-text strong { display: flex; flex-direction: column; align-items: center; font-size: 14px; line-height: 1.08; white-space: normal; }

@@ -1,47 +1,29 @@
 /* arcade/pac_man/pac_man.css - --u = largura do palco / 288 (atualizado pelo JS) */
 :root {
   --menu-accent: #ffd21f; --pac: #ffd21f; --pac-dark: #b38f00; --navy: #03051a; --deep: #060a2e; --wall: #2f56ff; --ice: #bcd0ff; --ghost: #ff3b30;
-  --u: 1.5px; --tip-delay: 0.3s; /* atraso do tooltip ao passar o mouse (valor único) */
-  --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633;
-  --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
+  --u: 1.5px;
 }
-* { box-sizing: border-box; }
 html, body {
-  margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none;
-  background: var(--shell-bg); touch-action: none;
-  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
-  -webkit-user-select: none; user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
 }
 body {
-  display: flex; flex-direction: column; height: 100vh; height: 100dvh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-family: "Arial Black", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif; font-weight: 900; color: var(--ice);
 }
 
 /* Cabeçalho (padrão da Arcádia) */
 .topbar {
-  flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; height: 56px;
-  padding: 0 clamp(10px, 3vw, 24px);
+  gap: 14px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 600;
-  color: var(--shell-text); background: linear-gradient(180deg, #0d0f16, var(--shell-bg));
-  border-bottom: 1px solid var(--shell-line);
+  color: var(--shell-text);
 }
 .back {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 10px;
-  font-size: 14px; color: var(--shell-text); text-decoration: none; background: var(--shell-surface);
-  border: 1px solid var(--shell-line); border-radius: 999px; touch-action: manipulation;
-  transition: border-color .2s, background .2s, transform .1s;
+  touch-action: manipulation;
 }
-.back svg { transition: transform .25s cubic-bezier(.2,.8,.2,1), color .2s; }
-.back:hover { background: #141722; border-color: rgba(255,200,87,.6); }
-.back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
-.back:active { transform: scale(.97); }
-.back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
-.game-id { grid-column: 2; justify-self: center; display: flex; align-items: center; gap: 10px; min-width: 0; } /* título no centro exato da barra */
+.game-id { grid-column: 2; justify-self: center; min-width: 0; } /* título no centro exato da barra */
 .back { grid-column: 1; justify-self: start; white-space: nowrap; } /* botão sempre completo (ícone + "Catálogo"), inclusive no celular */
-.game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(255,210,31,.25); }
-.game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
-.game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.game-mark { border-radius: 9px; box-shadow: 0 0 18px rgba(255,210,31,.25); }
+.game-text strong { white-space: nowrap; }
 .game-text span { font-size: 12px; font-weight: 500; color: var(--shell-muted); }
 
 /* Arena e palco (proporção 288 × 512, igual aos demais jogos) */
@@ -182,7 +164,7 @@ body {
 .cap-wide { min-width: calc(var(--cap) * 2.7); }
 .cap-icon { display: block; width: calc(var(--cap) * .58); height: calc(var(--cap) * .58); }
 .sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
-.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.sr-only { margin: -1px; padding: 0; border: 0; }
 
 /* Como jogar: botão só com ícone, ao lado do palco (fora do jogo). Sem espaço lateral (celular em pé) o JS usa .how-bottom:
    o botão vai para uma faixa sob o palco e a altura do palco já descontou essa faixa. */
@@ -233,11 +215,11 @@ body {
 .screen-hint { margin: 0; font-size: max(10px, calc(var(--u) * 8.5)); line-height: 1.4; letter-spacing: .06em; text-transform: uppercase; color: #7f95e6; font-weight: 700; }
 .record { margin: 0; padding: calc(var(--u) * 3) calc(var(--u) * 9); font-size: max(11px, calc(var(--u) * 10)); text-transform: uppercase; color: var(--navy); background: var(--pac); border-radius: 999px; }
 .record[hidden] { display: none; }
-.noscript { position: absolute; inset: auto 0 40% 0; margin: 0; text-align: center; }
+.noscript { position: absolute; }
 
 /* Tooltips: [data-tip]. Aparecem após --tip-delay no hover; somem na hora ao sair/clicar; com teclado (:focus-visible) aparecem na hora. */
 [data-tip] { --tip-gap: 9px; }
-[data-tip]::before, [data-tip]::after { position: absolute; z-index: 60; opacity: 0; visibility: hidden; pointer-events: none; transition: none; }
+[data-tip]::before, [data-tip]::after { z-index: 60; }
 [data-tip]::after {
   content: attr(data-tip); top: calc(100% + var(--tip-gap)); right: 0; padding: 6px 9px 5px; white-space: nowrap;
   font: 900 10.5px/1.1 "Arial Black", "Trebuchet MS", Arial, sans-serif; letter-spacing: .06em; text-transform: uppercase; text-align: left;
@@ -277,7 +259,6 @@ body {
 [data-tip][data-tip-off]:not(:focus-visible)::after, [data-tip][data-tip-off]:not(:focus-visible)::before { opacity: 0; visibility: hidden; transition: none; }
 .how-btn[aria-expanded="true"]::after, .how-btn[aria-expanded="true"]::before { display: none; }
 
-@media (max-width: 640px) { .topbar { height: 52px; } }
 @media (max-height: 520px) { .stage { --btn: max(36px, calc(var(--u) * 20)); gap: calc(var(--u) * 6); } .stat { min-height: calc(var(--u) * 30); } .btn { min-height: 40px; } }
 @media (max-height: 640px) { .menu-note { display: none; } .start-info { gap: calc(var(--u) * 4); } } /* telas pequenas: o recorde já aparece no placar, o painel inicial fica mais baixo */
 @media (max-height: 420px) { .topbar { height: 46px; } .game-text span { display: none; } }

@@ -1,39 +1,29 @@
 :root {
   --bg0: #04111f; --bg1: #071c31; --panel: rgba(12, 46, 74, .55); --line: rgba(82, 214, 232, .2);
-  --text: #e8f4fb; --muted: #8fb0c6; --foam: #bfeaf5; --cyan: #52d6e8; --brass: #ffc857; --alert: #ff5a4d; --ok: #4fe0a6; --ink: #04111f; --tip-delay: 0.3s;
-  --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633; --shell-text: #eceef5; --shell-muted: #8d93a8; --shell-accent: #ffc857;
+  --text: #e8f4fb; --muted: #8fb0c6; --foam: #bfeaf5; --cyan: #52d6e8; --brass: #ffc857; --alert: #ff5a4d; --ok: #4fe0a6; --ink: #04111f;
 }
-* { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body {
-  margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--shell-bg);
-  -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation;
+  -webkit-touch-callout: none; touch-action: manipulation;
 }
 body {
-  display: flex; flex-direction: column; height: 100vh; height: 100dvh;
-  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-weight: 600; color: var(--text);
 }
 button { font: inherit; }
 
 /* Cabeçalho (padrão da Arcádia) */
 .topbar {
-  flex: none; display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 clamp(10px, 3vw, 24px); font-weight: 600;
-  color: var(--shell-text); background: linear-gradient(180deg, #0d0f16, var(--shell-bg)); border-bottom: 1px solid var(--shell-line);
+  display: flex; gap: 14px; font-weight: 600;
+  color: var(--shell-text);
 }
+/* O cabeçalho deste jogo nunca encolheu em telas estreitas; a base reduz para 52px em <=640px, então mantém 56px aqui. */
+@media (max-width: 640px) { .topbar { height: 56px; } }
 .back {
-  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 10px; font-size: 14px; color: var(--shell-text); text-decoration: none;
-  background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 999px; touch-action: manipulation; transition: border-color .2s, background .2s, transform .1s;
+  touch-action: manipulation;
 }
-.back svg { transition: transform .25s cubic-bezier(.2, .8, .2, 1), color .2s; }
-.back:hover { background: #141722; border-color: rgba(255, 200, 87, .6); }
-.back:hover svg { transform: translateX(-3px); color: var(--shell-accent); }
-.back:active { transform: scale(.97); }
-.back:focus-visible { outline: 2px solid var(--shell-accent); outline-offset: 3px; }
-.game-id { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(82, 214, 232, .25); }
-.game-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
-.game-text strong { font-size: 15px; font-weight: 700; white-space: nowrap; }
+.game-id { min-width: 0; }
+.game-mark { border-radius: 9px; box-shadow: 0 0 18px rgba(82, 214, 232, .25); }
+.game-text strong { white-space: nowrap; }
 
 /* Arena: o container se ajusta ao conteúdo (largura por --c0, sem altura fixa) e fica centralizado */
 .arena {
@@ -49,7 +39,6 @@ button { font: inherit; }
   background: var(--stage-bg); border: 1px solid var(--line); box-shadow: 0 20px 50px rgba(0, 0, 0, .5);
 }
 .stage-body { display: flex; flex-direction: column; gap: 10px; padding: 14px; }
-.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* Ajuda (conteúdo no painel de pausa) */
 .help-title { margin: 0 0 6px; font-size: 14px; text-transform: uppercase; color: var(--brass); }

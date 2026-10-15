@@ -2,30 +2,25 @@
    Estrutura: .game-panel (container único) > .game-body (HUD, cartas, controles) + .screen (camadas 100% do painel) */
 :root {
   --menu-accent: #ffcf5c;
-  --shell-bg: #07080c; --shell-surface: #0e1017; --shell-line: #222633; --shell-text: #eceef5; --shell-muted: #8d93a8;
   --indigo: #2b2d5b; --indigo-dark: #1b1c3d; --cream: #fff4dc; --coral: #ff7a59; --gold: #ffcf5c; --teal: #3fd0c9; --ink: #1b1c3d;
   --panel-bg: radial-gradient(120% 80% at 50% 0%, rgba(63,208,201,.07), transparent 60%), linear-gradient(165deg, #1a1c3f, #101129 70%);
-  --tip-delay: 0.3s;
   --cw: 70px; --cols: 4; --gap: 10px; --pad: 18px; --inner-gap: 12px;
 }
-* { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; background: var(--shell-bg); touch-action: manipulation; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
-body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); font-family: "Avenir Next", "Nunito", "Segoe UI", system-ui, sans-serif; color: var(--shell-text); }
+html, body { touch-action: manipulation; }
+body { font-family: "Avenir Next", "Nunito", "Segoe UI", system-ui, sans-serif; color: var(--shell-text); }
 button { font: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
 .topbar {
-  flex: none; display: grid; grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); align-items: center; column-gap: 12px; height: 56px; padding: 0 clamp(8px, 3vw, 24px);   /* [marca + título] no centro exato; as laterais nunca ficam menores que o botão */
-  font-weight: 600; background: linear-gradient(180deg, #0d0f16, var(--shell-bg)); border-bottom: 1px solid var(--shell-line);
+  grid-template-columns: minmax(max-content, 1fr) auto minmax(max-content, 1fr); column-gap: 12px; padding: 0 clamp(8px, 3vw, 24px);   /* [marca + título] no centro exato; as laterais nunca ficam menores que o botão */
+  font-weight: 600;
 }
-.back { grid-column: 1; justify-self: start; flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px 0 10px; font-size: 14px; white-space: nowrap; color: var(--shell-text); text-decoration: none; background: var(--shell-surface); border: 1px solid var(--shell-line); border-radius: 999px; touch-action: manipulation; transition: border-color .2s, background .2s, transform .1s; }
-.back svg { transition: transform .25s cubic-bezier(.2,.8,.2,1), color .2s; }
-.back:hover { background: #141722; border-color: rgba(255,207,92,.6); }
-.back:hover svg { transform: translateX(-3px); color: var(--gold); }
-.back:active { transform: scale(.97); }
+.back { grid-column: 1; justify-self: start; flex: none; white-space: nowrap; color: var(--shell-text); touch-action: manipulation; }
+.back:hover { border-color: rgba(255,207,92,.6); }
+.back:hover svg { color: var(--gold); }
 :is(.back, .tool, .card, .btn, .cta, .link, .help-close, .back-chip, .mode-card, .lv, .size-card):focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
-.game-id { grid-column: 2; justify-self: center; display: flex; align-items: center; gap: 10px; min-width: 0; }
-.game-mark { flex: none; border-radius: 9px; box-shadow: 0 0 18px rgba(255,122,89,.25); }
+.game-id { grid-column: 2; justify-self: center; min-width: 0; }
+.game-mark { border-radius: 9px; box-shadow: 0 0 18px rgba(255,122,89,.25); }
 .game-title { flex: none; display: block; width: 150px; height: 22px; color: var(--shell-text); overflow: visible; }
 
 .arena { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; align-items: center; padding: 8px; background: radial-gradient(rgba(255,255,255,.045) 1px, transparent 1px) 0 0 / 22px 22px, var(--shell-bg); }
@@ -154,7 +149,7 @@ button { font: inherit; color: inherit; }
 .ctl-keys { flex: none; display: inline-flex; align-items: center; gap: 4px; width: 72px; }
 .ctl-label { font-size: 14px; font-weight: 600; line-height: 1.2; }
 .help-note { margin: 4px 0 0; font-size: 12px; line-height: 1.4; color: var(--shell-muted); }
-.help-close { position: absolute; top: 8px; right: 8px; z-index: 1; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; color: var(--shell-text); background: transparent; border: 0; border-radius: 12px; opacity: .7; cursor: pointer; }
+.help-close { position: absolute; top: 8px; right: 8px; z-index: 1; width: 44px; height: 44px; color: var(--shell-text); border-radius: 12px; opacity: .7; }
 .help-close svg { width: 14px; height: 14px; }
 .help-close:hover { opacity: 1; background: rgba(255,255,255,.08); }
 .cap { display: inline-grid; place-items: center; height: 26px; min-width: 26px; padding: 0 7px; font-family: inherit; font-size: 11px; font-weight: 800; line-height: 1; letter-spacing: .02em; text-transform: uppercase; color: var(--ink); background: var(--cream); border: 1.5px solid #e8d6ae; border-radius: 7px; box-shadow: 0 3px 0 #b8933f; }
@@ -197,7 +192,7 @@ button { font: inherit; color: inherit; }
 .toast { position: absolute; top: 2%; left: 50%; margin: 0; padding: 6px 14px; font-size: 14px; font-weight: 800; color: var(--ink); background: var(--gold); border-radius: 999px; opacity: 0; transform: translate(-50%, -10px); pointer-events: none; white-space: nowrap; }
 .toast.show { animation: toast 1.6s ease both; }
 @keyframes toast { 12%, 75% { opacity: 1; transform: translate(-50%, 0); } }
-.noscript { position: fixed; inset: auto 0 40% 0; margin: 0; text-align: center; }
+.noscript { position: fixed; }
 
 /* ===== TOOLTIP dos controles: um único elemento #tip (role=tooltip), posicionado pelo JS dentro da tela.
    Atraso do mouse = --tip-delay; teclado (focus-visible) e long-press no toque mostram na hora. ===== */
@@ -213,7 +208,6 @@ button { font: inherit; color: inherit; }
 /* ===== RESPONSIVIDADE ===== */
 @media (max-width: 640px) {
   :root { --pad: 12px; --inner-gap: 10px; }
-  .topbar { height: 52px; }
   .game-panel { border-radius: 22px; }
   .stat-score { padding: 7px 12px; } .stat-score .value { font-size: 28px; }
   .stat-best { min-width: 86px; padding: 7px 8px 7px 28px; } .stat-best svg { left: 8px; top: 8px; }
